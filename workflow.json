@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10T16:44:01.842Z",
+  "updatedAt": "2026-07-10T17:05:58.689Z",
   "createdAt": "2026-07-10T13:05:34.937Z",
   "id": "MbJkVXLDCOZ5umpp",
   "name": "WhatsApp AI Bildirim - 3dk Batch",
@@ -50,9 +50,9 @@
           },
           "conditions": [
             {
-              "id": "cond-fromMe",
-              "leftValue": "={{ $json.body.data.key.fromMe }}",
-              "rightValue": false,
+              "id": "cond-allow",
+              "leftValue": "={{ !$json.body.data.key.fromMe || ['++', '--'].includes($json.body.data.message?.conversation || $json.body.data.message?.extendedTextMessage?.text) }}",
+              "rightValue": true,
               "operator": {
                 "type": "boolean",
                 "operation": "equals"
@@ -74,7 +74,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst messageText = input.body.data.message?.conversation\n  || input.body.data.message?.extendedTextMessage?.text\n  || '[Medya Mesajı]';\n\nconst now = Date.now();\nconst windowMs = 3 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\n\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    messages: [],\n    startTime: now,\n    senderName: senderName\n  };\n}\n\nstaticData._batches[senderNumber].messages.push({\n  text: messageText,\n  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })\n});\n\nstaticData._batches[senderNumber].senderName = senderName;\n\nconst batch = staticData._batches[senderNumber];\nconst elapsed = now - batch.startTime;\nconst batchReady = elapsed >= windowMs;\n\nconst allMessagesText = batch.messages\n  .map((m, i) => `${i + 1}. [${m.time}] ${m.text}`)\n  .join('\\n');\n\nreturn [{\n  json: {\n    senderNumber,\n    senderName: batch.senderName,\n    messages: batch.messages,\n    messageCount: batch.messages.length,\n    batchReady,\n    allMessagesText\n  }\n}];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst messageText = (input.body.data.message?.conversation\n  || input.body.data.message?.extendedTextMessage?.text\n  || '[Medya Mesajı]').trim();\n\nconst fromMe = input.body.data.key.fromMe === true;\nconst now = Date.now();\nconst windowMs = 3 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\n// Handle commands from the owner (fromMe is true)\nif (fromMe) {\n  if (messageText === '++') {\n    staticData._manualModes[senderNumber] = true;\n    delete staticData._batches[senderNumber]; // Clear pending batch\n    return [{\n      json: {\n        _skip: true,\n        senderNumber,\n        command: 'paused',\n        bildirim: `Otomatik asistan ${senderName} (${senderNumber}) için DURDURULDU.`\n      }\n    }];\n  } else if (messageText === '--') {\n    staticData._manualModes[senderNumber] = false;\n    return [{\n      json: {\n        _skip: true,\n        senderNumber,\n        command: 'resumed',\n        bildirim: `Otomatik asistan ${senderName} (${senderNumber}) için tekrar AKTİF edildi.`\n      }\n    }];\n  }\n}\n\n// If this customer is in manual mode, skip auto-reply\nif (staticData._manualModes[senderNumber] === true) {\n  return [{\n    json: {\n      _skip: true,\n      senderNumber\n    }\n  }];\n}\n\n// Normal batch collection for customer messages\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    messages: [],\n    startTime: now,\n    senderName: senderName\n  };\n}\n\nstaticData._batches[senderNumber].messages.push({\n  text: messageText,\n  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })\n});\n\nstaticData._batches[senderNumber].senderName = senderName;\n\nconst batch = staticData._batches[senderNumber];\nconst elapsed = now - batch.startTime;\nconst batchReady = elapsed >= windowMs;\n\nconst allMessagesText = batch.messages\n  .map((m, i) => `${i + 1}. [${m.time}] ${m.text}`)\n  .join('\\n');\n\nreturn [{\n  json: {\n    _skip: false,\n    senderNumber,\n    senderName: batch.senderName,\n    messages: batch.messages,\n    messageCount: batch.messages.length,\n    batchReady,\n    allMessagesText\n  }\n}];"
       },
       "id": "cf3dc39b-5fa7-5389-ac72-94e2862a9cc2",
       "name": "Batch Collector",
@@ -281,7 +281,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst windowMs = 3 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\n\nconst results = [];\n\nfor (const [number, batch] of Object.entries(staticData._batches)) {\n  const elapsed = now - batch.startTime;\n  if (elapsed >= windowMs && batch.messages.length > 0) {\n    results.push({\n      json: {\n        senderNumber: number,\n        senderName: batch.senderName,\n        messages: batch.messages,\n        messageCount: batch.messages.length,\n        allMessagesText: batch.messages\n          .map((m, i) => `${i + 1}. [${m.time}] ${m.text}`)\n          .join('\\n')\n      }\n    });\n  }\n}\n\nif (results.length === 0) {\n  return [{ json: { senderNumber: '', senderName: '', messageCount: 0, allMessagesText: '', messages: [] } }];\n}\n\nreturn results;"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst windowMs = 3 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst results = [];\n\nfor (const [number, batch] of Object.entries(staticData._batches)) {\n  // If customer is in manual mode, discard batch and skip\n  if (staticData._manualModes[number] === true) {\n    delete staticData._batches[number];\n    continue;\n  }\n  \n  const elapsed = now - batch.startTime;\n  if (elapsed >= windowMs && batch.messages.length > 0) {\n    results.push({\n      json: {\n        senderNumber: number,\n        senderName: batch.senderName,\n        messages: batch.messages,\n        messageCount: batch.messages.length,\n        allMessagesText: batch.messages\n          .map((m, i) => `${i + 1}. [${m.time}] ${m.text}`)\n          .join('\\n')\n      }\n    });\n  }\n}\n\nif (results.length === 0) {\n  return [{ json: { senderNumber: '', senderName: '', messageCount: 0, allMessagesText: '', messages: [] } }];\n}\n\nreturn results;"
       },
       "id": "7fa1b04c-9639-5b87-99e7-e21c1d1bfc3b",
       "name": "Stale Batch Check",
@@ -381,6 +381,38 @@
       ],
       "id": "8627d7e8-8bc2-4449-b79b-dd1a4c04c32d",
       "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-cmd",
+              "leftValue": "={{ $json.command }}",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cc-001-cmd-check",
+      "name": "Command Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        860
+      ]
     }
   ],
   "connections": {
@@ -432,7 +464,13 @@
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Command Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Store Context": {
@@ -544,6 +582,18 @@
           }
         ]
       ]
+    },
+    "Command Check": {
+      "main": [
+        [
+          {
+            "node": "Phone A Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
     }
   },
   "settings": {
@@ -568,9 +618,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "cfe70f2e-3e06-4e7d-861e-38d6843a440d",
+  "versionId": "1cf38e99-c978-4ff3-9bd9-fcdfa13414cc",
   "activeVersionId": null,
-  "versionCounter": 89,
+  "versionCounter": 95,
   "triggerCount": 2,
   "shared": [
     {
