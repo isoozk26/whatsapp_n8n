@@ -1,0 +1,13 @@
+# Ignore all temporary scripts
+*.py
+*.txt
+*.json
+
+# Unignore the production files
+!workflow.json
+!build_workflow.py
+!implementation_plan.md
+
+# Ignore n8n backup files and system generated files
+.agents/
+.gemini/
