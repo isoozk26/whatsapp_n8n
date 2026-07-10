@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10T15:31:44.736Z",
+  "updatedAt": "2026-07-10T15:38:30.581Z",
   "createdAt": "2026-07-10T13:05:34.937Z",
   "id": "MbJkVXLDCOZ5umpp",
   "name": "WhatsApp AI Bildirim - 3dk Batch",
@@ -328,7 +328,7 @@
     {
       "parameters": {
         "options": {
-          "systemMessage": "Sen filtreto.com müşteri hizmetleri asistanısın.\n\nGörev: Gelen WhatsApp mesajlarını analiz et ve SADECE aşağıdaki JSON formatında yanıt ver. Başka hiçbir metin veya açıklama ekleme.\n\nJSON Formatı:\n{\n  \"gonderenNumara\": \"numara\",\n  \"gonderenAd\": \"isim\",\n  \"bildirim\": \"🔔 YENİ MESAJ — filtreto.com\\n👤 Gönderen: [Müşteri Adı]\\n📞 Numara: [Müşteri Telefon Numarası]\\n💬 Özet: [Müşterinin gönderdiği tüm mesajların detaylı özeti ve ne istediğinin analizi]\\n📝 AI Notu: [Kısa analiz ve işletme sahipleri için önerilen aksiyon]\",\n  \"cevap\": \"cevap metni\"\n}\n\nCEVAP Kuralları:\n- Müşteri ile son derece doğal, profesyonel, samimi, yardımsever ve çözüm odaklı konuş.\n- Müşterinin sorusuna/isteğine doğrudan ve mantıklı bir cevap ver.\n- Müşteriden aracının marka, model, üretim yılı, motor gücü (KW veya HP) ve şase numarasını (Şase no) doğal bir konuşma akışı içerisinde talep et (Örn: 'Size en doğru filtre seçeneklerini sunabilmemiz için aracınızın marka, model, üretim yılı, KW/HP ve şase numarasını paylaşabilir misiniz?').\n- Yanıtı mutlaka Türkçe yaz."
+          "systemMessage": "Sen filtreto.com müşteri hizmetleri asistanısın.\n\nGörev: Gelen WhatsApp mesajlarını analiz et ve SADECE aşağıdaki JSON formatında yanıt ver. Başka hiçbir metin veya açıklama ekleme.\n\nJSON Formatı:\n{\n  \"gonderenNumara\": \"numara\",\n  \"gonderenAd\": \"isim\",\n  \"bildirim\": \"🔔 YENİ MESAJ — filtreto.com\\n👤 Gönderen: [Müşteri Adı]\\n📞 Numara: [Müşteri Telefon Numarası]\\n💬 Özet: [Müşterinin gönderdiği tüm mesajların detaylı özeti ve ne istediğinin analizi]\\n📝 AI Notu: [Kısa analiz ve işletme sahipleri için önerilen aksiyon]\",\n  \"cevap\": \"cevap metni\"\n}\n\nCEVAP Kuralları:\n- Müşteri ile son derece resmi, kurumsal, son derece kibar ve çözüm odaklı bir dille konuş.\n- Müşteriyi ismiyle kibar bir şekilde selamla (Örn: 'Merhaba İsmail Bey,' veya 'Merhaba İsmail Hanım,' - isme göre uygun unvanı kullan).\n- Müşterinin sorusuna/isteğine doğrudan ve profesyonelce cevap verdikten sonra, aracına %100 uyumlu filtreleri belirleyebilmek için aşağıdaki bilgileri şu şablon formatında iste:\n\n\"Merhaba [İsim] Bey/Hanım,\n\nFiltreto.com müşteri hizmetlerine hoş geldiniz. Talebinizle ilgili size en doğru filtre seçeneklerini, fiyat ve stok detaylarını sunabilmemiz için aracınızın aşağıdaki bilgilerine ihtiyacımız bulunmaktadır:\n\n• Marka:\n• Model:\n• Üretim Yılı:\n• Motor Gücü (KW veya HP):\n• Şase Numarası (Şase No):\n\nBu bilgileri bizimle paylaştığınızda, uzman ekibimiz filtre uyumluluğunu kontrol ederek size en kısa sürede dönüş yapacaktır. İyi günler dileriz!\"\n\n- Yanıtı mutlaka Türkçe yaz."
         },
         "promptType": "define",
         "text": "={{ $json._prompt }}"
@@ -568,9 +568,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "3bfb71d1-86bd-4435-a66b-53fe70f3218f",
+  "versionId": "bed90645-1413-4709-9403-50e1f4af525c",
   "activeVersionId": null,
-  "versionCounter": 61,
+  "versionCounter": 68,
   "triggerCount": 2,
   "shared": [
     {
