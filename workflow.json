@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10T17:15:48.090Z",
+  "updatedAt": "2026-07-10T17:37:02.053Z",
   "createdAt": "2026-07-10T13:05:34.937Z",
   "id": "MbJkVXLDCOZ5umpp",
   "name": "WhatsApp AI Bildirim - 3dk Batch",
@@ -74,7 +74,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst messageText = (input.body.data.message?.conversation\n  || input.body.data.message?.extendedTextMessage?.text\n  || '[Medya Mesajı]').trim();\n\nconst fromMe = input.body.data.key.fromMe === true;\nconst now = Date.now();\nconst windowMs = 3 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\n// Handle commands from the owner (fromMe is true)\nif (fromMe) {\n  if (messageText === '++') {\n    staticData._manualModes[senderNumber] = true;\n    delete staticData._batches[senderNumber]; // Clear pending batch\n    return [{\n      json: {\n        _skip: true,\n        senderNumber,\n        command: 'paused',\n        bildirim: `Otomatik asistan ${senderName} (${senderNumber}) için DURDURULDU.`\n      }\n    }];\n  } else if (messageText === '--') {\n    staticData._manualModes[senderNumber] = false;\n    return [{\n      json: {\n        _skip: true,\n        senderNumber,\n        command: 'resumed',\n        bildirim: `Otomatik asistan ${senderName} (${senderNumber}) için tekrar AKTİF edildi.`\n      }\n    }];\n  }\n}\n\n// If this customer is in manual mode, skip auto-reply\nif (staticData._manualModes[senderNumber] === true) {\n  return [{\n    json: {\n      _skip: true,\n      senderNumber\n    }\n  }];\n}\n\n// Normal batch collection for customer messages\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    messages: [],\n    startTime: now,\n    senderName: senderName\n  };\n}\n\nstaticData._batches[senderNumber].messages.push({\n  text: messageText,\n  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })\n});\n\nstaticData._batches[senderNumber].senderName = senderName;\n\nconst batch = staticData._batches[senderNumber];\nconst elapsed = now - batch.startTime;\nconst batchReady = elapsed >= windowMs;\n\nconst allMessagesText = batch.messages\n  .map((m, i) => `${i + 1}. [${m.time}] ${m.text}`)\n  .join('\\n');\n\nreturn [{\n  json: {\n    _skip: false,\n    senderNumber,\n    senderName: batch.senderName,\n    messages: batch.messages,\n    messageCount: batch.messages.length,\n    batchReady,\n    allMessagesText\n  }\n}];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst messageText = (input.body.data.message?.conversation\n  || input.body.data.message?.extendedTextMessage?.text\n  || '[Medya Mesajı]').trim();\n\nconst fromMe = input.body.data.key.fromMe === true;\nconst now = Date.now();\nconst windowMs = 3 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\n// Handle commands from the owner (fromMe is true)\nif (fromMe) {\n  if (messageText === '++') {\n    staticData._manualModes[senderNumber] = true;\n    delete staticData._batches[senderNumber]; // Clear pending batch\n    return [{\n      json: {\n        _skip: true,\n        senderNumber,\n        command: 'paused',\n        bildirim: `Sistem Manuel De - ${senderName} (${senderNumber})`\n      }\n    }];\n  } else if (messageText === '--') {\n    staticData._manualModes[senderNumber] = false;\n    return [{\n      json: {\n        _skip: true,\n        senderNumber,\n        command: 'resumed',\n        bildirim: `Sistem Otomatik - ${senderName} (${senderNumber})`\n      }\n    }];\n  }\n}\n\n// If this customer is in manual mode, skip auto-reply\nif (staticData._manualModes[senderNumber] === true) {\n  return [{\n    json: {\n      _skip: true,\n      senderNumber\n    }\n  }];\n}\n\n// Normal batch collection for customer messages\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    messages: [],\n    startTime: now,\n    senderName: senderName\n  };\n}\n\nstaticData._batches[senderNumber].messages.push({\n  text: messageText,\n  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })\n});\n\nstaticData._batches[senderNumber].senderName = senderName;\n\nconst batch = staticData._batches[senderNumber];\nconst elapsed = now - batch.startTime;\nconst batchReady = elapsed >= windowMs;\n\nconst allMessagesText = batch.messages\n  .map((m, i) => `${i + 1}. [${m.time}] ${m.text}`)\n  .join('\\n');\n\nreturn [{\n  json: {\n    _skip: false,\n    senderNumber,\n    senderName: batch.senderName,\n    messages: batch.messages,\n    messageCount: batch.messages.length,\n    batchReady,\n    allMessagesText\n  }\n}];"
       },
       "id": "cf3dc39b-5fa7-5389-ac72-94e2862a9cc2",
       "name": "Batch Collector",
@@ -154,7 +154,7 @@
       "typeVersion": 2,
       "position": [
         2032,
-        640
+        624
       ]
     },
     {
@@ -327,11 +327,11 @@
     },
     {
       "parameters": {
+        "promptType": "define",
+        "text": "={{ $json._prompt }}",
         "options": {
           "systemMessage": "Sen filtreto.com WhatsApp asistanısın. FiltreOto; Ankara merkezli, orijinal MANN-Filter, FILTRON, FILTORQ, UFI FILTRE, Bosch, Wunder ve Şampiyon gibi markaların yağ, hava, yakıt ve polen filtrelerinin/setlerinin satışını yapan kurumsal bir e-ticaret platformudur. Müşterilere orijinal ürün garantisi, hızlı kargo ve şase numarası ile uyumluluk kontrolü sunar. Kısa ve öz yazarsın.\n\nSADECE şu JSON'u döndür, başka bir şey yazma:\n{\"bildirim\":\"KISA bildirim\",\"cevap\":\"KISA cevap\"}\n\nbildirim formatı (MUTLAKA bu formatta, tek blok, emoji kullanma):\n[isim] [numara] - [mesajın özeti 5-10 kelime]\n\ncevap formatı:\n- Sadece 1-2 cümle, maksimum 30 kelime\n- Selam verme, direkt konuya gir\n- Türkçe\n\nÖrnekler:\n1. Müşteri araç bilgisi göndermediyse:\n{\"bildirim\":\"İsmail 905331112233 - Yağ filtresi siparişi istiyor, araç bilgisi soruldu\",\"cevap\":\"Merhaba, filtre uyumu için aracınızın marka/model/yıl/şase bilgisini paylaşır mısınız?\"}\n\n2. Müşteri araç bilgisi gönderdiyse:\n{\"bildirim\":\"İsmail 905331112233 - Yağ filtresi için araç bilgilerini gönderdi, ekibe iletildi\",\"cevap\":\"Bilgilerinizi aldık, uzman ekibimiz MANN, Filtron ve Filtorq gibi orijinal markalar arasından uyumluluğu kontrol edip en kısa sürede fiyat ve stok bilgisiyle dönecektir.\"}"
-        },
-        "promptType": "define",
-        "text": "={{ $json._prompt }}"
+        }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
@@ -410,8 +410,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1240,
-        860
+        1328,
+        1040
       ]
     }
   ],
@@ -590,6 +590,11 @@
             "node": "Phone A Send",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Phone B Send",
+            "type": "main",
+            "index": 0
           }
         ],
         []
@@ -611,16 +616,30 @@
       "recurrenceRules": []
     },
     "global": {
-      "_batches": {}
+      "_batches": {
+        "905052237182": {
+          "messages": [
+            {
+              "text": "++",
+              "time": "17:41"
+            }
+          ],
+          "startTime": 1783705269185,
+          "senderName": "İsmail Özkaracan"
+        }
+      },
+      "_manualModes": {
+        "905331112233": true
+      }
     }
   },
   "meta": {
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "d692baab-0112-451c-808f-c7c5c5747dc9",
+  "versionId": "a97a3c99-e0d5-41ad-9ac1-e47d9f49628b",
   "activeVersionId": null,
-  "versionCounter": 96,
+  "versionCounter": 105,
   "triggerCount": 2,
   "shared": [
     {

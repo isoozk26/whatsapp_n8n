@@ -173,7 +173,7 @@ for (const [number, batch] of Object.entries(staticData._batches)) {
     delete staticData._batches[number];
     continue;
   }
-
+  
   const elapsed = now - batch.startTime;
   if (elapsed >= windowMs && batch.messages.length > 0) {
     results.push({
@@ -221,8 +221,30 @@ if (staticData._batches && input.senderNumber) {
 
 return [{ json: input }];"""
 
-# ── AI Agent system message (concise, FiltreOto brands, no emojis) ──
-ai_agent_system_message = "Sen filtreto.com WhatsApp asistanisin. FiltreOto; Ankara merkezli, orijinal MANN-Filter, FILTRON, FILTORQ, UFI FILTRE, Bosch, Wunder ve Sampiyon gibi markalarin yag, hava, yakit ve polen filtrelerinin/setlerinin satisini yapan kurumsal bir e-ticaret platformudur. Musterilere orijinal urun garantisi, hizli kargo ve sase numarasi ile uyumluluk kontrolu sunar. Kisa ve oz yazarsin.\n\nSADECE su JSON'u dondur, baska bir sey yazma:\n{\"bildirim\":\"KISA bildirim\",\"cevap\":\"KISA cevap\"}\n\nbildirim formati (MUTLAKA bu formatta, tek blok, emoji kullanma):\n[isim] [numara] - [mesajin ozeti 5-10 kelime]\n\ncevap formati:\n- Sadece 1-2 cumle, maksimum 30 kelime\n- Selam verme, direkt konuya gir\n- Turkce\n\nOrnekler:\n1. Musteri arac bilgisi gondermediyse:\n{\"bildirim\":\"Ismail 905331112233 - Yag filtresi siparisi istiyor, arac bilgisi soruldu\",\"cevap\":\"Merhaba, filtre uyumu icin aracinizin marka/model/yil/sase bilgisini paylasir misiniz?\"}\n\n2. Musteri arac bilgisi gonderdiyse:\n{\"bildirim\":\"Ismail 905331112233 - Yag filtresi icin arac bilgilerini gonderdi, ekibe iletildi\",\"cevap\":\"Bilgilerinizi aldik, uzman ekibimiz MANN, Filtron ve Filtorq gibi orijinal markalar arasindan uyumlulugu kontrol edip en kisa surede fiyat ve stok bilgisiyle donecektir.\"}"
+# ── AI Agent system message (exact match with workflow.json) ──
+ai_agent_system_message = (
+    "Sen filtreto.com WhatsApp asistanısın. FiltreOto; Ankara merkezli, orijinal MANN-Filter, "
+    "FILTRON, FILTORQ, UFI FILTRE, Bosch, Wunder ve Şampiyon gibi markaların yağ, hava, yakıt "
+    "ve polen filtrelerinin/setlerinin satışını yapan kurumsal bir e-ticaret platformudur. "
+    "Müşterilere orijinal ürün garantisi, hızlı kargo ve şase numarası ile uyumluluk kontrolü sunar. "
+    "Kısa ve öz yazarsın.\n\n"
+    "SADECE şu JSON'u döndür, başka bir şey yazma:\n"
+    '{"bildirim":"KISA bildirim","cevap":"KISA cevap"}\n\n'
+    "bildirim formatı (MUTLAKA bu formatta, tek blok, emoji kullanma):\n"
+    "[isim] [numara] - [mesajın özeti 5-10 kelime]\n\n"
+    "cevap formatı:\n"
+    "- Sadece 1-2 cümle, maksimum 30 kelime\n"
+    "- Selam verme, direkt konuya gir\n"
+    "- Türkçe\n\n"
+    "Örnekler:\n"
+    "1. Müşteri araç bilgisi göndermediyse:\n"
+    '{"bildirim":"İsmail 905331112233 - Yağ filtresi siparişi istiyor, araç bilgisi soruldu",'
+    '"cevap":"Merhaba, filtre uyumu için aracınızın marka/model/yıl/şase bilgisini paylaşır mısınız?"}\n\n'
+    "2. Müşteri araç bilgisi gönderdiyse:\n"
+    '{"bildirim":"İsmail 905331112233 - Yağ filtresi için araç bilgilerini gönderdi, ekibe iletildi",'
+    '"cevap":"Bilgilerinizi aldık, uzman ekibimiz MANN, Filtron ve Filtorq gibi orijinal markalar '
+    "arasından uyumluluğu kontrol edip en kısa sürede fiyat ve stok bilgisiyle dönecektir.\"}"
+)
 
 # ── Node definitions ──
 nodes = [
@@ -660,7 +682,13 @@ connections = {
     },
     "Command Check": {
         "main": [
-            [{"node": "Phone A Send", "type": "main", "index": 0}],
+            [
+                {"node": "Phone A Send", "type": "main", "index": 0},
+                {"node": "Phone B Send", "type": "main", "index": 0},
+            ],
+            [],
+        ]
+    }],
             [],
         ]
     },
