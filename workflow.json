@@ -1,5 +1,5 @@
 {
-  "name": "WhatsApp AI - v5 Production",
+  "name": "WhatsApp AI - v7 Production",
   "nodes": [
     {
       "parameters": {
@@ -12,10 +12,7 @@
       "name": "Webhook1",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
-      "position": [
-        240,
-        640
-      ],
+      "position": [240, 640],
       "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
     },
     {
@@ -28,39 +25,15 @@
       "name": "Respond OK1",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [
-        240,
-        432
-      ]
+      "position": [240, 432]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 1},
           "conditions": [
-            {
-              "id": "cond-allow",
-              "leftValue": "={{ !$json.body.data.key.fromMe || ['++', '--'].includes($json.body.data.message?.conversation || $json.body.data.message?.extendedTextMessage?.text || '') }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            },
-            {
-              "id": "cond-no-group",
-              "leftValue": "={{ $json.body.data.key.remoteJid }}",
-              "rightValue": "@g.us",
-              "operator": {
-                "type": "string",
-                "operation": "notEndsWith"
-              }
-            }
+            {"id": "cond-allow", "leftValue": "={{ !$json.body.data.key.fromMe || ['++', '--'].includes($json.body.data.message?.conversation || $json.body.data.message?.extendedTextMessage?.text || '') }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}},
+            {"id": "cond-no-group", "leftValue": "={{ $json.body.data.key.remoteJid }}", "rightValue": "@g.us", "operator": {"type": "string", "operation": "notEndsWith"}}
           ],
           "combinator": "and"
         },
@@ -70,44 +43,58 @@
       "name": "fromMe Check",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [
-        528,
-        640
-      ]
+      "position": [528, 640]
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst messageText = (input.body.data.message?.conversation\n  || input.body.data.message?.extendedTextMessage?.text\n  || '').trim();\n\nconst fromMe = input.body.data.key.fromMe === true;\nconst now = Date.now();\nconst windowMs = 3 * 60 * 1000;\nconst maxMessages = 30;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\n// === ++/-- KOMUTLARI: HER ZAMAN KOMUT OLARAK ISLE ===\n// fromMe kontrolu yapilmaz, sadece mesaj icerigine bakilir\nif (messageText === '++') {\n  staticData._manualModes[senderNumber] = true;\n  delete staticData._batches[senderNumber];\n  return [{ json: {\n    _action: 'command',\n    senderNumber: senderNumber,\n    command: 'paused',\n    bildirim: 'Sistem Manuel De - ' + senderName + ' (' + senderNumber + ')'\n  }}];\n}\n\nif (messageText === '--') {\n  staticData._manualModes[senderNumber] = false;\n  return [{ json: {\n    _action: 'command',\n    senderNumber: senderNumber,\n    command: 'resumed',\n    bildirim: 'Sistem Otomatik - ' + senderName + ' (' + senderNumber + ')'\n  }}];\n}\n\n// fromMe ve diger komutlari yut\nif (fromMe) {\n  return [{ json: { _action: 'ignore' } }];\n}\n\n// === MUSTERI MANUEL MODDA MI? ===\nif (staticData._manualModes[senderNumber] === true) {\n  return [{ json: { _action: 'ignore' } }];\n}\n\n// === BATCH TOPLAMA ===\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    messages: [],\n    startTime: now,\n    lastMessageTime: now,\n    senderName: senderName,\n    processing: false\n  };\n}\n\nconst batch = staticData._batches[senderNumber];\n\nif (batch.processing) {\n  if (batch.messages.length < maxMessages) {\n    batch.messages.push({ text: messageText,      time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) });\n    batch.lastMessageTime = now;\n    batch.senderName = senderName;\n  }\n  return [{ json: { _action: 'queued_during_processing' } }];\n}\n\nif (batch.messages.length >= maxMessages) {\n  return [{ json: { _action: 'spam_limit' } }];\n}\n\nbatch.messages.push({ text: messageText,  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) });\nbatch.lastMessageTime = now;\nbatch.senderName = senderName;\n\nconst idleTime = now - batch.lastMessageTime;\nconst batchReady = idleTime >= windowMs;\n\nif (batchReady) {\n  batch.processing = true;\n}\n\nconst allMessagesText = batch.messages.map((m, i) => `${i + 1}. [${m.time}] ${m.text}`).join('\\n');\n\nreturn [{\n  json: {\n    _action: batchReady ? 'process' : 'wait',\n    senderNumber,\n    senderName: batch.senderName,\n    messageCount: batch.messages.length,\n    batchReady,\n    allMessagesText\n  }\n}];"
+        "jsCode": "const input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst fromMe = input.body.data.key.fromMe === true;\n\nconst messageText = (\n  input.body.data.message?.conversation ||\n  input.body.data.message?.extendedTextMessage?.text ||\n  input.body.data.message?.imageMessage?.caption ||\n  input.body.data.message?.videoMessage?.caption ||\n  input.body.data.message?.buttonsResponseMessage?.selectedButtonId ||\n  input.body.data.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||\n  ''\n).trim();\n\n// Komut tespiti: YALNIZCA fromMe=true olan ++/--\nconst normalized = messageText.toUpperCase().trim();\n\nif (fromMe && (normalized === '++' || normalized === '--')) {\n  return [{\n    json: {\n      _route: 'command',\n      _command: normalized === '++' ? 'pause' : 'resume',\n      senderNumber,\n      senderName,\n      messageText: normalized,\n      fromMe: true\n    }\n  }];\n}\n\n// fromMe=true ama komut degilse yut\nif (fromMe) {\n  return [{ json: { _route: 'ignore' } }];\n}\n\n// Normal musteri mesaji\nreturn [{\n  json: {\n    _route: 'batch',\n    senderNumber,\n    senderName,\n    messageText,\n    fromMe: false\n  }\n}];"
+      },
+      "id": "route-msg-001",
+      "name": "Route Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 640]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 1},
+          "conditions": [{"id": "cond-route", "leftValue": "={{ $json._route }}", "rightValue": "batch", "operator": {"type": "string", "operation": "equals"}}],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "route-split-001",
+      "name": "Route Split",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [920, 640]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst senderNumber = input.senderNumber;\nconst senderName = input.senderName;\nconst messageText = input.messageText;\n\nconst now = Date.now();\nconst windowMs = 20 * 1000; // 20 saniye\nconst maxMessages = 30;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\n// Manuel moddaysa yut\nif (staticData._manualModes[senderNumber] === true) {\n  return [{ json: { _action: 'ignore' } }];\n}\n\n// Batch olustur\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    messages: [],\n    startTime: now,\n    lastMessageTime: now,\n    senderName: senderName,\n    processing: false,\n    processingStartedAt: null\n  };\n}\n\nconst batch = staticData._batches[senderNumber];\n\n// Processing timeout kontrolu (2 dk)\nconst processingTimeoutMs = 2 * 60 * 1000;\nif (batch.processing && batch.processingStartedAt && (now - batch.processingStartedAt > processingTimeoutMs)) {\n  batch.processing = false;\n  batch.processingStartedAt = null;\n}\n\n// AI isliyorsa kuyruğa al\nif (batch.processing) {\n  if (batch.messages.length < maxMessages) {\n    batch.messages.push({\n      text: messageText,\n      time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })\n    });\n    batch.lastMessageTime = now;\n    batch.senderName = senderName;\n  }\n  return [{ json: { _action: 'queued' } }];\n}\n\nif (batch.messages.length >= maxMessages) {\n  return [{ json: { _action: 'spam_limit' } }];\n}\n\nbatch.messages.push({\n  text: messageText,\n  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })\n});\nbatch.lastMessageTime = now;\nbatch.senderName = senderName;\n\n// SLIDING WINDOW: son mesajdan itibaren 20 sn\nconst idleTime = now - batch.lastMessageTime;\nconst batchReady = idleTime >= windowMs;\n\nif (batchReady) {\n  batch.processing = true;\n  batch.processingStartedAt = now;\n}\n\nconst allMessagesText = batch.messages\n  .map((m, i) => `${i + 1}. [${m.time}] ${m.text}`)\n  .join('\\n');\n\nreturn [{\n  json: {\n    _action: batchReady ? 'process' : 'wait',\n    senderNumber,\n    senderName: batch.senderName,\n    messageCount: batch.messages.length,\n    batchReady,\n    allMessagesText\n  }\n}];"
       },
       "id": "cf3dc39b-5fa7-5389-ac72-94e2862a9cc2",
       "name": "Batch Collector",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        768,
-        640
-      ]
+      "position": [1160, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\n\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst num = input.senderNumber;\nconst name = input.senderName;\nconst cmd = input._command;\n\nif (cmd === 'pause') {\n  staticData._manualModes[num] = true;\n  if (staticData._batches) delete staticData._batches[num];\n  return [{\n    json: {\n      bildirim: 'MANUEL MOD AKTIF\\nMusteri: ' + name + ' (' + num + ')\\nSistem bu musteriye otomatik cevap vermeyecek.\\nManuel moddan cikmak icin -- yazin.',\n      _skipCustomer: true\n    }\n  }];\n} else {\n  staticData._manualModes[num] = false;\n  return [{\n    json: {\n      bildirim: 'OTOMATIK MOD AKTIF\\nMusteri: ' + name + ' (' + num + ')\\nSistem bu musteriye tekrar otomatik cevap verecek.',\n      _skipCustomer: true\n    }\n  }];\n}"
+      },
+      "id": "cmd-handler-001",
+      "name": "Command Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 960]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "cond-action",
-              "leftValue": "={{ $json._action }}",
-              "rightValue": "process",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 1},
+          "conditions": [{"id": "cond-action", "leftValue": "={{ $json._action }}", "rightValue": "process", "operator": {"type": "string", "operation": "equals"}}],
           "combinator": "and"
         },
         "options": {}
@@ -116,102 +103,44 @@
       "name": "Should Process?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [
-        1008,
-        640
-      ]
+      "position": [1400, 500]
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "cond-cmd",
-              "leftValue": "={{ $json._action }}",
-              "rightValue": "command",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "cc-001-cmd-check",
-      "name": "Is Command?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1008,
-        960
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    senderNumber: input.senderNumber,\n    senderName: input.senderName,\n    allMessagesText: input.allMessagesText,\n    messageCount: input.messageCount,\n    _prompt: `Gonderen: ${input.senderName} (${input.senderNumber})\\nMesaj sayisi: ${input.messageCount}\\n\\nMesajlar:\\n${input.allMessagesText}`\n  }\n}];"
+        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    senderNumber: input.senderNumber,\n    senderName: input.senderName,\n    allMessagesText: input.allMessagesText,\n    messageCount: input.messageCount,\n    _prompt: 'Gonderen: ' + input.senderName + ' (' + input.senderNumber + ')\\nMesaj sayisi: ' + input.messageCount + '\\n\\nMesajlar:\\n' + input.allMessagesText\n  }\n}];"
       },
       "id": "d7ae6ef8-a8e2-5779-a8fb-7a98a18f48c3",
       "name": "Store Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1248,
-        640
-      ]
+      "position": [1640, 500]
     },
     {
       "parameters": {
         "promptType": "define",
         "text": "={{ $json._prompt }}",
         "options": {
-          "systemMessage": "Sen filtreto.com WhatsApp asistanisin. FiltreOto; Ankara merkezli, orijinal MANN-Filter, FILTRON, FILTORQ, UFI FILTRE, Bosch, Wunder ve Sampiyon gibi markalarin yag, hava, yakit ve polen filtrelerinin/setlerinin satisini yapan kurumsal bir e-ticaret platformudur. Musterilere orijinal urun garantisi, hizli kargo ve sase numarasi ile uyumluluk kontrolu sunar. Kisa ve oz yazarsin.\n\nSADECE su JSON'u dondur, baska bir sey yazma:\n{\"bildirim\":\"KISA bildirim\",\"cevap\":\"KISA cevap\"}\n\nbildirim formati (MUTLAKA bu formatta, tek blok, emoji kullanma):\n[isim] [numara] - [mesajin ozeti 5-10 kelime]\n\ncevap formati:\n- Sadece 1-2 cumle, maksimum 30 kelime\n- Selam verme, direkt konuya gir\n- Turkce\n\nOrnekler:\n{\"bildirim\":\"Ismail 905331112233 - Yag filtresi siparisi istiyor\",\"cevap\":\"Filtre uyumu icin aracinizin marka/model/yil/sase bilgisini paylasir misiniz?\"}"
+          "systemMessage": "Sen filtreto.com WhatsApp satis ve musteri destek asistanisin.\n\nFiltreOto; MANN-FILTER, FILTRON, FILTORQ, UFI, Bosch, Wunder ve Sampiyon gibi markalarin yag, hava, yakit ve polen filtrelerini satan bir e-ticaret platformudur. Arac ve sase bilgisiyle uyumluluk kontrolu yapilabilir.\n\nAMAC\nMusterinin talebini anlayarak sureci ilerlet. Genel ve faydasiz cevaplar verme. Her mesajda yalnizca gerekli olan bir sonraki bilgiyi iste.\n\nTEMEL KURALLAR\n- Tek basina 'Hangi konuda yardimci olabilirim?' gibi genel cevap verme\n- Mesaj eksik veya anlamsizsa musteriyi seceneklerle yonlendir\n- Musteri parcakodu verdiyse ayni bilgiyi tekrar isteme\n- Musteri arac bilgisi verdiyse yalnizca eksik kritik bilgiyi sor\n- Fiyat veya stok bilgisi sistem tarafindan verilmiyorsa uydurma\n- Kesin veri olmadan urunun aracuga uygun oldugunu iddia etme\n- Siparis durumu icin siparis numarasi yoksa iste\n- Iade, sikayet, odeme sorunu varsa action='handoff' yap\n- Turkce, dogal ve profesyonel yaz\n- Musteri cevabi en fazla 45 kelime ve en fazla 3 kisa cumle olsun\n- Ayni soruyu gecmiste cevapladiysa tekrar sorma\n\nBELIRSIZ MESAJ KURALI\nMesaj yalnizca '+', '++', '?', noktalama isareti veya kisa bir ifade ise intent 'unclear' olsun.\nCevap: 'Filtre uyumlulugu, fiyat-stok veya siparis durumu icin yardimci olabilirim. Parca kodunu ya da arac marka-model-yil/sase bilgisini yazabilirsiniz.'\n\nINSANA AKTARMA KURALI\n- Musteri yetkili veya insan temsilci istiyorsa\n- Sikayet, iade, odeme veya hasarli urun konusu varsa\n- Toplu alim veya bayi talebi varsa\n- Talep iki denemeden sonra hala anlasilamiyorsa\n- confidence 0.55 altindaysa\n\nSADECE SU JSON'u dondur:\n{\"action\":\"reply|handoff|ignore\",\"intent\":\"product_compatibility|price_stock|order_status|shipping|return_complaint|wholesale|greeting|unclear|other\",\"summary\":\"kisa musteri talebi ozeti\",\"reply\":\"musteriye gondelecek cevap\",\"missingFields\":[]}\n\nJSON disinda aciklama veya markdown dondurme."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
-      "position": [
-        1472,
-        624
-      ],
+      "position": [1880, 500],
       "id": "9409b931-1973-4c94-9d6e-5c255f6ee037",
       "name": "AI Agent"
     },
     {
       "parameters": {
-        "model": {
-          "__rl": true,
-          "value": "gpt-4o-mini",
-          "mode": "list",
-          "cachedResultName": "gpt-4o-mini"
-        },
+        "model": {"__rl": true, "value": "gpt-4o-mini", "mode": "list", "cachedResultName": "gpt-4o-mini"},
         "builtInTools": {},
-        "options": {
-          "temperature": 0.2,
-          "maxTokens": 300
-        }
+        "options": {"temperature": 0.2, "maxTokens": 300}
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
-      "position": [
-        1392,
-        864
-      ],
+      "position": [1800, 720],
       "id": "1b7c08e5-1da2-4a07-b017-370d41c50e85",
       "name": "OpenAI Chat Model1",
-      "credentials": {
-        "openAiApi": {
-          "id": "3M52tD49lJ35vXdO",
-          "name": "OpenAi account"
-        }
-      }
+      "credentials": {"openAiApi": {"id": "3M52tD49lJ35vXdO", "name": "OpenAi account"}}
     },
     {
       "parameters": {
@@ -221,200 +150,110 @@
       },
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
-      "position": [
-        1552,
-        864
-      ],
+      "position": [1960, 720],
       "id": "8627d7e8-8bc2-4449-b79b-dd1a4c04c32d",
       "name": "Simple Memory"
     },
     {
       "parameters": {
-        "jsCode": "const aiOutput = $input.first().json?.output || '';\n\nlet senderNumber = '';\nlet senderName = '';\nlet allMessagesText = '';\ntry {\n  const sc = $('Store Context').item.json;\n  senderNumber = sc.senderNumber || '';\n  senderName = sc.senderName || '';\n  allMessagesText = sc.allMessagesText || '';\n} catch (e) {}\n\nlet bildirim = '';\nlet cevap = 'Talebinizi aldim, en kisa surede donecegiz.';\n\ntry {\n  const jsonMatch = aiOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    bildirim = parsed.bildirim || '';\n    cevap = parsed.cevap || cevap;\n  }\n} catch (e) {}\n\nif (!bildirim) {\n  bildirim = `${senderName} ${senderNumber} - ${allMessagesText.substring(0, 80)}`;\n}\n\nconst detayliBildirim = `YENI MESAJ - filtreto.com\\nGonderen: ${senderName}\\nNumara: ${senderNumber}\\nOzet: ${bildirim}\\n\\nMusteriye Gonderilen Yanit:\\n${cevap}`;\n\nreturn [{\n  json: {\n    bildirim: detayliBildirim,\n    cevap,\n    senderNumber,\n    senderName\n  }\n}];"
+        "jsCode": "const aiOutput = $input.first().json?.output || '';\n\nlet senderNumber = '';\nlet senderName = '';\nlet allMessagesText = '';\ntry {\n  const sc = $('Store Context').item.json;\n  senderNumber = sc.senderNumber || '';\n  senderName = sc.senderName || '';\n  allMessagesText = sc.allMessagesText || '';\n} catch (e) {}\n\nlet bildirim = '';\nlet cevap = 'Talebinizi aldik, en kisa surede donecegiz.';\n\ntry {\n  const jsonMatch = aiOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    bildirim = parsed.summary || parsed.bildirim || '';\n    cevap = parsed.reply || parsed.cevap || cevap;\n  }\n} catch (e) {}\n\nif (!bildirim) {\n  bildirim = senderName + ' ' + senderNumber + ' - ' + allMessagesText.substring(0, 80);\n}\n\nconst detayliBildirim = 'YENI MESAJ - filtreto.com\\n'\n  + 'Gonderen: ' + senderName + '\\n'\n  + 'Numara: ' + senderNumber + '\\n'\n  + 'Ozet: ' + bildirim + '\\n'\n  + '\\n'\n  + 'Musteriye Gonderilen Yanit:\\n'\n  + cevap;\n\nreturn [{\n  json: {\n    bildirim: detayliBildirim,\n    cevap,\n    senderNumber,\n    senderName\n  }\n}];"
       },
       "id": "64249ad4-6e81-5542-bfda-6929c6c28aa6",
       "name": "Parse AI Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1808,
-        624
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\n\nconst senderNumber = input.senderNumber;\nif (staticData._batches && senderNumber) {\n  delete staticData._batches[senderNumber];\n}\n\nreturn [{ json: input }];"
-      },
-      "id": "77f0e3d1-9d66-5d9b-a5b4-d30379bc9dd1",
-      "name": "Clear Batch",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2032,
-        624
-      ]
+      "position": [2120, 500]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://evo.filtreoto.online/message/sendText/filtr",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim }) }}",
-        "options": {
-          "timeout": 30000,
-          "batching": {
-            "batch": {
-              "batchSize": 1,
-              "batchInterval": 100
-            }
-          }
-        }
-      },
-      "id": "61d75176-a426-41d9-8a8e-6d4c626f8df5",
-      "name": "Phone A Send",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2288,
-        416
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://evo.filtreoto.online/message/sendText/filtr",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim }) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "e43d47e9-69fe-4bbd-9e59-59ccd0a31629",
-      "name": "Phone B Send",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2288,
-        640
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://evo.filtreoto.online/message/sendText/filtr",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
+        "headerParameters": {"parameters": [{"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"}, {"name": "Content-Type", "value": "application/json"}]},
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ number: $json.senderNumber, text: $json.cevap }) }}",
-        "options": {
-          "timeout": 30000
-        }
+        "options": {"timeout": 30000}
       },
       "id": "ad29ccfa-691f-584b-8212-198b25bbbc24",
       "name": "Reply to Customer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        2288,
-        864
-      ]
+      "position": [2360, 500]
     },
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "seconds",
-              "secondsInterval": 60
-            }
-          ]
-        }
+        "jsCode": "const input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\n\n// Gonderim basarili, batch'i guvenli sekilde temizle\nif (staticData._batches && input.senderNumber) {\n  const batch = staticData._batches[input.senderNumber];\n  if (batch) {\n    batch.processing = false;\n    batch.processingStartedAt = null;\n    // Sadece bos batch'i sil\n    if (batch.messages.length === 0) {\n      delete staticData._batches[input.senderNumber];\n    }\n  }\n}\n\n// Idle timeout icin son cevap kaydini guncelle\nif (!staticData._lastReply) staticData._lastReply = {};\nstaticData._lastReply[input.senderNumber] = Date.now();\n\nreturn [{ json: input }];"
+      },
+      "id": "77f0e3d1-9d66-5d9b-a5b4-d30379bc9dd1",
+      "name": "Clear Batch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://evo.filtreoto.online/message/sendText/filtr",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"}, {"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim }) }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "61d75176-a426-41d9-8a8e-6d4c626f8df5",
+      "name": "Phone A Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2840, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://evo.filtreoto.online/message/sendText/filtr",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"}, {"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim }) }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "e43d47e9-69fe-4bbd-9e59-59ccd0a31629",
+      "name": "Phone B Send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2840, 600]
+    },
+    {
+      "parameters": {
+        "rule": {"interval": [{"field": "seconds", "secondsInterval": 10}]},
+        "options": {}
       },
       "id": "0a90afa9-6731-5ce6-a4d0-76a4fc92898f",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [
-        240,
-        1104
-      ]
+      "position": [240, 1104]
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst windowMs = 3 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst results = [];\n\nfor (const [number, batch] of Object.entries(staticData._batches)) {\n  if (staticData._manualModes[number] === true) {\n    delete staticData._batches[number];\n    continue;\n  }\n  \n  if (batch.processing) continue;\n  \n  const lastTime = batch.lastMessageTime || batch.startTime;\n  const idleTime = now - lastTime;\n\n  if (idleTime >= windowMs && batch.messages.length > 0) {\n    batch.processing = true;\n    const allMessagesText = batch.messages.map((m, i) => `${i + 1}. [${m.time}] ${m.text}`).join('\\n');\n    results.push({\n      json: {\n        senderNumber: number,\n        senderName: batch.senderName,\n        messageCount: batch.messages.length,\n        allMessagesText\n      }\n    });\n  }\n}\n\nif (results.length === 0) {\n  return [{ json: { senderNumber: '', messageCount: 0 } }];\n}\n\nreturn results;"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst windowMs = 20 * 1000; // 20 saniye\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst results = [];\n\nfor (const [number, batch] of Object.entries(staticData._batches)) {\n  if (staticData._manualModes[number] === true) {\n    delete staticData._batches[number];\n    continue;\n  }\n  if (batch.processing) continue;\n  const lastTime = batch.lastMessageTime || batch.startTime;\n  const idleTime = now - lastTime;\n  if (idleTime >= windowMs && batch.messages.length > 0) {\n    batch.processing = true;\n    batch.processingStartedAt = now;\n    const allMessagesText = batch.messages.map((m, i) => `${i + 1}. [${m.time}] ${m.text}`).join('\\n');\n    results.push({\n      json: {\n        senderNumber: number,\n        senderName: batch.senderName,\n        messageCount: batch.messages.length,\n        allMessagesText\n      }\n    });\n  }\n}\n\nif (results.length === 0) {\n  return [{ json: { senderNumber: '', messageCount: 0 } }];\n}\nreturn results;"
       },
       "id": "7fa1b04c-9639-5b87-99e7-e21c1d1bfc3b",
       "name": "Stale Batch Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        528,
-        1104
-      ]
+      "position": [528, 1104]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "cond-stale",
-              "leftValue": "={{ $json.messageCount }}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ],
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 1},
+          "conditions": [{"id": "cond-stale", "leftValue": "={{ $json.messageCount }}", "rightValue": 0, "operator": {"type": "number", "operation": "gt"}}],
           "combinator": "and"
         },
         "options": {}
@@ -423,44 +262,23 @@
       "name": "Stale Exists?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [
-        768,
-        1104
-      ]
+      "position": [768, 1104]
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst idleAlertMs = 10 * 60 * 1000;\n\nif (!staticData._lastReply) staticData._lastReply = {};\n\nconst alerts = [];\nfor (const [number, lastReplyTime] of Object.entries(staticData._lastReply)) {\n  if (now - lastReplyTime >= idleAlertMs) {\n    alerts.push({\n      json: {\n        senderNumber: number,\n        bildirim: `Sessiz musteri - ${number} - 10 dkdir cevap yazmiyor`,\n        _idleAlert: true\n      }\n    });\n    delete staticData._lastReply[number];\n  }\n}\n\nif (alerts.length === 0) {\n  return [{ json: { _idleAlert: false } }];\n}\nreturn alerts;"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst idleAlertMs = 10 * 60 * 1000;\n\nif (!staticData._lastReply) staticData._lastReply = {};\n\nconst alerts = [];\nfor (const [number, lastReplyTime] of Object.entries(staticData._lastReply)) {\n  if (now - lastReplyTime >= idleAlertMs) {\n    alerts.push({\n      json: {\n        senderNumber: number,\n        bildirim: 'Sessiz musteri - ' + number + ' - 10 dkdir cevap yazmiyor',\n        _idleAlert: true\n      }\n    });\n    delete staticData._lastReply[number];\n  }\n}\n\nif (alerts.length === 0) {\n  return [{ json: { _idleAlert: false } }];\n}\nreturn alerts;"
       },
       "id": "idle-check-001",
       "name": "Idle Timeout Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        528,
-        1360
-      ]
+      "position": [528, 1360]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "cond-idle",
-              "leftValue": "={{ $json._idleAlert }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 1},
+          "conditions": [{"id": "cond-idle", "leftValue": "={{ $json._idleAlert }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}}],
           "combinator": "and"
         },
         "options": {}
@@ -469,246 +287,32 @@
       "name": "Idle Alert?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [
-        768,
-        1360
-      ]
+      "position": [768, 1360]
     }
   ],
   "connections": {
-    "Webhook1": {
-      "main": [
-        [
-          {
-            "node": "Respond OK1",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "fromMe Check",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "fromMe Check": {
-      "main": [
-        [
-          {
-            "node": "Batch Collector",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
-    "Batch Collector": {
-      "main": [
-        [
-          {
-            "node": "Should Process?",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Is Command?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Should Process?": {
-      "main": [
-        [
-          {
-            "node": "Store Context",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
-    "Is Command?": {
-      "main": [
-        [
-          {
-            "node": "Phone A Send",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Phone B Send",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
-    "Store Context": {
-      "main": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Agent": {
-      "main": [
-        [
-          {
-            "node": "Parse AI Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse AI Output": {
-      "main": [
-        [
-          {
-            "node": "Clear Batch",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Clear Batch": {
-      "main": [
-        [
-          {
-            "node": "Phone A Send",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Phone B Send",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Reply to Customer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Schedule Trigger": {
-      "main": [
-        [
-          {
-            "node": "Stale Batch Check",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Idle Timeout Check",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Stale Batch Check": {
-      "main": [
-        [
-          {
-            "node": "Stale Exists?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Stale Exists?": {
-      "main": [
-        [
-          {
-            "node": "Store Context",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
-    "Idle Timeout Check": {
-      "main": [
-        [
-          {
-            "node": "Idle Alert?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Idle Alert?": {
-      "main": [
-        [
-          {
-            "node": "Phone A Send",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Phone B Send",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
-    "OpenAI Chat Model1": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Simple Memory": {
-      "ai_memory": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_memory",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Webhook1": {"main": [[{"node": "Respond OK1", "type": "main", "index": 0}, {"node": "fromMe Check", "type": "main", "index": 0}]]},
+    "fromMe Check": {"main": [[{"node": "Route Message", "type": "main", "index": 0}], []]},
+    "Route Message": {"main": [[{"node": "Route Split", "type": "main", "index": 0}]]},
+    "Route Split": {"main": [[{"node": "Batch Collector", "type": "main", "index": 0}], [{"node": "Command Handler", "type": "main", "index": 0}]]},
+    "Batch Collector": {"main": [[{"node": "Should Process?", "type": "main", "index": 0}]]},
+    "Should Process?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
+    "Store Context": {"main": [[{"node": "AI Agent", "type": "main", "index": 0}]]},
+    "AI Agent": {"main": [[{"node": "Parse AI Output", "type": "main", "index": 0}]]},
+    "Parse AI Output": {"main": [[{"node": "Reply to Customer", "type": "main", "index": 0}]]},
+    "Reply to Customer": {"main": [[{"node": "Clear Batch", "type": "main", "index": 0}]]},
+    "Clear Batch": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}]]},
+    "Command Handler": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}]]},
+    "Schedule Trigger": {"main": [[{"node": "Stale Batch Check", "type": "main", "index": 0}, {"node": "Idle Timeout Check", "type": "main", "index": 0}]]},
+    "Stale Batch Check": {"main": [[{"node": "Stale Exists?", "type": "main", "index": 0}]]},
+    "Stale Exists?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
+    "Idle Timeout Check": {"main": [[{"node": "Idle Alert?", "type": "main", "index": 0}]]},
+    "Idle Alert?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
+    "OpenAI Chat Model1": {"ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]},
+    "Simple Memory": {"ai_memory": [[{"node": "AI Agent", "type": "ai_memory", "index": 0}]]}
   },
   "pinData": {},
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
-  "settings": {
-    "executionOrder": "v1",
-    "saveDataSuccessExecution": "all",
-    "saveExecutionProgress": true,
-    "saveManualExecutions": true
-  },
-  "staticData": {
-    "node:Schedule Trigger": {
-      "recurrenceRules": []
-    },
-    "global": {
-      "_batches": {}
-    }
-  }
+  "meta": {"templateCredsSetupCompleted": true},
+  "settings": {"executionOrder": "v1", "saveDataSuccessExecution": "all", "saveExecutionProgress": true, "saveManualExecutions": true},
+  "staticData": {"node:Schedule Trigger": {"recurrenceRules": []}, "global": {"_batches": {}, "_lastReply": {}}}
 }
