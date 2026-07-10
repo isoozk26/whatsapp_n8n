@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10T13:16:56.578Z",
+  "updatedAt": "2026-07-10T15:31:44.736Z",
   "createdAt": "2026-07-10T13:05:34.937Z",
   "id": "MbJkVXLDCOZ5umpp",
   "name": "WhatsApp AI Bildirim - 3dk Batch",
@@ -36,7 +36,7 @@
       "typeVersion": 1,
       "position": [
         240,
-        420
+        432
       ]
     },
     {
@@ -68,7 +68,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        520,
+        528,
         640
       ]
     },
@@ -81,7 +81,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        760,
+        768,
         640
       ]
     },
@@ -114,7 +114,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1000,
+        1008,
         640
       ]
     },
@@ -127,56 +127,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1240,
+        1248,
         640
-      ]
-    },
-    {
-      "parameters": {
-        "options": {
-          "systemMessage": "Sen filtreto.com müşteri hizmetleri asistanısın.\n\nGörev: Gelen WhatsApp mesajlarını analiz et ve SADECE aşağıdaki JSON formatında yanıt ver. Başka hiçbir metin ekleme.\n\nJSON Formatı:\n{\"gonderenNumara\":\"numarayı buraya aynen yaz\",\"gonderenAd\":\"ismi buraya aynen yaz\",\"bildirim\":\"bildirim metni\",\"cevap\":\"cevap metni\"}\n\nBİLDİRİM Kuralları:\n- 🔔 YENİ MESAJ — filtreto.com ile başla\n- 👤 Gönderen ismini yaz\n- 📞 Numarayı yaz\n- 💬 Mesajları detaylı özetle, müşterinin ne istediğini analiz et\n- 📝 AI Notu: Kısa analiz + önerilen aksiyon\n\nCEVAP Kuralları:\n- Kısa, profesyonel ve yardımcı ol\n- Müşterinin sorusuna doğrudan cevap ver\n- filtreto.com ürün/hizmetleriyle ilgili yardımcı ol\n- Gerekirse ek bilgi iste\n- Türkçe yaz\n\nÖNEMLİ: gonderenNumara ve gonderenAd değerlerini mesajdaki bilgilerden AYNEN kopyala. SADECE JSON döndür."
-        },
-        "promptType": "define",
-        "text": "={{ $json._prompt }}"
-      },
-      "id": "f822155a-6d0b-444d-af11-56313d6256e9",
-      "name": "AI Agent",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 1.7,
-      "position": [
-        1520,
-        640
-      ]
-    },
-    {
-      "parameters": {
-        "model": "gpt-4o-mini",
-        "options": {
-          "temperature": 0.3
-        }
-      },
-      "id": "62b80dfa-375f-4a90-a673-4c6bf70111be",
-      "name": "OpenAI Chat Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.2,
-      "position": [
-        1420,
-        860
-      ]
-    },
-    {
-      "parameters": {
-        "sessionIdType": "customKey",
-        "sessionKey": "={{ $json.senderNumber }}",
-        "contextWindowLength": 20
-      },
-      "id": "0f2b18fc-83e1-4ed4-9a55-6f4e2b31de41",
-      "name": "Window Buffer Memory",
-      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
-      "typeVersion": 1.3,
-      "position": [
-        1620,
-        860
       ]
     },
     {
@@ -188,8 +140,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1780,
-        640
+        1808,
+        624
       ]
     },
     {
@@ -201,7 +153,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2020,
+        2032,
         640
       ]
     },
@@ -225,7 +177,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim }) }}",
+        "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim + '\\n\\n💬 Müşteriye Gönderilen Yanıt:\\n' + $json.cevap }) }}",
         "options": {
           "timeout": 30000
         }
@@ -235,7 +187,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2280,
+        2288,
         416
       ]
     },
@@ -259,7 +211,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim }) }}",
+        "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim + '\\n\\n💬 Müşteriye Gönderilen Yanıt:\\n' + $json.cevap }) }}",
         "options": {
           "timeout": 30000
         }
@@ -269,7 +221,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2280,
+        2288,
         640
       ]
     },
@@ -303,7 +255,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2280,
+        2288,
         864
       ]
     },
@@ -324,7 +276,7 @@
       "typeVersion": 1.2,
       "position": [
         240,
-        1100
+        1104
       ]
     },
     {
@@ -336,8 +288,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        520,
-        1100
+        528,
+        1104
       ]
     },
     {
@@ -369,9 +321,66 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        760,
-        1100
+        768,
+        1104
       ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Sen filtreto.com müşteri hizmetleri asistanısın.\n\nGörev: Gelen WhatsApp mesajlarını analiz et ve SADECE aşağıdaki JSON formatında yanıt ver. Başka hiçbir metin veya açıklama ekleme.\n\nJSON Formatı:\n{\n  \"gonderenNumara\": \"numara\",\n  \"gonderenAd\": \"isim\",\n  \"bildirim\": \"🔔 YENİ MESAJ — filtreto.com\\n👤 Gönderen: [Müşteri Adı]\\n📞 Numara: [Müşteri Telefon Numarası]\\n💬 Özet: [Müşterinin gönderdiği tüm mesajların detaylı özeti ve ne istediğinin analizi]\\n📝 AI Notu: [Kısa analiz ve işletme sahipleri için önerilen aksiyon]\",\n  \"cevap\": \"cevap metni\"\n}\n\nCEVAP Kuralları:\n- Müşteri ile son derece doğal, profesyonel, samimi, yardımsever ve çözüm odaklı konuş.\n- Müşterinin sorusuna/isteğine doğrudan ve mantıklı bir cevap ver.\n- Müşteriden aracının marka, model, üretim yılı, motor gücü (KW veya HP) ve şase numarasını (Şase no) doğal bir konuşma akışı içerisinde talep et (Örn: 'Size en doğru filtre seçeneklerini sunabilmemiz için aracınızın marka, model, üretim yılı, KW/HP ve şase numarasını paylaşabilir misiniz?').\n- Yanıtı mutlaka Türkçe yaz."
+        },
+        "promptType": "define",
+        "text": "={{ $json._prompt }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1472,
+        624
+      ],
+      "id": "9409b931-1973-4c94-9d6e-5c255f6ee037",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1392,
+        864
+      ],
+      "id": "1b7c08e5-1da2-4a07-b017-370d41c50e85",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "3M52tD49lJ35vXdO",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.senderNumber }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1552,
+        864
+      ],
+      "id": "8627d7e8-8bc2-4449-b79b-dd1a4c04c32d",
+      "name": "Simple Memory"
     }
   ],
   "connections": {
@@ -431,17 +440,6 @@
         [
           {
             "node": "AI Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Agent": {
-      "main": [
-        [
-          {
-            "node": "Parse AI Output",
             "type": "main",
             "index": 0
           }
@@ -514,7 +512,7 @@
         []
       ]
     },
-    "OpenAI Chat Model": {
+    "OpenAI Chat Model1": {
       "ai_languageModel": [
         [
           {
@@ -525,7 +523,7 @@
         ]
       ]
     },
-    "Window Buffer Memory": {
+    "Simple Memory": {
       "ai_memory": [
         [
           {
@@ -535,20 +533,45 @@
           }
         ]
       ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedMode": "fixed",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true
   },
-  "staticData": null,
-  "meta": null,
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    },
+    "global": {
+      "_batches": {}
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
   "pinData": {},
-  "versionId": "388d7ca9-02b4-40aa-9d91-c03ccd63b986",
+  "versionId": "3bfb71d1-86bd-4435-a66b-53fe70f3218f",
   "activeVersionId": null,
-  "versionCounter": 9,
-  "triggerCount": 0,
+  "versionCounter": 61,
+  "triggerCount": 2,
   "shared": [
     {
       "updatedAt": "2026-07-10T13:05:34.937Z",
