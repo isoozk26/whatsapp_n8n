@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10T17:05:58.689Z",
+  "updatedAt": "2026-07-10T17:15:48.090Z",
   "createdAt": "2026-07-10T13:05:34.937Z",
   "id": "MbJkVXLDCOZ5umpp",
   "name": "WhatsApp AI Bildirim - 3dk Batch",
@@ -120,7 +120,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    senderNumber: input.senderNumber,\n    senderName: input.senderName,\n    _prompt: `GÖNDEREN BİLGİLERİ:\\nİsim: ${input.senderName}\\nNumara: ${input.senderNumber}\\n\\nMESAJLAR (${input.messageCount} adet):\\n${input.allMessagesText}`\n  }\n}];"
+        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    senderNumber: input.senderNumber,\n    senderName: input.senderName,\n    allMessagesText: input.allMessagesText,\n    _prompt: `Gönderen: ${input.senderName} (${input.senderNumber})\\nMesaj sayısı: ${input.messageCount}\\n\\nMesajlar:\\n${input.allMessagesText}`\n  }\n}];"
       },
       "id": "d7ae6ef8-a8e2-5779-a8fb-7a98a18f48c3",
       "name": "Store Context",
@@ -133,7 +133,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const aiOutput = $input.first().json?.output || '';\nlet senderNumber = '';\nlet senderName = '';\n\ntry {\n  const storeContext = $('Store Context').item.json;\n  senderNumber = storeContext.senderNumber || '';\n  senderName = storeContext.senderName || '';\n} catch (e) {\n  // fallback\n}\n\nlet bildirim = '';\nlet cevap = 'Mesajınız alınmıştır, en kısa sürede size dönüş yapılacaktır.';\n\ntry {\n  const jsonMatch = aiOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    bildirim = parsed.bildirim || aiOutput;\n    cevap = parsed.cevap || cevap;\n    if (parsed.gonderenNumara) senderNumber = parsed.gonderenNumara;\n    if (parsed.gonderenAd) senderName = parsed.gonderenAd;\n  } else {\n    bildirim = aiOutput;\n  }\n} catch (e) {\n  bildirim = aiOutput;\n}\n\nreturn [{\n  json: {\n    bildirim,\n    cevap,\n    senderNumber,\n    senderName\n  }\n}];"
+        "jsCode": "const aiOutput = $input.first().json?.output || '';\nlet cevap = 'Talebinizi aldık, en kısa sürede döneceğiz.';\n\ntry {\n  const jsonMatch = aiOutput.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    cevap = parsed.cevap || cevap;\n  }\n} catch (e) {}\n\nconst storeContext = $node[\"Store Context\"].json;\nconst senderName = storeContext.senderName || '';\nconst senderNumber = storeContext.senderNumber || '';\nconst allMessagesText = storeContext.allMessagesText || '';\n\nconst bildirim = `🔔 YENİ TALEP - filtreto.com\n👤 Müşteri: ${senderName} (${senderNumber})\n💬 Gelen Mesajlar:\n${allMessagesText}\n\n🤖 Asistanın Cevabı:\n${cevap}`;\n\nreturn [{\n  json: {\n    bildirim,\n    cevap\n  }\n}];"
       },
       "id": "64249ad4-6e81-5542-bfda-6929c6c28aa6",
       "name": "Parse AI Output",
@@ -618,9 +618,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "1cf38e99-c978-4ff3-9bd9-fcdfa13414cc",
+  "versionId": "d692baab-0112-451c-808f-c7c5c5747dc9",
   "activeVersionId": null,
-  "versionCounter": 95,
+  "versionCounter": 96,
   "triggerCount": 2,
   "shared": [
     {
