@@ -126,7 +126,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\n\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._lastReply) staticData._lastReply = {};\n\nconst num = String(input.senderNumber || '');\nconst name = String(input.senderName || num || 'Bilinmeyen müşteri');\nconst command = input._command;\n\nif (!num) {\n  return [{ json: { _action: 'ignore', reason: 'missing_customer_number' } }];\n}\n\nif (command === 'pause') {\n  staticData._manualModes[num] = true;\n  delete staticData._batches[num];\n  delete staticData._lastReply[num];\n\n  return [{\n    json: {\n      bildirim:\n        'MANUEL MOD AKTİF\\n' +\n        'Müşteri: ' + name + ' (' + num + ')\\n' +\n        'Otomatik cevap durduruldu.\\n' +\n        'Tekrar otomatik moda geçmek için müşteri sohbetinde -- yazın.',\n      senderNumber: num,\n      senderName: name,\n      action: 'command_pause',\n      notifyAdmins: true\n    }\n  }];\n}\n\nif (command === 'resume') {\n  staticData._manualModes[num] = false;\n  delete staticData._lastReply[num];\n\n  return [{\n    json: {\n      bildirim:\n        'OTOMATİK MOD AKTİF\\n' +\n        'Müşteri: ' + name + ' (' + num + ')\\n' +\n        'Bu müşteriye otomatik cevap yeniden açıldı.',\n      senderNumber: num,\n      senderName: name,\n      action: 'command_resume',\n      notifyAdmins: true\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    _action: 'ignore',\n    reason: 'unknown_command'\n  }\n}];"
+        "jsCode": "const input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\n\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._lastReply) staticData._lastReply = {};\n\nconst num = String(input.senderNumber || '');\nconst name = String(input.senderName || num || 'Bilinmeyen müşteri');\nconst command = input._command;\n\nif (!num) {\n  return [{ json: { _action: 'ignore', reason: 'missing_customer_number' } }];\n}\n\nif (command === 'pause') {\n  staticData._manualModes[num] = true;\n  delete staticData._batches[num];\n  delete staticData._lastReply[num];\n\n  return [{\n    json: {\n      bildirim:\n        'MANUEL MOD AKTİF\\n' +\n        'Müşteri: ' + name + ' (' + num + ')\\n' +\n        'Otomatik cevap durduruldu.\\n' +\n        'Tekrar otomatik moda geçmek için müşteri sohbetinde -- yazın.',\n      senderNumber: num,\n      senderName: name,\n      action: 'command_pause',\n      notifyAdmins: true\n    }\n  }];\n}\n\nif (command === 'resume') {\n  delete staticData._manualModes[num];\n  if (!staticData._unclearCounts) staticData._unclearCounts = {};\n  delete staticData._unclearCounts[num];\n  delete staticData._lastReply[num];\n\n  return [{\n    json: {\n      bildirim:\n        'OTOMATİK MOD AKTİF\\n' +\n        'Müşteri: ' + name + ' (' + num + ')\\n' +\n        'Bu müşteriye otomatik cevap yeniden açıldı.',\n      senderNumber: num,\n      senderName: name,\n      action: 'command_resume',\n      notifyAdmins: true\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    _action: 'ignore',\n    reason: 'unknown_command'\n  }\n}];"
       },
       "id": "cmd-handler-001",
       "name": "Command Handler",
@@ -143,7 +143,7 @@
           "interval": [
             {
               "field": "seconds",
-              "secondsInterval": 10
+              "secondsInterval": 30
             }
           ]
         }
@@ -159,7 +159,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\n\nconst windowMs = 30 * 1000;\nconst processingTimeoutMs = 2 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst ready = [];\n\nfor (const [number, rawBatch] of Object.entries(staticData._batches)) {\n  const batch = rawBatch || {};\n\n  // Eski veri yapısından geçiş.\n  if (!Array.isArray(batch.pendingMessages)) {\n    batch.pendingMessages = Array.isArray(batch.messages) ? batch.messages : [];\n  }\n  if (!Array.isArray(batch.processingMessages)) {\n    batch.processingMessages = [];\n  }\n  delete batch.messages;\n\n  if (staticData._manualModes[number] === true) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  // Yarım kalan AI işlemini yeniden kuyruğa al.\n  if (\n    batch.processing === true &&\n    batch.processingStartedAt &&\n    now - Number(batch.processingStartedAt) > processingTimeoutMs\n  ) {\n    batch.pendingMessages = [\n      ...batch.processingMessages,\n      ...batch.pendingMessages\n    ];\n    batch.processingMessages = [];\n    batch.processing = false;\n    batch.processingStartedAt = null;\n    batch.processingToken = null;\n  }\n\n  if (batch.processing === true) continue;\n  if (!batch.pendingMessages.length) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  const lastTime = Number(batch.lastMessageTime || batch.startTime || now);\n  const idleTime = now - lastTime;\n\n  if (idleTime >= windowMs) {\n    ready.push({\n      number,\n      lastTime,\n      batch\n    });\n  }\n}\n\n// Aynı execution'da yalnızca bir müşteriyi işle.\n// Böylece AI memory ve $input.first() müşterileri birbirine karıştırmaz.\nready.sort((a, b) => a.lastTime - b.lastTime);\nconst selected = ready[0];\n\nif (!selected) {\n  return [{ json: { senderNumber: '', messageCount: 0, _ready: false } }];\n}\n\nconst { number, batch } = selected;\nconst processingMessages = batch.pendingMessages.splice(0);\nconst processingToken =\n  number + '-' + now + '-' + Math.random().toString(36).slice(2, 10);\n\nbatch.processingMessages = processingMessages;\nbatch.processing = true;\nbatch.processingStartedAt = now;\nbatch.processingToken = processingToken;\n\nconst allMessagesText = processingMessages\n  .map((message, index) => {\n    const typeLabel = message.type && message.type !== 'text'\n      ? ` (${message.type})`\n      : '';\n    return `${index + 1}. [${message.time || ''}]${typeLabel} ${message.text}`;\n  })\n  .join('\\n');\n\nreturn [{\n  json: {\n    _ready: true,\n    senderNumber: number,\n    senderName: batch.senderName || number,\n    messageCount: processingMessages.length,\n    allMessagesText,\n    batchToken: processingToken\n  }\n}];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\n\nconst windowMs = 3 * 60 * 1000;\nconst processingTimeoutMs = 2 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst ready = [];\n\nfor (const [number, rawBatch] of Object.entries(staticData._batches)) {\n  const batch = rawBatch || {};\n\n  // Eski veri yapısından geçiş.\n  if (!Array.isArray(batch.pendingMessages)) {\n    batch.pendingMessages = Array.isArray(batch.messages) ? batch.messages : [];\n  }\n  if (!Array.isArray(batch.processingMessages)) {\n    batch.processingMessages = [];\n  }\n  delete batch.messages;\n\n  if (staticData._manualModes[number] === true) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  // Yarım kalan AI işlemini yeniden kuyruğa al.\n  if (\n    batch.processing === true &&\n    batch.processingStartedAt &&\n    now - Number(batch.processingStartedAt) > processingTimeoutMs\n  ) {\n    batch.pendingMessages = [\n      ...batch.processingMessages,\n      ...batch.pendingMessages\n    ];\n    batch.processingMessages = [];\n    batch.processing = false;\n    batch.processingStartedAt = null;\n    batch.processingToken = null;\n  }\n\n  if (batch.processing === true) continue;\n  if (!batch.pendingMessages.length) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  const lastTime = Number(batch.lastMessageTime || batch.startTime || now);\n  const idleTime = now - lastTime;\n\n  if (idleTime >= windowMs) {\n    ready.push({\n      number,\n      lastTime,\n      batch\n    });\n  }\n}\n\n// Aynı execution'da yalnızca bir müşteriyi işle.\n// Böylece AI memory ve $input.first() müşterileri birbirine karıştırmaz.\nready.sort((a, b) => a.lastTime - b.lastTime);\nconst selected = ready[0];\n\nif (!selected) {\n  return [{ json: { senderNumber: '', messageCount: 0, _ready: false } }];\n}\n\nconst { number, batch } = selected;\nconst processingMessages = batch.pendingMessages.splice(0);\nconst processingToken =\n  number + '-' + now + '-' + Math.random().toString(36).slice(2, 10);\n\nbatch.processingMessages = processingMessages;\nbatch.processing = true;\nbatch.processingStartedAt = now;\nbatch.processingToken = processingToken;\n\nconst allMessagesText = processingMessages\n  .map((message, index) => {\n    const typeLabel = message.type && message.type !== 'text'\n      ? ` (${message.type})`\n      : '';\n    return `${index + 1}. [${message.time || ''}]${typeLabel} ${message.text}`;\n  })\n  .join('\\n');\n\nreturn [{\n  json: {\n    _ready: true,\n    senderNumber: number,\n    senderName: batch.senderName || number,\n    messageCount: processingMessages.length,\n    allMessagesText,\n    batchToken: processingToken\n  }\n}];"
       },
       "id": "7fa1b04c-9639-5b87-99e7-e21c1d1bfc3b",
       "name": "Stale Batch Check",
@@ -332,7 +332,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "REPLACE_WITH_NEW_EVOLUTION_API_KEY"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -362,7 +362,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst context = $('Parse AI Output').item.json;\n\nconst senderNumber = String(context.senderNumber || '');\nconst batchToken = String(context.batchToken || '');\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._lastReply) staticData._lastReply = {};\n\nconst batch = staticData._batches[senderNumber];\nconst validClaim = Boolean(\n  context.validClaim === true &&\n  batch &&\n  batch.processing === true &&\n  batch.processingToken === batchToken\n);\n\nif (!validClaim) {\n  return [{\n    json: {\n      ...context,\n      notifyAdmins: false,\n      needsHandoffAck: false,\n      finalized: false\n    }\n  }];\n}\n\nif (context.action === 'handoff') {\n  staticData._manualModes[senderNumber] = true;\n  delete staticData._batches[senderNumber];\n  delete staticData._lastReply[senderNumber];\n} else {\n  batch.processingMessages = [];\n  batch.processing = false;\n  batch.processingStartedAt = null;\n  batch.processingToken = null;\n\n  if (!Array.isArray(batch.pendingMessages)) {\n    batch.pendingMessages = [];\n  }\n\n  if (batch.pendingMessages.length === 0) {\n    delete staticData._batches[senderNumber];\n  }\n\n  if (context.action === 'reply' && context.expectsReply === true) {\n    staticData._lastReply[senderNumber] = {\n      time: Date.now(),\n      senderName: context.senderName,\n      intent: context.intent,\n      summary: context.summary\n    };\n  } else {\n    delete staticData._lastReply[senderNumber];\n  }\n}\n\nreturn [{\n  json: {\n    ...context,\n    finalized: true,\n    needsHandoffAck:\n      context.action === 'handoff' &&\n      Boolean(String(context.reply || '').trim())\n  }\n}];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst context = $('Parse AI Output').item.json;\n\nconst senderNumber = String(context.senderNumber || '');\nconst batchToken = String(context.batchToken || '');\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._lastReply) staticData._lastReply = {};\n\nconst batch = staticData._batches[senderNumber];\nconst validClaim = Boolean(\n  context.validClaim === true &&\n  batch &&\n  batch.processing === true &&\n  batch.processingToken === batchToken\n);\n\nif (!validClaim) {\n  return [{\n    json: {\n      ...context,\n      notifyAdmins: false,\n      needsHandoffAck: false,\n      finalized: false\n    }\n  }];\n}\n\nif (context.action === 'handoff') {\n  staticData._manualModes[senderNumber] = true;\n  delete staticData._batches[senderNumber];\n    delete staticData._unclearCounts[senderNumber];\n  delete staticData._lastReply[senderNumber];\n} else {\n  batch.processingMessages = [];\n  batch.processing = false;\n  batch.processingStartedAt = null;\n  batch.processingToken = null;\n\n  if (!Array.isArray(batch.pendingMessages)) {\n    batch.pendingMessages = [];\n  }\n\n  if (batch.pendingMessages.length === 0) {\n    delete staticData._batches[senderNumber];\n    delete staticData._unclearCounts[senderNumber];\n  }\n\n  if (context.action === 'reply' && context.expectsReply === true) {\n    staticData._lastReply[senderNumber] = {\n      time: Date.now(),\n      senderName: context.senderName,\n      intent: context.intent,\n      summary: context.summary\n    };\n  } else {\n    delete staticData._lastReply[senderNumber];\n  }\n}\n\nreturn [{\n  json: {\n    ...context,\n    finalized: true,\n    needsHandoffAck:\n      context.action === 'handoff' &&\n      Boolean(String(context.reply || '').trim())\n  }\n}];"
       },
       "id": "77f0e3d1-9d66-5d9b-a5b4-d30379bc9dd1",
       "name": "Finalize Batch",
@@ -448,7 +448,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "REPLACE_WITH_NEW_EVOLUTION_API_KEY"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -485,7 +485,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "REPLACE_WITH_NEW_EVOLUTION_API_KEY"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -522,7 +522,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "REPLACE_WITH_NEW_EVOLUTION_API_KEY"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -873,7 +873,7 @@
     "templateCredsSetupCompleted": true,
     "instanceId": "2ada6a7c05eb2ca8098d42395250eb925d4ec278e58fb4423cb0ce022dfc837c"
   },
-  "name": "WhatsApp AI - v9 Production",
+  "name": "WhatsApp AI - v10 Production",
   "settings": {
     "executionOrder": "v1",
     "saveDataSuccessExecution": "all",
@@ -888,7 +888,8 @@
       "_batches": {},
       "_manualModes": {},
       "_lastReply": {},
-      "_seenMessageIds": {}
+      "_seenMessageIds": {},
+      "_unclearCounts": {}
     }
   }
 }
