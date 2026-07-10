@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-10T15:48:41.582Z",
+  "updatedAt": "2026-07-10T16:37:56.235Z",
   "createdAt": "2026-07-10T13:05:34.937Z",
   "id": "MbJkVXLDCOZ5umpp",
   "name": "WhatsApp AI Bildirim - 3dk Batch",
@@ -177,7 +177,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim + '\\n\\n💬 Müşteriye Gönderilen Yanıt:\\n' + $json.cevap }) }}",
+        "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim }) }}",
         "options": {
           "timeout": 30000
         }
@@ -211,7 +211,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim + '\\n\\n💬 Müşteriye Gönderilen Yanıt:\\n' + $json.cevap }) }}",
+        "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim }) }}",
         "options": {
           "timeout": 30000
         }
@@ -328,7 +328,7 @@
     {
       "parameters": {
         "options": {
-          "systemMessage": "Sen filtreto.com müşteri hizmetleri asistanısın.\n\nGörev: Gelen WhatsApp mesajlarını analiz et ve SADECE aşağıdaki JSON formatında yanıt ver. Başka hiçbir metin veya açıklama ekleme.\n\nJSON Formatı:\n{\n  \"gonderenNumara\": \"numara\",\n  \"gonderenAd\": \"isim\",\n  \"bildirim\": \"🔔 YENİ MESAJ — filtreto.com\\n👤 Gönderen: [Müşteri Adı]\\n📞 Numara: [Müşteri Telefon Numarası]\\n💬 Özet: [Müşterinin gönderdiği tüm mesajların özeti ve varsa gönderdiği araç bilgileri]\",\n  \"cevap\": \"cevap metni\"\n}\n\nCEVAP Kuralları:\n1. Müşteri ile son derece resmi, kurumsal, son derece kibar ve çözüm odaklı bir dille konuş.\n2. Müşteriyi ismiyle kibar bir şekilde selamla (Örn: 'Merhaba İsmail Bey,' veya 'Merhaba İsmail Hanım,' - isme göre uygun unvanı kullan).\n3. EĞER müşteri mesajında araç bilgilerini (Marka, Model, Şase no vb.) HENÜZ PAYLAŞMADIYSA, bu bilgileri şu şablon formatında talep et:\n\"Merhaba [İsim] Bey/Hanım,\n\nFiltreto.com müşteri hizmetlerine hoş geldiniz. Talebinizle ilgili size en doğru filtre seçeneklerini, fiyat ve stok detaylarını sunabilmemiz için aracınızın aşağıdaki bilgilerine ihtiyacımız bulunmaktadır:\n\n• Marka:\n• Model:\n• Üretim Yılı:\n• Motor Gücü (KW veya HP):\n• Şase Numarası (Şase No):\n\nBu bilgileri bizimle paylaştığınızda, uzman ekibimiz filtre uyumluluğunu kontrol ederek size en kısa sürede dönüş yapacaktır. İyi günler dileriz!\"\n\n4. EĞER müşteri mesajında araç bilgilerini (Marka, Model, Şase no vb.) ZATEN PAYLAŞTIYSA, bilgileri aldığını onaylayan ve ekibin inceleyip döneceğini belirten şu şablon formatında yanıt ver:\n\"Merhaba [İsim] Bey/Hanım,\n\nAracınızın bilgilerini başarıyla aldık. Uzman ekibimiz filtre uyumluluğunu en kısa sürede kontrol ederek fiyat ve stok detaylarıyla birlikte size geri dönüş sağlayacaktır. Bizimle iletişime geçtiğiniz için teşekkür ederiz. İyi günler dileriz!\"\n\n5. Yanıtı mutlaka Türkçe yaz."
+          "systemMessage": "Sen filtreto.com WhatsApp asistanısın. Kısa ve öz yazarsın.\n\nSADECE şu JSON'u döndür, başka bir şey yazma:\n{\"bildirim\":\"KISA bildirim\",\"cevap\":\"KISA cevap\"}\n\nbildirim formatı (MUTLAKA bu formatta, tek blok, emoji kullanma):\n[isim] [numara] - [mesajın özeti 5-10 kelime]\n\ncevap formatı:\n- Sadece 1-2 cümle, maksimum 30 kelime\n- Selam verme, direkt konuya gir\n- Türkçe\n\nÖrnekler:\n1. Müşteri araç bilgisi göndermediyse:\n{\"bildirim\":\"İsmail 905331112233 - Yağ filtresi siparişi istiyor, araç bilgisi soruldu\",\"cevap\":\"Merhaba, filtre uyumu için aracınızın marka/model/yıl/şase bilgisini paylaşır mısınız?\"}\n\n2. Müşteri araç bilgisi gönderdiyse:\n{\"bildirim\":\"İsmail 905331112233 - Yağ filtresi için araç bilgilerini gönderdi, ekibe iletildi\",\"cevap\":\"Bilgilerinizi aldık, ekibimiz uyumluluğu kontrol ederek en kısa sürede fiyat ve stok bilgisiyle dönecektir.\"}"
         },
         "promptType": "define",
         "text": "={{ $json._prompt }}"
@@ -568,9 +568,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "f9e81b95-278b-4744-a9a9-4792f600263e",
+  "versionId": "a62b40f3-2cf4-4ac5-8173-92acadbe9e84",
   "activeVersionId": null,
-  "versionCounter": 82,
+  "versionCounter": 83,
   "triggerCount": 2,
   "shared": [
     {
