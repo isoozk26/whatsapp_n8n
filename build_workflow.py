@@ -963,7 +963,7 @@ nodes = [
     },
     {
         "parameters": {
-            "method": "POST", "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
+            "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
                 {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
@@ -979,7 +979,7 @@ nodes = [
     },
     {
         "parameters": {
-            "method": "POST", "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
+            "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
                 {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
@@ -995,7 +995,7 @@ nodes = [
     },
     {
         "parameters": {
-            "method": "POST", "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
+            "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
                 {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},

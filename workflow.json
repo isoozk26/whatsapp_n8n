@@ -340,7 +340,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
+        "url": "https://evo.filtreoto.online/message/sendText/filtr",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -383,7 +383,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
+        "url": "https://evo.filtreoto.online/message/sendText/filtr",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -420,7 +420,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
+        "url": "https://evo.filtreoto.online/message/sendText/filtr",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
