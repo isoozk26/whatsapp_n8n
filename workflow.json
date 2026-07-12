@@ -12,8 +12,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
       "position": [
-        200,
-        500
+        240,
+        640
       ],
       "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
     },
@@ -28,21 +28,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        200,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\n\nconst body = input?.body || {};\nconst data = body?.data || {};\nconst key = data?.key || {};\nconst message = data?.message || {};\nconst remoteJid = String(key?.remoteJid || '');\nconst fromMe = key?.fromMe === true;\nconst messageId = String(key?.id || data?.messageId || '');\n\n// Mesaj olmayan, grup, status ve broadcast olaylarını yut.\nif (\n  !remoteJid ||\n  remoteJid.endsWith('@g.us') ||\n  remoteJid === 'status@broadcast' ||\n  remoteJid.includes('@broadcast') ||\n  !data?.message\n) {\n  return [{ json: { _route: 'ignore', reason: 'invalid_or_unsupported_event' } }];\n}\n\n// Tekrarlanan webhook olaylarını engelle.\nif (!staticData._seenMessageIds) staticData._seenMessageIds = {};\nconst now = Date.now();\nconst seenTtlMs = 6 * 60 * 60 * 1000;\n\nfor (const [id, seenAt] of Object.entries(staticData._seenMessageIds)) {\n  if (now - Number(seenAt || 0) > seenTtlMs) {\n    delete staticData._seenMessageIds[id];\n  }\n}\n\nif (messageId && staticData._seenMessageIds[messageId]) {\n  return [{ json: { _route: 'ignore', reason: 'duplicate_message', messageId } }];\n}\n\nif (messageId) {\n  staticData._seenMessageIds[messageId] = now;\n\n  const ids = Object.keys(staticData._seenMessageIds);\n  if (ids.length > 3000) {\n    ids\n      .sort((a, b) => staticData._seenMessageIds[a] - staticData._seenMessageIds[b])\n      .slice(0, ids.length - 2500)\n      .forEach((id) => delete staticData._seenMessageIds[id]);\n  }\n}\n\nconst senderNumber = remoteJid\n  .replace('@s.whatsapp.net', '')\n  .replace('@g.us', '')\n  .replace('@lid', '');\n\nconst senderName = String(data?.pushName || senderNumber || 'Bilinmeyen müşteri');\n\nlet messageText = String(\n  message?.conversation ||\n  message?.extendedTextMessage?.text ||\n  message?.imageMessage?.caption ||\n  message?.videoMessage?.caption ||\n  message?.documentMessage?.caption ||\n  message?.buttonsResponseMessage?.selectedDisplayText ||\n  message?.buttonsResponseMessage?.selectedButtonId ||\n  message?.listResponseMessage?.title ||\n  message?.listResponseMessage?.singleSelectReply?.selectedRowId ||\n  message?.templateButtonReplyMessage?.selectedDisplayText ||\n  message?.templateButtonReplyMessage?.selectedId ||\n  ''\n).trim();\n\nlet messageType = 'text';\n\nif (!messageText) {\n  if (message?.imageMessage) {\n    messageType = 'image';\n    messageText = '[Müşteri açıklamasız bir görsel gönderdi]';\n  } else if (message?.videoMessage) {\n    messageType = 'video';\n    messageText = '[Müşteri açıklamasız bir video gönderdi]';\n  } else if (message?.audioMessage) {\n    messageType = 'audio';\n    messageText = '[Müşteri bir ses kaydı gönderdi]';\n  } else if (message?.documentMessage) {\n    messageType = 'document';\n    const fileName = message.documentMessage.fileName || '';\n    messageText = fileName\n      ? `[Müşteri belge gönderdi: ${fileName}]`\n      : '[Müşteri bir belge gönderdi]';\n  } else if (message?.locationMessage) {\n    messageType = 'location';\n    messageText = '[Müşteri konum gönderdi]';\n  } else if (message?.contactMessage || message?.contactsArrayMessage) {\n    messageType = 'contact';\n    messageText = '[Müşteri kişi/kartvizit gönderdi]';\n  } else if (message?.stickerMessage) {\n    messageType = 'sticker';\n    messageText = '[Müşteri sticker gönderdi]';\n  } else {\n    return [{ json: { _route: 'ignore', reason: 'empty_or_unsupported_message', messageId } }];\n  }\n}\n\nconst normalized = messageText.trim();\n\nif (fromMe && (normalized === '++' || normalized === '--')) {\n  return [{\n    json: {\n      _route: 'command',\n      _command: normalized === '++' ? 'pause' : 'resume',\n      senderNumber,\n      senderName,\n      messageText: normalized,\n      messageId,\n      fromMe: true\n    }\n  }];\n}\n\n// Bizim gönderdiğimiz normal mesajları yeniden işleme.\nif (fromMe) {\n  return [{ json: { _route: 'ignore', reason: 'outgoing_non_command', messageId } }];\n}\n\nreturn [{\n  json: {\n    _route: 'batch',\n    senderNumber,\n    senderName,\n    messageText,\n    messageType,\n    messageId,\n    receivedAt: now,\n    fromMe: false\n  }\n}];"
-      },
-      "id": "route-msg-001",
-      "name": "Route Message",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        440,
-        500
+        240,
+        432
       ]
     },
     {
@@ -56,9 +43,64 @@
           },
           "conditions": [
             {
-              "id": "cond-route",
-              "leftValue": "={{ $json._route }}",
-              "rightValue": "batch",
+              "id": "cond-allow",
+              "leftValue": "={{ !$json.body.data.key.fromMe || ['++', '--'].includes($json.body.data.message?.conversation || $json.body.data.message?.extendedTextMessage?.text || '') }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-no-group",
+              "leftValue": "={{ $json.body.data.key.remoteJid }}",
+              "rightValue": "@g.us",
+              "operator": {
+                "type": "string",
+                "operation": "notEndsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5527d4b8-019e-4bb6-bbd3-526fab1f9470",
+      "name": "fromMe Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        528,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst messageText = (input.body.data.message?.conversation\n  || input.body.data.message?.extendedTextMessage?.text\n  || input.body.data.message?.imageMessage?.caption\n  || '[Medya]').trim();\n\nconst messageId = String(input.body.data.key.id || '');\nconst fromMe = input.body.data.key.fromMe === true;\nconst now = Date.now();\nconst maxMessages = 30;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._seenMessageIds) staticData._seenMessageIds = {};\n\n// Deduplication Check\nif (messageId && staticData._seenMessageIds[messageId]) {\n  return [{ json: { _action: 'ignore', reason: 'duplicate_message', messageId } }];\n}\nif (messageId) {\n  staticData._seenMessageIds[messageId] = now;\n  const ids = Object.keys(staticData._seenMessageIds);\n  if (ids.length > 3000) {\n    ids.sort((a, b) => staticData._seenMessageIds[a] - staticData._seenMessageIds[b])\n       .slice(0, ids.length - 2500)\n       .forEach(id => delete staticData._seenMessageIds[id]);\n  }\n}\n\n// === ++/-- KOMUTLARI: HER ZAMAN KOMUT OLARAK ISLE ===\nif (messageText === '++') {\n  staticData._manualModes[senderNumber] = true;\n  delete staticData._batches[senderNumber];\n  return [{ json: {\n    _action: 'command',\n    senderNumber: senderNumber,\n    command: 'paused',\n    bildirim: 'Sistem Manuel De - ' + senderName + ' (' + senderNumber + ')'\n  }}];\n}\n\nif (messageText === '--') {\n  staticData._manualModes[senderNumber] = false;\n  return [{ json: {\n    _action: 'command',\n    senderNumber: senderNumber,\n    command: 'resumed',\n    bildirim: 'Sistem Otomatik - ' + senderName + ' (' + senderNumber + ')'\n  }}];\n}\n\nif (fromMe || staticData._manualModes[senderNumber] === true) {\n  return [{ json: { _action: 'ignore' } }];\n}\n\n// === BATCH TOPLAMA (State Isolation ile) ===\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    pendingMessages: [],\n    processingMessages: [],\n    pendingStartedAt: now,\n    lastMessageAt: now,\n    processingStartedAt: null,\n    processingToken: null,\n    senderName: senderName,\n    processing: false,\n    hasImages: false\n  };\n}\n\nconst batch = staticData._batches[senderNumber];\nif (!Array.isArray(batch.pendingMessages)) batch.pendingMessages = [];\nif (!Array.isArray(batch.processingMessages)) batch.processingMessages = [];\n\nif (batch.pendingMessages.length >= maxMessages) {\n  return [{ json: { _action: 'spam_limit', senderNumber, senderName } }];\n}\n\nconst hasImage = input.body.data.message?.imageMessage ? true : false;\nif (hasImage) batch.hasImages = true;\n\nif (!batch.pendingStartedAt || batch.pendingMessages.length === 0) {\n  batch.pendingStartedAt = now;\n}\n\nbatch.pendingMessages.push({\n  id: messageId,\n  text: messageText,\n  type: hasImage ? 'image' : 'text',\n  timestamp: now,\n  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),\n  mediaUrl: input.body.data.message?.imageMessage?.url || null,\n  mediaKey: input.body.data.message?.imageMessage?.mediaKey || null,\n  mimetype: input.body.data.message?.imageMessage?.mimetype || null\n});\n\nbatch.lastMessageAt = now;\nbatch.senderName = senderName;\n\nreturn [{ json: {\n  _action: batch.processing ? 'queued_during_processing' : 'queued',\n  senderNumber,\n  senderName,\n  pendingCount: batch.pendingMessages.length,\n  processing: batch.processing === true\n}}];"
+      },
+      "id": "cf3dc39b-5fa7-5389-ac72-94e2862a9cc2",
+      "name": "Batch Collector",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-action",
+              "leftValue": "={{ $json._action }}",
+              "rightValue": "process",
               "operator": {
                 "type": "string",
                 "operation": "equals"
@@ -69,13 +111,13 @@
         },
         "options": {}
       },
-      "id": "route-split-001",
-      "name": "Is Customer Message?",
+      "id": "6d6eba4b-4ded-5387-8f29-7d518c86632f",
+      "name": "Should Process?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        680,
-        500
+        1008,
+        640
       ]
     },
     {
@@ -89,8 +131,8 @@
           },
           "conditions": [
             {
-              "id": "cond-route",
-              "leftValue": "={{ $json._route }}",
+              "id": "cond-cmd",
+              "leftValue": "={{ $json._action }}",
               "rightValue": "command",
               "operator": {
                 "type": "string",
@@ -102,118 +144,26 @@
         },
         "options": {}
       },
-      "id": "is-command-001",
+      "id": "cc-001-cmd-check",
       "name": "Is Command?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        920,
-        700
+        1008,
+        960
       ]
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst senderNumber = String(input.senderNumber || '');\nconst senderName = String(input.senderName || senderNumber || 'Bilinmeyen müşteri');\nconst messageText = String(input.messageText || '').trim();\nconst messageId = String(input.messageId || '');\nconst messageType = String(input.messageType || 'text');\nconst now = Number(input.receivedAt || Date.now());\nconst maxPendingMessages = 30;\n\nif (!senderNumber || !messageText) {\n  return [{ json: { _action: 'ignore', reason: 'missing_sender_or_message' } }];\n}\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._lastReply) staticData._lastReply = {};\n\n// Müşteri yeni mesaj yazdıysa önceki \"cevap bekleniyor\" alarmını kaldır.\ndelete staticData._lastReply[senderNumber];\n\nif (staticData._manualModes[senderNumber] === true) {\n  return [{\n    json: {\n      _action: 'manual_mode',\n      senderNumber,\n      senderName\n    }\n  }];\n}\n\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    pendingMessages: [],\n    processingMessages: [],\n    startTime: now,\n    lastMessageTime: now,\n    senderName,\n    processing: false,\n    processingStartedAt: null,\n    processingToken: null\n  };\n}\n\nconst batch = staticData._batches[senderNumber];\n\n// Eski workflow veri yapısından güvenli geçiş.\nif (!Array.isArray(batch.pendingMessages)) {\n  batch.pendingMessages = Array.isArray(batch.messages) ? batch.messages : [];\n}\nif (!Array.isArray(batch.processingMessages)) {\n  batch.processingMessages = [];\n}\ndelete batch.messages;\n\nif (batch.pendingMessages.length >= maxPendingMessages) {\n  return [{\n    json: {\n      _action: 'spam_limit',\n      senderNumber,\n      senderName,\n      messageCount: batch.pendingMessages.length\n    }\n  }];\n}\n\nbatch.pendingMessages.push({\n  id: messageId,\n  text: messageText,\n  type: messageType,\n  timestamp: now,\n  time: new Date(now).toLocaleTimeString('tr-TR', {\n    hour: '2-digit',\n    minute: '2-digit',\n    timeZone: 'Europe/Istanbul'\n  })\n});\n\nbatch.lastMessageTime = now;\nbatch.senderName = senderName;\n\nreturn [{\n  json: {\n    _action: batch.processing ? 'queued_during_processing' : 'queued',\n    senderNumber,\n    senderName,\n    pendingCount: batch.pendingMessages.length,\n    processing: batch.processing === true\n  }\n}];"
-      },
-      "id": "cf3dc39b-5fa7-5389-ac72-94e2862a9cc2",
-      "name": "Batch Collector",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        920,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\n\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._lastReply) staticData._lastReply = {};\n\nconst num = String(input.senderNumber || '');\nconst name = String(input.senderName || num || 'Bilinmeyen müşteri');\nconst command = input._command;\n\nif (!num) {\n  return [{ json: { _action: 'ignore', reason: 'missing_customer_number' } }];\n}\n\nif (command === 'pause') {\n  staticData._manualModes[num] = true;\n  delete staticData._batches[num];\n  delete staticData._lastReply[num];\n\n  return [{\n    json: {\n      bildirim:\n        'MANUEL MOD AKTİF\\n' +\n        'Müşteri: ' + name + ' (' + num + ')\\n' +\n        'Otomatik cevap durduruldu.\\n' +\n        'Tekrar otomatik moda geçmek için müşteri sohbetinde -- yazın.',\n      senderNumber: num,\n      senderName: name,\n      action: 'command_pause',\n      notifyAdmins: true\n    }\n  }];\n}\n\nif (command === 'resume') {\n  delete staticData._manualModes[num];\n  if (!staticData._unclearCounts) staticData._unclearCounts = {};\n  delete staticData._unclearCounts[num];\n  delete staticData._lastReply[num];\n\n  return [{\n    json: {\n      bildirim:\n        'OTOMATİK MOD AKTİF\\n' +\n        'Müşteri: ' + name + ' (' + num + ')\\n' +\n        'Bu müşteriye otomatik cevap yeniden açıldı.',\n      senderNumber: num,\n      senderName: name,\n      action: 'command_resume',\n      notifyAdmins: true\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    _action: 'ignore',\n    reason: 'unknown_command'\n  }\n}];"
-      },
-      "id": "cmd-handler-001",
-      "name": "Command Handler",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1160,
-        700
-      ]
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "seconds",
-              "secondsInterval": 30
-            }
-          ]
-        }
-      },
-      "id": "0a90afa9-6731-5ce6-a4d0-76a4fc92898f",
-      "name": "Schedule Trigger",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        200,
-        1050
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\n\nconst windowMs = 3 * 60 * 1000;\nconst processingTimeoutMs = 2 * 60 * 1000;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst ready = [];\n\nfor (const [number, rawBatch] of Object.entries(staticData._batches)) {\n  const batch = rawBatch || {};\n\n  // Eski veri yapısından geçiş.\n  if (!Array.isArray(batch.pendingMessages)) {\n    batch.pendingMessages = Array.isArray(batch.messages) ? batch.messages : [];\n  }\n  if (!Array.isArray(batch.processingMessages)) {\n    batch.processingMessages = [];\n  }\n  delete batch.messages;\n\n  if (staticData._manualModes[number] === true) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  // Yarım kalan AI işlemini yeniden kuyruğa al.\n  if (\n    batch.processing === true &&\n    batch.processingStartedAt &&\n    now - Number(batch.processingStartedAt) > processingTimeoutMs\n  ) {\n    batch.pendingMessages = [\n      ...batch.processingMessages,\n      ...batch.pendingMessages\n    ];\n    batch.processingMessages = [];\n    batch.processing = false;\n    batch.processingStartedAt = null;\n    batch.processingToken = null;\n  }\n\n  if (batch.processing === true) continue;\n  if (!batch.pendingMessages.length) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  const lastTime = Number(batch.lastMessageTime || batch.startTime || now);\n  const idleTime = now - lastTime;\n\n  if (idleTime >= windowMs) {\n    ready.push({\n      number,\n      lastTime,\n      batch\n    });\n  }\n}\n\n// Aynı execution'da yalnızca bir müşteriyi işle.\n// Böylece AI memory ve $input.first() müşterileri birbirine karıştırmaz.\nready.sort((a, b) => a.lastTime - b.lastTime);\nconst selected = ready[0];\n\nif (!selected) {\n  return [{ json: { senderNumber: '', messageCount: 0, _ready: false } }];\n}\n\nconst { number, batch } = selected;\nconst processingMessages = batch.pendingMessages.splice(0);\nconst processingToken =\n  number + '-' + now + '-' + Math.random().toString(36).slice(2, 10);\n\nbatch.processingMessages = processingMessages;\nbatch.processing = true;\nbatch.processingStartedAt = now;\nbatch.processingToken = processingToken;\n\nconst allMessagesText = processingMessages\n  .map((message, index) => {\n    const typeLabel = message.type && message.type !== 'text'\n      ? ` (${message.type})`\n      : '';\n    return `${index + 1}. [${message.time || ''}]${typeLabel} ${message.text}`;\n  })\n  .join('\\n');\n\nreturn [{\n  json: {\n    _ready: true,\n    senderNumber: number,\n    senderName: batch.senderName || number,\n    messageCount: processingMessages.length,\n    allMessagesText,\n    batchToken: processingToken\n  }\n}];"
-      },
-      "id": "7fa1b04c-9639-5b87-99e7-e21c1d1bfc3b",
-      "name": "Stale Batch Check",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        440,
-        980
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "cond-stale",
-              "leftValue": "={{ $json.messageCount }}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "0304e900-4c6f-5cb7-a857-3c5f2e302d90",
-      "name": "Stale Exists?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        680,
-        980
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const input = $input.first().json;\n\nreturn [{\n  json: {\n    senderNumber: input.senderNumber,\n    senderName: input.senderName,\n    allMessagesText: input.allMessagesText,\n    messageCount: input.messageCount,\n    batchToken: input.batchToken,\n    _prompt:\n      'Müşteri adı: ' + input.senderName +\n      '\\nBu batch içindeki mesaj sayısı: ' + input.messageCount +\n      '\\n\\nYeni müşteri mesajları:\\n' + input.allMessagesText\n  }\n}];"
+        "jsCode": "const input = $input.first().json;\n\nconst allMessages  = String(input.allMessagesText || '');\nconst messageCount = Number(input.messageCount || 0);\nconst senderName   = String(input.senderName || '');\n\n// FİLTRE KODU PATTERN TARAMASI\nconst codePatterns = [\n  /\\b(?:MANN[-\\s]?)?(?:W|C|HU|WK|PU|PL)\\s?\\d{2,4}(?:\\s?[\\/\\-]\\s?\\d{1,2})?(?:\\s?[xX])?\\b/gi,\n  /\\b(?:FILTRON[-\\s]?)?(?:OP|P|OS|OW|PS|WS|AS|AP|L|LS)\\s?\\d{3,4}(?:\\s?[\\/\\-]\\s?\\d{1,2})?\\b/gi,\n  /\\b(?:UFI[-\\s]?)?\\d{2}\\.\\d{2}\\.\\d{2}(?:[\\/\\-]\\d)?\\b/gi,\n  /\\b(?:HENGST[-\\s]?)?E\\s?\\d{1,2}[A-Z]\\s?D?\\s?\\d{2,3}[A-Z]?\\b/gi,\n  /\\b(?:PURFLUX[-\\s]?)?LS\\s?\\d{3,4}(?:[\\/\\-]\\d{1,2})?\\b/gi,\n  /\\b(?:MAHLE[-\\s]?)?(?:OX|OC|KC|KL|KX|PI|LS|W)\\s?\\d{2,4}[A-Z]?\\b/gi,\n  /\\b(?:FILTORQ[-\\s]?)?[A-Z]{1,3}\\s?\\d{3,4}(?:[\\/\\-]\\d{1,2})?\\b/gi,\n  /\\b\\d{3,4}\\s?[\\/\\-]\\s?\\d{1,2}\\b/g\n];\n\nconst detectedCodes = [];\nconst seen = new Set();\nfor (const pattern of codePatterns) {\n  pattern.lastIndex = 0;\n  let match;\n  while ((match = pattern.exec(allMessages)) !== null) {\n    const code = match[0].trim().toUpperCase();\n    if (!seen.has(code) && code.length >= 4) {\n      seen.add(code);\n      detectedCodes.push(code);\n    }\n  }\n}\n\n// ARAÇ VE VIN TARAMASI\nconst vehicleHints = [];\nconst msgLower = allMessages.toLowerCase();\nconst vehicleKeywords = ['fiat','volkswagen','vw','renault','ford','toyota','hyundai','opel','peugeot','citroen','bmw','mercedes','audi','seat','skoda','egea','doblo','golf','passat','polo','clio','megane','tdi','multijet','dci','1.3','1.6','1.4','2010','2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023'];\nfor (const kw of vehicleKeywords) {\n  if (msgLower.includes(kw)) vehicleHints.push(kw);\n}\nconst vinPattern = /\\b[A-HJ-NPR-Z0-9]{17}\\b/gi;\nconst detectedVINs = [];\nlet vinMatch;\nwhile ((vinMatch = vinPattern.exec(allMessages)) !== null) {\n  detectedVINs.push(vinMatch[0].toUpperCase());\n}\n\nlet prompt = '═══ BAĞLAM BİLGİSİ (Sistem Taraması) ═══\\n' +\n  'Müşteri adı: ' + senderName + '\\n' +\n  'Batch mesaj sayısı: ' + messageCount + '\\n';\nif (detectedCodes.length > 0) prompt += '⚠️ TESPİT EDİLEN FİLTRE KODLARI: ' + detectedCodes.join(', ') + '\\n';\nif (detectedVINs.length > 0) prompt += '🔑 TESPİT EDİLEN ŞASİ NUMARASI: ' + detectedVINs.join(', ') + '\\n';\nif (vehicleHints.length > 0) prompt += '🚗 ARAÇ İPUCU KELİMELERİ: ' + [...new Set(vehicleHints)].join(', ') + '\\n';\nif (input.hasImages) prompt += '📸 MÜŞTERİ GÖRSEL GÖNDERDİ: Lütfen görselden okunan parça kodunu (varsa) codeStatus: \"uncertain\" ve source: \"vision\" olarak işaretle.\\n';\nprompt += '═══════════════════════════════════════\\n\\n';\nprompt += 'Yeni müşteri mesajları:\\n' + allMessages;\n\nreturn [{\n  json: {\n    senderNumber: input.senderNumber,\n    senderName: input.senderName,\n    allMessagesText: input.allMessagesText,\n    messageCount: input.messageCount,\n    batchToken: input.batchToken,\n    detectedCodes,\n    detectedVINs,\n    hasImages: input.hasImages || false,\n    _prompt: prompt\n  }\n}];"
       },
       "id": "d7ae6ef8-a8e2-5779-a8fb-7a98a18f48c3",
       "name": "Store Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        920,
-        980
+        1248,
+        640
       ]
     },
     {
@@ -221,14 +171,14 @@
         "promptType": "define",
         "text": "={{ $json._prompt }}",
         "options": {
-          "systemMessage": "Sen filtreoto.com WhatsApp satış ve müşteri destek asistanısın.\n\nFiltreOto; MANN-FILTER, FILTRON, FILTORQ, UFI, Bosch, Wunder ve Şampiyon gibi markaların yağ, hava, yakıt ve polen filtrelerini satan bir e-ticaret platformudur. Araç ve şasi bilgisiyle uyumluluk kontrolü yapılabilir.\n\nAMAÇ\nMüşterinin talebini anlayıp görüşmeyi ilerlet. Genel ve faydasız cevaplar verme. Her cevapta yalnızca gerekli olan bir sonraki bilgiyi iste.\n\nKURALLAR\n1. Tek başına “Hangi konuda yardımcı olabilirim?” benzeri genel bir cevap verme.\n2. Mesaj belirsizse filtre uyumluluğu, fiyat-stok veya sipariş durumu seçeneklerini açıkça sun.\n3. Müşteri parça kodu verdiyse aynı bilgiyi tekrar isteme.\n4. Araç bilgisi verdiyse yalnızca eksik kritik bilgiyi sor. Gerekebilecek bilgiler: marka, model, yıl, motor tipi/hacmi ve şasi numarası.\n5. Fiyat, stok, kargo tarihi, ürün uyumluluğu veya sipariş durumu sistem mesajlarında verilmemişse uydurma.\n6. Sipariş durumu için sipariş numarası eksikse iste.\n7. Şikâyet, iade, ödeme sorunu, hasarlı ürün, toplu alım, bayi talebi veya insan temsilci isteğinde action “handoff” olsun.\n8. Handoff cevabı müşteriye aktarım yapıldığını bildiren tek kısa mesaj olsun.\n9. Müşteri yalnızca teşekkür ediyor veya konuşmayı kapatıyorsa expectsReply false olsun.\n10. Türkçe, doğal ve profesyonel yaz. En fazla 45 kelime ve 3 kısa cümle kullan.\n11. Geçmişte verilen bilgiyi tekrar isteme.\n12. Telefon veya şasi numarasını gereksiz yere cevabında tekrar yazma.\n13. “+”, “++”, “?”, sadece emoji/noktalama veya anlamsız çok kısa mesaj intent “unclear” olsun. Bu sınıflandırmadan eminsen confidence yüksek olabilir.\n14. Belirsiz mesaj için şu anlama gelen faydalı bir cevap ver:\n“Filtre uyumluluğu, fiyat-stok veya sipariş durumu için yardımcı olabilirim. Parça kodunu ya da araç marka-model-yıl/şasi bilgisini yazabilirsiniz.”\n15. Açıklamasız görsel/belge geldiyse içeriği gördüğünü iddia etme; parça kodunu veya araç bilgilerini yazmasını iste.\n16. action “ignore” yalnızca cevap gerektirmeyen sistemsel/boş içerik için kullanılmalı.\n\nYALNIZCA GEÇERLİ JSON DÖNDÜR\nAşağıdaki alanların tamamını döndür. Markdown veya açıklama ekleme.\n\n{\n  \"action\": \"reply\",\n  \"intent\": \"product_compatibility\",\n  \"summary\": \"Müşteri araç için filtre uyumluluğu soruyor\",\n  \"reply\": \"Uyumluluk kontrolü için aracın marka, model, yıl ve motor bilgisini paylaşır mısınız?\",\n  \"missingFields\": [\"marka\", \"model\", \"yıl\", \"motor\"],\n  \"confidence\": 0.92,\n  \"handoffReason\": \"\",\n  \"expectsReply\": true\n}\n\naction yalnızca: reply, handoff, ignore\nintent yalnızca: product_compatibility, price_stock, order_status, shipping, return_complaint, wholesale, greeting, unclear, other\nconfidence: 0 ile 1 arasında sayı\nexpectsReply: true veya false\n"
+          "systemMessage": "Sen filtreoto.com WhatsApp satır ve müşteri destek asistanısın. FiltreOto; yalnızca MANN-FILTER, FILTRON, FILTORQ, UFI, HENGST, PURFLUX ve MAHLE markalarının orijinal yağ, hava, yakıt ve polen filtrelerini satan uzman bir e-ticaret platformudur. Kesinlikle motor yağı satışı yapmıyoruz, SADECE FİLTRE satıyoruz.\n\nGÖREVİN: Müşteri mesajını inceleyerek saf veri çıkarımı yapmak (Extraction) ve taslak yanıt (replyDraft) üretmektir. İş akışı kararlarını ve yönlendirmeleri arka plandaki JavaScript Politika Motoru verecektir.\n\nSIFIR HALÜSİNASYON VE DOĞRULAMA (VERIFICATION) KURALLARI:\n1. RAKAMSAL FİYAT VE STOK UYDURMA YASAK: Sistemimizde canlı fiyat listesi sana bağlı olmadığı için KESİNLİKLE \"150 TL\", \"350 TL\" gibi fiyatlar veya hayali stok adedi uydurma!\n2. Eğer müşteri bir fiyat bilgisi soruyorsa `replyDraft` içinde fiyat verme, yetkili kontrol edileceğini belirt ve JSON'da `verification.priceVerified = false` yap.\n\nSENARYO VE CASE_TYPE SINIFLANDIRMASI:\n- exact_code_price_stock: Müşteri net parça kodu verip fiyat veya stok soruyor (Örn: \"MANN W 712/95 var mı, fiyatı nedir?\"). DİKKAT: Bu durumda replyDraft içinde ASLA şasi numarası (VIN) veya araç bilgisi isteme! Usta zaten kodu vermiştir.\n- exact_code_compatibility: Müşteri parça kodu verip \"Bu kod aracıma uyar mı?\" soruyor.\n- cross_reference: Müşteri farklı bir kodun veya markanın muadilini soruyor (Örn: \"C 35 154 FILTRON muadili nedir?\").\n- partial_code: Kod eksik veya belirsiz (Örn: \"712/95\").\n- vehicle_based_search: Parça kodu vermeden aracı için filtre istiyor (Örn: \"Clio 4 mazot filtresi\").\n- non_product: İade, şikayet, ödeme sorunu, bayilik veya insan temsilci talebi.\n\nYALNIZCA GEÇERLİ JSON DÖNDÜR (Markdown ekleme, sadece { ile başlayıp } ile bitir):\n{\n  \"intent\": \"price_stock\",\n  \"caseType\": \"exact_code_price_stock\",\n  \"entities\": {\n    \"productCodes\": [\n      {\n        \"raw\": \"MANN W 712/95\",\n        \"brand\": \"MANN-FILTER\",\n        \"code\": \"W 712/95\",\n        \"codeStatus\": \"complete\",\n        \"source\": \"customer_text\",\n        \"confirmedByCustomer\": true,\n        \"extractionConfidence\": 1.0\n      }\n    ],\n    \"vehicles\": [],\n    \"requestedInfo\": [\"price\", \"stock\"],\n    \"preferredBrands\": [],\n    \"quantity\": \"2 adet\"\n  },\n  \"missingFields\": [],\n  \"replyDraft\": \"İlettiğiniz MANN W 712/95 kodu işleme alınmıştır. Güncel stok ve net fiyat yetkilimiz tarafından kontrol edilerek size iletilecektir; kaç adet istediğinizi paylaşabilir misiniz?\",\n  \"confidence\": {\n    \"intent\": 0.98,\n    \"caseType\": 0.97,\n    \"entityExtraction\": 0.95\n  },\n  \"verification\": {\n    \"catalogVerified\": false,\n    \"stockVerified\": false,\n    \"priceVerified\": false,\n    \"compatibilityVerified\": false,\n    \"dataSource\": \"customer_message\"\n  }\n}"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        1160,
-        980
+        1472,
+        624
       ],
       "id": "9409b931-1973-4c94-9d6e-5c255f6ee037",
       "name": "AI Agent"
@@ -243,15 +193,15 @@
         },
         "builtInTools": {},
         "options": {
-          "maxTokens": 300,
-          "temperature": 0.2
+          "temperature": 0.1,
+          "maxTokens": 600
         }
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
       "position": [
-        1100,
-        1210
+        1392,
+        864
       ],
       "id": "1b7c08e5-1da2-4a07-b017-370d41c50e85",
       "name": "OpenAI Chat Model1",
@@ -271,106 +221,36 @@
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
       "position": [
-        1280,
-        1210
+        1552,
+        864
       ],
       "id": "8627d7e8-8bc2-4449-b79b-dd1a4c04c32d",
       "name": "Simple Memory"
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst aiOutput = String($input.first().json?.output || '');\n\nconst context = $('Store Context').item.json;\nconst senderNumber = String(context.senderNumber || '');\nconst senderName = String(context.senderName || senderNumber || 'Bilinmeyen müşteri');\nconst allMessagesText = String(context.allMessagesText || '');\nconst batchToken = String(context.batchToken || '');\n\nif (!staticData._unclearCounts) staticData._unclearCounts = {};\nif (!staticData._batches) staticData._batches = {};\n\nconst batch = staticData._batches[senderNumber];\nconst validClaim = Boolean(\n  batch &&\n  batch.processing === true &&\n  batch.processingToken === batchToken\n);\n\nif (!validClaim) {\n  return [{\n    json: {\n      senderNumber,\n      senderName,\n      batchToken,\n      action: 'ignore',\n      intent: 'other',\n      summary: 'Geçersiz veya süresi dolmuş AI işlemi yutuldu',\n      reply: '',\n      missingFields: [],\n      confidence: 0,\n      handoffReason: '',\n      expectsReply: false,\n      notifyAdmins: false,\n      validClaim: false,\n      bildirim: ''\n    }\n  }];\n}\n\nlet parsed = null;\nlet parseError = '';\n\ntry {\n  const cleaned = aiOutput\n    .replace(/^```(?:json)?\\s*/i, '')\n    .replace(/\\s*```$/i, '')\n    .trim();\n\n  parsed = JSON.parse(cleaned);\n} catch (firstError) {\n  try {\n    const match = aiOutput.match(/\\{[\\s\\S]*\\}/);\n    if (!match) throw firstError;\n    parsed = JSON.parse(match[0]);\n  } catch (secondError) {\n    parseError = String(secondError?.message || secondError || 'Bilinmeyen ayrıştırma hatası');\n  }\n}\n\nconst allowedActions = new Set(['reply', 'handoff', 'ignore']);\nconst allowedIntents = new Set([\n  'product_compatibility',\n  'price_stock',\n  'order_status',\n  'shipping',\n  'return_complaint',\n  'wholesale',\n  'greeting',\n  'unclear',\n  'other'\n]);\n\nlet action = allowedActions.has(parsed?.action) ? parsed.action : 'handoff';\nlet intent = allowedIntents.has(parsed?.intent) ? parsed.intent : 'other';\nlet summary = String(parsed?.summary || '').trim();\nlet reply = String(parsed?.reply || '').trim();\nlet missingFields = Array.isArray(parsed?.missingFields)\n  ? parsed.missingFields.map((value) => String(value)).slice(0, 10)\n  : [];\nlet confidence = Number(parsed?.confidence);\nlet handoffReason = String(parsed?.handoffReason || '').trim();\nlet expectsReply = parsed?.expectsReply === true;\n\nif (!Number.isFinite(confidence)) confidence = 0;\nconfidence = Math.max(0, Math.min(1, confidence));\n\nif (parseError) {\n  action = 'handoff';\n  intent = 'other';\n  summary = 'AI çıktısı ayrıştırılamadı; manuel kontrol gerekiyor';\n  reply = 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';\n  missingFields = [];\n  confidence = 0;\n  handoffReason = 'AI JSON ayrıştırma hatası: ' + parseError.slice(0, 120);\n  expectsReply = false;\n}\n\n// Belirsiz talep sayacını deterministik yönet.\nif (intent === 'unclear') {\n  staticData._unclearCounts[senderNumber] =\n    Number(staticData._unclearCounts[senderNumber] || 0) + 1;\n\n  if (staticData._unclearCounts[senderNumber] >= 2) {\n    action = 'handoff';\n    reply = 'Talebinizi doğru yönlendirebilmek için ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';\n    handoffReason = handoffReason || 'Talep iki kez anlaşılmadı';\n    expectsReply = false;\n  }\n} else {\n  delete staticData._unclearCounts[senderNumber];\n}\n\n// Düşük güvenli, belirsiz olmayan işlemleri insana aktar.\nif (\n  confidence < 0.55 &&\n  intent !== 'unclear' &&\n  intent !== 'greeting' &&\n  action !== 'ignore'\n) {\n  action = 'handoff';\n  reply = reply || 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';\n  handoffReason = handoffReason || 'Düşük AI güven skoru';\n  expectsReply = false;\n}\n\nif (action === 'reply' && !reply) {\n  action = 'handoff';\n  reply = 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';\n  handoffReason = handoffReason || 'Boş otomatik cevap';\n  expectsReply = false;\n}\n\nif (action === 'handoff') {\n  reply = reply || 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';\n  expectsReply = false;\n}\n\nif (action === 'ignore') {\n  reply = '';\n  expectsReply = false;\n}\n\nif (!summary) {\n  summary = allMessagesText\n    .replace(/\\s+/g, ' ')\n    .slice(0, 160) || 'Müşteri mesajı';\n}\n\nconst intentLabels = {\n  product_compatibility: 'Ürün/Uyumluluk',\n  price_stock: 'Fiyat/Stok',\n  order_status: 'Sipariş Durumu',\n  shipping: 'Kargo',\n  return_complaint: 'Şikâyet/İade',\n  wholesale: 'Toptan/Bayi',\n  greeting: 'Selamlama',\n  unclear: 'Belirsiz Talep',\n  other: 'Diğer'\n};\n\nconst statusLabel =\n  action === 'handoff'\n    ? 'MANUEL MÜDAHALE GEREKİYOR'\n    : action === 'reply'\n      ? 'OTOMATİK CEVAP HAZIR'\n      : 'CEVAP GEREKMİYOR';\n\nlet bildirim =\n  'YENİ MESAJ - filtreoto.com\\n' +\n  'Gönderen: ' + senderName + '\\n' +\n  'Numara: ' + senderNumber + '\\n' +\n  'Konu: ' + (intentLabels[intent] || intent) + '\\n' +\n  'Güven: %' + Math.round(confidence * 100) + '\\n' +\n  'Durum: ' + statusLabel + '\\n' +\n  'Özet: ' + summary;\n\nif (missingFields.length) {\n  bildirim += '\\nEksik bilgi: ' + missingFields.join(', ');\n}\n\nif (handoffReason) {\n  bildirim += '\\nAktarım nedeni: ' + handoffReason;\n}\n\nif (action === 'reply') {\n  bildirim += '\\n\\nMüşteriye gönderilen yanıt:\\n' + reply;\n} else if (action === 'handoff') {\n  bildirim += '\\n\\nMüşteriye gönderilecek aktarım mesajı:\\n' + reply;\n}\n\nreturn [{\n  json: {\n    senderNumber,\n    senderName,\n    batchToken,\n    action,\n    intent,\n    summary,\n    reply,\n    missingFields,\n    confidence,\n    handoffReason,\n    expectsReply,\n    validClaim: true,\n    notifyAdmins: action === 'reply' || action === 'handoff',\n    bildirim\n  }\n}];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst aiOutput = String($input.first().json?.output || '');\n\nlet senderNumber = '';\nlet senderName = '';\nlet allMessagesText = '';\nlet batchToken = '';\ntry {\n  const sc = $('Store Context').item.json;\n  senderNumber = String(sc.senderNumber || '');\n  senderName = String(sc.senderName || senderNumber || 'Bilinmeyen müşteri');\n  allMessagesText = String(sc.allMessagesText || '');\n  batchToken = String(sc.batchToken || '');\n} catch(e) {}\n\nif (!staticData._unclearCounts) staticData._unclearCounts = {};\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._adminNotifications) staticData._adminNotifications = {};\n\nconst batch = staticData._batches[senderNumber];\nconst validClaim = Boolean(batch && batch.processing === true && batch.processingToken === batchToken);\n\nif (!validClaim && senderNumber) {\n  return [{ json: {\n    senderNumber, senderName, batchToken, action: 'ignore', intent: 'other', caseType: 'other',\n    cevap: '', missingFields: [], confidence: 0, handoffReason: 'Geçersiz veya süresi dolmuş işlem yutuldu',\n    notifyAdmins: false, validClaim: false, bildirim: ''\n  }}];\n}\n\nlet parsed = null;\ntry {\n  const cleaned = aiOutput.replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/i, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e1) {\n  try {\n    const match = aiOutput.match(/\\{[\\s\\S]*\\}/);\n    if (match) parsed = JSON.parse(match[0]);\n  } catch(e2) {}\n}\n\nif (!parsed) {\n  return [{ json: {\n    senderNumber, senderName, batchToken, action: 'handoff', intent: 'unclear', caseType: 'unclear',\n    cevap: 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.',\n    missingFields: [], confidence: 0, handoffReason: 'AI JSON ayrıştırma hatası',\n    notifyAdmins: true, validClaim: true, pauseAutomation: true,\n    bildirim: `⚠️ AI ÇIKTISI AYRIŞTIRILAMADI\\nMüşteri: ${senderName} (${senderNumber})\\nMesaj: ${allMessagesText}`\n  }}];\n}\n\nconst intent = String(parsed.intent || 'other').trim();\nconst caseType = String(parsed.caseType || intent || 'other').trim();\nconst entities = parsed.entities || {};\nlet replyDraft = String(parsed.replyDraft || parsed.reply || parsed.cevap || '').trim();\nconst missingFields = Array.isArray(parsed.missingFields) ? parsed.missingFields.slice(0, 10) : [];\nconst verification = parsed.verification || {};\n\n// ═══════════════════════════════════════════════════════════════\n// LAYER 2 GUARDRAIL: PROVENANCE & HALLUCINATION INTERCEPTOR\n// ═══════════════════════════════════════════════════════════════\nlet guardrailTriggered = false;\nlet triggeredRule = '';\nconst PRICE_PATTERN = /(?:₺\\s*\\d+(?:[\\.,]\\d+)?|\\d+(?:[\\.,]\\d+)?\\s*(?:TL|₺|TRY|Lira))/i;\nconst BANNED_PHRASES = ['stokta var', 'stoklarımızda mevcut', 'kesin uyar', 'uyumludur', 'birebir muadilidir', 'yerine kullanabilirsiniz'];\n\nif (verification.priceVerified !== true && PRICE_PATTERN.test(replyDraft)) {\n  guardrailTriggered = true;\n  triggeredRule = 'Doğrulanmamış rakamsal fiyat/TL halüsinasyonu';\n} else if (verification.stockVerified !== true || verification.compatibilityVerified !== true) {\n  const replyLower = replyDraft.toLocaleLowerCase('tr-TR');\n  for (const phrase of BANNED_PHRASES) {\n    if (replyLower.includes(phrase.toLocaleLowerCase('tr-TR'))) {\n      guardrailTriggered = true;\n      triggeredRule = `Yasaklı stok/uyumluluk garantisi ('${phrase}')`;\n      break;\n    }\n  }\n}\n\nif (guardrailTriggered) {\n  replyDraft = 'Ürünün güncel stok, fiyat ve teknik uygunluk bilgisi yetkilimiz tarafından kontrol edilerek size iletilecektir.';\n}\n\n// ═══════════════════════════════════════════════════════════════\n// JAVASCRIPT POLITIKA MOTORU (POLICY ENGINE MATRIX)\n// ═══════════════════════════════════════════════════════════════\nlet requiresHumanAction = false;\nlet notifyAdmin = false;\nlet pauseAutomation = false;\nlet askVehicleInfo = false;\nlet action = 'reply';\nlet handoffReason = guardrailTriggered ? `Guardrail Müdahalesi: ${triggeredRule}` : '';\n\nif (guardrailTriggered) {\n  requiresHumanAction = true;\n  notifyAdmin = true;\n  pauseAutomation = false;\n} else if (caseType === 'exact_code_price_stock') {\n  requiresHumanAction = true;\n  notifyAdmin = true;\n  pauseAutomation = false;\n  askVehicleInfo = false; // KESİNLİKLE ŞASİ İSTEME!\n  if (/şasi|vin|araç model/i.test(replyDraft)) {\n    replyDraft = 'İlettiğiniz parça kodları işleme alınmıştır. Güncel stok ve net fiyat yetkilimiz tarafından kontrol edilerek size iletilecektir; kaç adet istediğinizi paylaşabilir misiniz?';\n  }\n} else if (caseType === 'exact_code_compatibility') {\n  const hasVehicles = entities.vehicles && entities.vehicles.length > 0;\n  if (!hasVehicles) {\n    requiresHumanAction = false;\n    notifyAdmin = false;\n    pauseAutomation = false;\n    askVehicleInfo = true;\n  } else {\n    requiresHumanAction = true;\n    notifyAdmin = true;\n    pauseAutomation = false;\n    askVehicleInfo = false;\n  }\n} else if (caseType === 'cross_reference') {\n  requiresHumanAction = true;\n  notifyAdmin = true;\n  pauseAutomation = false;\n  askVehicleInfo = false;\n} else if (caseType === 'partial_code') {\n  requiresHumanAction = false;\n  notifyAdmin = false;\n  pauseAutomation = false;\n} else if (caseType === 'vehicle_based_search') {\n  const hasVehicles = entities.vehicles && entities.vehicles.length > 0;\n  if (!hasVehicles) {\n    requiresHumanAction = false;\n    notifyAdmin = false;\n    pauseAutomation = false;\n    askVehicleInfo = true;\n  } else {\n    requiresHumanAction = true;\n    notifyAdmin = true;\n    pauseAutomation = false;\n  }\n} else if (caseType === 'non_product' || intent === 'return_complaint' || intent === 'wholesale') {\n  requiresHumanAction = true;\n  notifyAdmin = true;\n  pauseAutomation = true; // Şikayet, iade veya temsilci talebinde botu sustur\n  action = 'handoff';\n  handoffReason = `Özel durum veya temsilci talebi (${intent})`;\n} else if (intent === 'unclear') {\n  staticData._unclearCounts[senderNumber] = Number(staticData._unclearCounts[senderNumber] || 0) + 1;\n  if (staticData._unclearCounts[senderNumber] >= 2) {\n    requiresHumanAction = true;\n    notifyAdmin = true;\n    pauseAutomation = true;\n    action = 'handoff';\n    handoffReason = 'Talep 2 kez üst üste anlaşılamadı';\n    replyDraft = 'Talebinizi doğru yönlendirebilmek için ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';\n  }\n} else if (intent === 'greeting') {\n  requiresHumanAction = false;\n  notifyAdmin = false;\n  pauseAutomation = false;\n}\n\nif (intent !== 'unclear') delete staticData._unclearCounts[senderNumber];\n\n// ═══════════════════════════════════════════════════════════════\n// SPAM KORUMASI, COOLDOWN VE GÜNCELLEME BİLDİRİMİ\n// ═══════════════════════════════════════════════════════════════\nconst now = Date.now();\nconst lastNotif = staticData._adminNotifications[senderNumber];\nlet isUpdate = false;\nlet shouldNotifyAdmin = notifyAdmin;\n\nconst currentCodes = Array.isArray(entities.productCodes) ? entities.productCodes.map(c => typeof c === 'object' ? c.code || c.raw : c).filter(Boolean) : [];\nconst quantity = String(entities.quantity || 'Belirtilmedi');\n\nif (notifyAdmin && lastNotif && (now - Number(lastNotif.timestamp) < 3 * 60 * 1000)) {\n  const oldCodes = lastNotif.codes || [];\n  const addedCodes = currentCodes.filter(c => !oldCodes.includes(c));\n  const qtyChanged = lastNotif.quantity !== quantity && quantity !== 'Belirtilmedi';\n  if (addedCodes.length > 0 || qtyChanged || caseType !== lastNotif.caseType) {\n    isUpdate = true;\n    shouldNotifyAdmin = true;\n  } else {\n    shouldNotifyAdmin = false; // 3 dk içindeki aynen mükerrer bildirimleri engelle\n  }\n}\n\nif (notifyAdmin && shouldNotifyAdmin) {\n  staticData._adminNotifications[senderNumber] = {\n    timestamp: now,\n    caseType,\n    codes: currentCodes,\n    quantity\n  };\n}\n\n// ═══════════════════════════════════════════════════════════════\n// DİNAMİK YÖNETİCİ BİLDİRİM ŞABLONU INŞASI\n// ═══════════════════════════════════════════════════════════════\nlet headerTitle = '📢 MÜŞTERİ TALEBİ / BİLDİRİM';\nlet yetkiliAksiyonu = 'Talep inceleme ve dönüş yapma';\nif (isUpdate) {\n  headerTitle = '🔄 SATIŞ TALEBİ GÜNCELLENDİ';\n} else if (caseType === 'exact_code_price_stock' || currentCodes.length > 0) {\n  headerTitle = '🔥 YÜKSEK NİYETLİ SATIŞ TALEBİ';\n  yetkiliAksiyonu = 'Stok ve net fiyat kontrolü';\n} else if (caseType === 'exact_code_compatibility' || intent === 'product_compatibility') {\n  headerTitle = '🛠️ UYUMLULUK VE PARÇA KONTROLÜ';\n  yetkiliAksiyonu = 'Şasi/Araç uyumluluk teyidi ve parça tespiti';\n} else if (intent === 'return_complaint' || caseType === 'non_product') {\n  headerTitle = '⚠️ ŞİKAYET / İADE / TEMSİLCİ TALEBİ';\n  yetkiliAksiyonu = 'Müşteri memnuniyeti / İade prosedürü kontrolü';\n}\n\nconst formattedCodes = currentCodes.length > 0 ? currentCodes.map(c => `• ${c}`).join(' ') : 'Belirtilmedi';\nconst formattedVehicles = Array.isArray(entities.vehicles) && entities.vehicles.length > 0 ? entities.vehicles.map(v => typeof v === 'object' ? `• ${v.brand || ''} ${v.model || ''} ${v.year || ''}`.trim() : `• ${v}`).join(' ') : (caseType === 'exact_code_price_stock' ? 'Gerekli değil (Tam kod verildi)' : 'Belirtilmedi');\n\nconst bildirim = `${headerTitle}\\n` +\n  `Müşteri: ${senderName} (${senderNumber})\\n` +\n  `Talep türü: ${caseType}\\n` +\n  `Kodlar: ${formattedCodes}\\n` +\n  `Miktar: ${quantity}\\n` +\n  `Araç bilgisi: ${formattedVehicles}\\n` +\n  `Yetkili aksiyonu: ${yetkiliAksiyonu}\\n\\n` +\n  `📌 AI Özeti: ${allMessagesText.replace(/\\s+/g, ' ').slice(0, 160)}\\n` +\n  `🤖 AI Cevabı: ${replyDraft}`;\n\nreturn [{\n  json: {\n    senderNumber,\n    senderName,\n    batchToken,\n    action,\n    intent,\n    caseType,\n    entities,\n    cevap: replyDraft,\n    bildirim,\n    missingFields,\n    handoffReason,\n    requiresHumanAction,\n    pauseAutomation,\n    notifyAdmins: shouldNotifyAdmin === true,\n    validClaim: true\n  }\n}];"
       },
       "id": "64249ad4-6e81-5542-bfda-6929c6c28aa6",
       "name": "Parse AI Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
-        980
+        1808,
+        624
       ]
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "cond-route",
-              "leftValue": "={{ $json.action }}",
-              "rightValue": "reply",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "is-reply-action-001",
-      "name": "Is Reply Action?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1640,
-        980
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://evo.filtreoto.online/message/sendText/filtr",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: $json.senderNumber, text: $json.reply }) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "ad29ccfa-691f-584b-8212-198b25bbbc24",
-      "name": "Reply to Customer",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1880,
-        880
-      ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 2000
-    },
-    {
-      "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst context = $('Parse AI Output').item.json;\n\nconst senderNumber = String(context.senderNumber || '');\nconst batchToken = String(context.batchToken || '');\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._lastReply) staticData._lastReply = {};\n\nconst batch = staticData._batches[senderNumber];\nconst validClaim = Boolean(\n  context.validClaim === true &&\n  batch &&\n  batch.processing === true &&\n  batch.processingToken === batchToken\n);\n\nif (!validClaim) {\n  return [{\n    json: {\n      ...context,\n      notifyAdmins: false,\n      needsHandoffAck: false,\n      finalized: false\n    }\n  }];\n}\n\nif (context.action === 'handoff') {\n  staticData._manualModes[senderNumber] = true;\n  delete staticData._batches[senderNumber];\n    delete staticData._unclearCounts[senderNumber];\n  delete staticData._lastReply[senderNumber];\n} else {\n  batch.processingMessages = [];\n  batch.processing = false;\n  batch.processingStartedAt = null;\n  batch.processingToken = null;\n\n  if (!Array.isArray(batch.pendingMessages)) {\n    batch.pendingMessages = [];\n  }\n\n  if (batch.pendingMessages.length === 0) {\n    delete staticData._batches[senderNumber];\n    delete staticData._unclearCounts[senderNumber];\n  }\n\n  if (context.action === 'reply' && context.expectsReply === true) {\n    staticData._lastReply[senderNumber] = {\n      time: Date.now(),\n      senderName: context.senderName,\n      intent: context.intent,\n      summary: context.summary\n    };\n  } else {\n    delete staticData._lastReply[senderNumber];\n  }\n}\n\nreturn [{\n  json: {\n    ...context,\n    finalized: true,\n    needsHandoffAck:\n      context.action === 'handoff' &&\n      Boolean(String(context.reply || '').trim())\n  }\n}];"
+        "jsCode": "const input = $input.first().json;\nconst staticData = $getWorkflowStaticData('global');\nconst senderNumber = String(input.senderNumber || '');\n\nif (!staticData._manualModes) staticData._manualModes = {};\n\n// Handoff veya pauseAutomation tetiklendiyse müşteriyi manuel moda kilitliyoruz\nif (input.pauseAutomation === true || input.action === 'handoff') {\n  staticData._manualModes[senderNumber] = true;\n  staticData._manualModes = Object.assign({}, staticData._manualModes);\n  if (staticData._batches && senderNumber) delete staticData._batches[senderNumber];\n} else if (staticData._batches && staticData._batches[senderNumber]) {\n  const batch = staticData._batches[senderNumber];\n  batch.processingMessages = [];\n  batch.processing = false;\n  batch.processingToken = null;\n  batch.processingStartedAt = null;\n  if (!Array.isArray(batch.pendingMessages) || batch.pendingMessages.length === 0) {\n    delete staticData._batches[senderNumber];\n  }\n}\n\nreturn [{ json: input }];"
       },
       "id": "77f0e3d1-9d66-5d9b-a5b4-d30379bc9dd1",
-      "name": "Finalize Batch",
+      "name": "Clear Batch",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2120,
-        980
+        2032,
+        624
       ]
     },
     {
@@ -384,8 +264,8 @@
           },
           "conditions": [
             {
-              "id": "cond-route",
-              "leftValue": "={{ $json.notifyAdmins }}",
+              "id": "cond-notify",
+              "leftValue": "={{ $json.notifyAdmins === true }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -397,13 +277,13 @@
         },
         "options": {}
       },
-      "id": "should-notify-admins-001",
+      "id": "cond-notify-admins-node",
       "name": "Should Notify Admins?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2360,
-        900
+        2240,
+        520
       ]
     },
     {
@@ -417,12 +297,21 @@
           },
           "conditions": [
             {
-              "id": "cond-route",
-              "leftValue": "={{ $json.needsHandoffAck }}",
-              "rightValue": true,
+              "id": "cond-reply-action",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "ignore",
               "operator": {
-                "type": "boolean",
-                "operation": "equals"
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "cond-reply-text",
+              "leftValue": "={{ $json.cevap }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
               }
             }
           ],
@@ -430,51 +319,14 @@
         },
         "options": {}
       },
-      "id": "send-handoff-ack-if-001",
-      "name": "Send Handoff Ack?",
+      "id": "cond-reply-customer-node",
+      "name": "Should Reply Customer?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2360,
-        1080
+        2240,
+        780
       ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://evo.filtreoto.online/message/sendText/filtr",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: $json.senderNumber, text: $json.reply }) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "handoff-reply-customer-001",
-      "name": "Handoff Reply to Customer",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2600,
-        1100
-      ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -498,7 +350,13 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim }) }}",
         "options": {
-          "timeout": 30000
+          "timeout": 30000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 100
+            }
+          }
         }
       },
       "id": "61d75176-a426-41d9-8a8e-6d4c626f8df5",
@@ -506,12 +364,9 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2600,
-        780
-      ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 2000
+        2480,
+        416
+      ]
     },
     {
       "parameters": {
@@ -543,24 +398,121 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2600,
-        920
-      ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 2000
+        2480,
+        624
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst idleAlertMs = 10 * 60 * 1000;\n\nif (!staticData._lastReply) staticData._lastReply = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst alerts = [];\n\nfor (const [number, rawRecord] of Object.entries(staticData._lastReply)) {\n  if (staticData._manualModes[number] === true) {\n    delete staticData._lastReply[number];\n    continue;\n  }\n\n  const record =\n    typeof rawRecord === 'number'\n      ? { time: rawRecord }\n      : (rawRecord || {});\n\n  const lastReplyTime = Number(record.time || 0);\n\n  if (!lastReplyTime) {\n    delete staticData._lastReply[number];\n    continue;\n  }\n\n  if (now - lastReplyTime >= idleAlertMs) {\n    const senderName = String(record.senderName || number);\n    const summary = String(record.summary || '').trim();\n\n    alerts.push({\n      json: {\n        senderNumber: number,\n        bildirim:\n          'CEVAP BEKLENEN MÜŞTERİ\\n' +\n          'Müşteri: ' + senderName + ' (' + number + ')\\n' +\n          (summary ? 'Son talep: ' + summary + '\\n' : '') +\n          'Botun son sorusundan sonra 10 dakikadır yeni mesaj gelmedi.',\n        _idleAlert: true\n      }\n    });\n\n    delete staticData._lastReply[number];\n  }\n}\n\nif (!alerts.length) {\n  return [{ json: { _idleAlert: false } }];\n}\n\nreturn alerts;"
+        "method": "POST",
+        "url": "https://evo.filtreoto.online/message/sendText/filtr",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ number: $json.senderNumber, text: $json.cevap }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ad29ccfa-691f-584b-8212-198b25bbbc24",
+      "name": "Reply to Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "0a90afa9-6731-5ce6-a4d0-76a4fc92898f",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\n\nconst IDLE_WINDOW_MS     = 35 * 1000;      // 35 sn sessizlik -> hemen işle\nconst MAX_WAIT_MS        = 60 * 1000;      // 60 sn toplam max bekleme\nconst PROCESSING_TIMEOUT = 2 * 60 * 1000;  // 2 dk AI işlem timeout recovery\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\n\nconst ready = [];\n\nfor (const [number, rawBatch] of Object.entries(staticData._batches)) {\n  const batch = rawBatch || {};\n  if (!Array.isArray(batch.pendingMessages)) batch.pendingMessages = Array.isArray(batch.messages) ? batch.messages : [];\n  if (!Array.isArray(batch.processingMessages)) batch.processingMessages = [];\n  delete batch.messages;\n\n  if (staticData._manualModes[number] === true) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  // Yarım kalan AI işlemini yeniden kuyruğa al\n  if (batch.processing === true && batch.processingStartedAt && (now - Number(batch.processingStartedAt) > PROCESSING_TIMEOUT)) {\n    batch.pendingMessages = [...batch.processingMessages, ...batch.pendingMessages];\n    batch.processingMessages = [];\n    batch.processing = false;\n    batch.processingStartedAt = null;\n    batch.processingToken = null;\n  }\n\n  if (batch.processing === true) continue;\n  if (!batch.pendingMessages.length) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  const lastTime  = Number(batch.lastMessageAt || batch.lastMessageTime || now);\n  const startTime = Number(batch.pendingStartedAt || batch.startTime || now);\n  const idleTime  = now - lastTime;\n  const totalTime = now - startTime;\n\n  const isIdleReady      = idleTime >= IDLE_WINDOW_MS;\n  const isMaxTimeReached = totalTime >= MAX_WAIT_MS;\n\n  if (isIdleReady || isMaxTimeReached) {\n    ready.push({ number, lastTime, batch, triggeredBy: isIdleReady ? 'idle' : 'max_time' });\n  }\n}\n\nready.sort((a, b) => a.lastTime - b.lastTime);\nconst selected = ready[0];\n\nif (!selected) {\n  return [{ json: { senderNumber: '', messageCount: 0, _ready: false } }];\n}\n\nconst { number, batch } = selected;\nconst processingMessages = batch.pendingMessages.splice(0);\nconst processingToken = number + '-' + now + '-' + Math.random().toString(36).slice(2, 10);\n\nbatch.processingMessages = processingMessages;\nbatch.processing = true;\nbatch.processingStartedAt = now;\nbatch.processingToken = processingToken;\nbatch.pendingStartedAt = null; // Sıfırla ki işlemdeyken gelen mesajlar yeni sayaç başlatsın\n\nconst allMessagesText = processingMessages\n  .map((message, index) => `${index + 1}. [${message.time || ''}] ${message.text}`)\n  .join('\\n');\n\nconst hasImages = processingMessages.some(m => m.type === 'image');\nconst imageMessages = processingMessages\n  .filter(m => m.type === 'image' && m.mediaUrl)\n  .map(m => ({ mediaUrl: m.mediaUrl, mediaKey: m.mediaKey, mimetype: m.mimetype }));\n\nreturn [{\n  json: {\n    _ready: true,\n    senderNumber: number,\n    senderName: batch.senderName || number,\n    messageCount: processingMessages.length,\n    allMessagesText,\n    batchToken: processingToken,\n    hasImages,\n    imageMessages\n  }\n}];"
+      },
+      "id": "7fa1b04c-9639-5b87-99e7-e21c1d1bfc3b",
+      "name": "Stale Batch Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-stale",
+              "leftValue": "={{ $json.messageCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0304e900-4c6f-5cb7-a857-3c5f2e302d90",
+      "name": "Stale Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        768,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst idleAlertMs = 10 * 60 * 1000;\n\nif (!staticData._lastReply) staticData._lastReply = {};\nconst alerts = [];\nfor (const [number, lastReplyTime] of Object.entries(staticData._lastReply)) {\n  if (now - lastReplyTime >= idleAlertMs) {\n    alerts.push({\n      json: {\n        senderNumber: number,\n        bildirim: `Sessiz müşteri - ${number} - 10 dakikadır yanıt vermiyor`,\n        _idleAlert: true\n      }\n    });\n    delete staticData._lastReply[number];\n  }\n}\nif (alerts.length === 0) return [{ json: { _idleAlert: false } }];\nreturn alerts;"
       },
       "id": "idle-check-001",
       "name": "Idle Timeout Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        440,
-        1240
+        528,
+        1360
       ]
     },
     {
@@ -592,8 +544,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        680,
-        1240
+        768,
+        1360
       ]
     }
   ],
@@ -607,25 +559,14 @@
             "index": 0
           },
           {
-            "node": "Route Message",
+            "node": "fromMe Check",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Route Message": {
-      "main": [
-        [
-          {
-            "node": "Is Customer Message?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Is Customer Message?": {
+    "fromMe Check": {
       "main": [
         [
           {
@@ -634,7 +575,17 @@
             "index": 0
           }
         ],
+        []
+      ]
+    },
+    "Batch Collector": {
+      "main": [
         [
+          {
+            "node": "Should Process?",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Is Command?",
             "type": "main",
@@ -643,11 +594,11 @@
         ]
       ]
     },
-    "Is Command?": {
+    "Should Process?": {
       "main": [
         [
           {
-            "node": "Command Handler",
+            "node": "Store Context",
             "type": "main",
             "index": 0
           }
@@ -655,7 +606,7 @@
         []
       ]
     },
-    "Command Handler": {
+    "Is Command?": {
       "main": [
         [
           {
@@ -668,7 +619,86 @@
             "type": "main",
             "index": 0
           }
+        ],
+        []
+      ]
+    },
+    "Store Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
         ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Clear Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Batch": {
+      "main": [
+        [
+          {
+            "node": "Should Notify Admins?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Should Reply Customer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Notify Admins?": {
+      "main": [
+        [
+          {
+            "node": "Phone A Send",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Phone B Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Should Reply Customer?": {
+      "main": [
+        [
+          {
+            "node": "Reply to Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Schedule Trigger": {
@@ -710,135 +740,6 @@
         []
       ]
     },
-    "Store Context": {
-      "main": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Agent": {
-      "main": [
-        [
-          {
-            "node": "Parse AI Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Chat Model1": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Simple Memory": {
-      "ai_memory": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_memory",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse AI Output": {
-      "main": [
-        [
-          {
-            "node": "Is Reply Action?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Is Reply Action?": {
-      "main": [
-        [
-          {
-            "node": "Reply to Customer",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Finalize Batch",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Reply to Customer": {
-      "main": [
-        [
-          {
-            "node": "Finalize Batch",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Finalize Batch": {
-      "main": [
-        [
-          {
-            "node": "Should Notify Admins?",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Send Handoff Ack?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Should Notify Admins?": {
-      "main": [
-        [
-          {
-            "node": "Phone A Send",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Phone B Send",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
-    "Send Handoff Ack?": {
-      "main": [
-        [
-          {
-            "node": "Handoff Reply to Customer",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
-    },
     "Idle Timeout Check": {
       "main": [
         [
@@ -866,12 +767,33 @@
         ],
         []
       ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "pinData": {},
   "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "2ada6a7c05eb2ca8098d42395250eb925d4ec278e58fb4423cb0ce022dfc837c"
+    "templateCredsSetupCompleted": true
   },
   "name": "WhatsApp AI - v10 Production",
   "settings": {
