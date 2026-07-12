@@ -975,7 +975,7 @@ nodes = [
         },
         "id": get_node_id("Phone A Send"), "name": "Phone A Send",
         "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 416],
-        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000
+        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000, "continueOnFail": True
     },
     {
         "parameters": {
@@ -991,7 +991,7 @@ nodes = [
         },
         "id": get_node_id("Phone B Send"), "name": "Phone B Send",
         "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 624],
-        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000
+        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000, "continueOnFail": True
     },
     {
         "parameters": {
@@ -1007,7 +1007,7 @@ nodes = [
         },
         "id": get_node_id("Reply to Customer"), "name": "Reply to Customer",
         "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 864],
-        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000
+        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000, "continueOnFail": True
     },
     {
         "parameters": {"rule": {"interval": [{"field": "seconds", "secondsInterval": 15}]}},
