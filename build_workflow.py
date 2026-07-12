@@ -963,10 +963,10 @@ nodes = [
     },
     {
         "parameters": {
-            "method": "POST", "url": "={{ $env.EVOLUTION_API_URL || 'https://evo.filtreoto.online/message/sendText/filtr' }}",
+            "method": "POST", "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY || '089311B617B8-48CF-8BD6-29759A57FDBF' }}"},
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -979,10 +979,10 @@ nodes = [
     },
     {
         "parameters": {
-            "method": "POST", "url": "={{ $env.EVOLUTION_API_URL || 'https://evo.filtreoto.online/message/sendText/filtr' }}",
+            "method": "POST", "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY || '089311B617B8-48CF-8BD6-29759A57FDBF' }}"},
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -995,10 +995,10 @@ nodes = [
     },
     {
         "parameters": {
-            "method": "POST", "url": "={{ $env.EVOLUTION_API_URL || 'https://evo.filtreoto.online/message/sendText/filtr' }}",
+            "method": "POST", "url": "http://82.153.228.163:8080/message/sendText/FiltreOto",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY || '089311B617B8-48CF-8BD6-29759A57FDBF' }}"},
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
