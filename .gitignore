@@ -7,6 +7,9 @@
 !workflow.json
 !build_workflow.py
 !implementation_plan.md
+!tools/
+!tools/*.py
+!README.md
 
 # Ignore n8n backup files and system generated files
 .agents/

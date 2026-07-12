@@ -1215,11 +1215,6 @@ nodes = [
         "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
     },
     {
-        "parameters": {"respondWith": "json", "responseBody": "={\"status\":\"ok\"}", "options": {}},
-        "id": get_node_id("Respond OK1"), "name": "Respond OK1",
-        "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1, "position": [240, 432]
-    },
-    {
         "parameters": {
             "conditions": {
                 "options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 1},
@@ -1460,7 +1455,7 @@ nodes = [
 ]
 # ── Connections ──
 connections = {
-    "Webhook1": {"main": [[{"node": "Respond OK1", "type": "main", "index": 0}, {"node": "fromMe Check", "type": "main", "index": 0}]]},
+    "Webhook1": {"main": [[{"node": "fromMe Check", "type": "main", "index": 0}]]},
     "fromMe Check": {"main": [[{"node": "Batch Collector", "type": "main", "index": 0}], []]},
     "Batch Collector": {"main": [[{"node": "Should Process?", "type": "main", "index": 0}, {"node": "Is Command?", "type": "main", "index": 0}]]},
     "Should Process?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
@@ -1471,9 +1466,15 @@ connections = {
       "Finalize Batch": {"main": [[]]},
     "Should Notify Admins?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
     "Should Reply Customer?": {"main": [[{"node": "Reply to Customer", "type": "main", "index": 0}], []]},
-      "Phone A Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}], [{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
-      "Phone B Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}], [{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
-      "Reply to Customer": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}], [{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
+      "Phone A Send": {"main": [[{"node": "Tag Success Phone A", "type": "main", "index": 0}], [{"node": "Tag Err Phone A", "type": "main", "index": 0}]]},
+      "Phone B Send": {"main": [[{"node": "Tag Success Phone B", "type": "main", "index": 0}], [{"node": "Tag Err Phone B", "type": "main", "index": 0}]]},
+      "Reply to Customer": {"main": [[{"node": "Tag Success Reply", "type": "main", "index": 0}], [{"node": "Tag Err Reply", "type": "main", "index": 0}]]},
+      "Tag Success Phone A": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+      "Tag Success Phone B": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+      "Tag Success Reply": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+      "Tag Err Phone A": {"main": [[{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
+      "Tag Err Phone B": {"main": [[{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
+      "Tag Err Reply": {"main": [[{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
       "Dead Letter Admin": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
     "Schedule Trigger": {"main": [[{"node": "Stale Batch Check", "type": "main", "index": 0}, {"node": "Idle Timeout Check", "type": "main", "index": 0}]]},
     "Stale Batch Check": {"main": [[{"node": "Stale Exists?", "type": "main", "index": 0}]]},
@@ -1494,7 +1495,7 @@ except Exception:
 wf["name"] = "WhatsApp AI - v12.5 Enterprise"
 wf["nodes"] = nodes
 wf["connections"] = connections
-wf["settings"] = {"executionOrder": "v1", "saveDataSuccessExecution": "all", "saveExecutionProgress": True, "saveManualExecutions": True}
+wf["settings"] = {"executionOrder": "v1", "saveDataSuccessExecution": "none", "saveExecutionProgress": False, "saveManualExecutions": True}
 if "staticData" not in wf or not wf["staticData"]:
     wf["staticData"] = {"node:Schedule Trigger": {"recurrenceRules": []}, "global": {"_batches": {}}}
 wf["meta"] = {"templateCredsSetupCompleted": True}
@@ -1514,10 +1515,12 @@ syntax_failed = False
 for node in wf.get("nodes", []):
     if "jsCode" in node.get("parameters", {}):
         code = node["parameters"]["jsCode"]
-        n_name = node["name"].replace(" ", "_").replace("?", "")
-        tmp_js = f"tmp_check_{n_name}.js"
-        with open(tmp_js, "w", encoding="utf-8") as jf:
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".js", encoding="utf-8", delete=False) as jf:
+            jf.write("(async () => {\n")
             jf.write(code)
+            jf.write("\n})();\n")
+            tmp_js = jf.name
         res = subprocess.run(["node", "--check", tmp_js], capture_output=True, text=True)
         if os.path.exists(tmp_js):
             os.remove(tmp_js)
@@ -1528,6 +1531,4 @@ for node in wf.get("nodes", []):
             print(f"[PASS] Syntax OK [{node['name']}]")
 
 if syntax_failed:
-    if os.path.exists("workflow.json"):
-        os.remove("workflow.json")
     raise RuntimeError("BUILD ABORTED: JavaScript syntax check FAILED on one or more nodes!")

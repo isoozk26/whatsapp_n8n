@@ -19,21 +19,6 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={\"status\":\"ok\"}",
-        "options": {}
-      },
-      "id": "c370ae94-67de-411e-8368-4d479f00e421",
-      "name": "Respond OK1",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        240,
-        432
-      ]
-    },
-    {
-      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -690,11 +675,6 @@
       "main": [
         [
           {
-            "node": "Respond OK1",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "fromMe Check",
             "type": "main",
             "index": 0
@@ -835,14 +815,14 @@
       "main": [
         [
           {
-            "node": "Finalize Batch",
+            "node": "Tag Success Phone A",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Dead Letter Admin",
+            "node": "Tag Err Phone A",
             "type": "main",
             "index": 0
           }
@@ -853,14 +833,14 @@
       "main": [
         [
           {
-            "node": "Finalize Batch",
+            "node": "Tag Success Phone B",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Dead Letter Admin",
+            "node": "Tag Err Phone B",
             "type": "main",
             "index": 0
           }
@@ -871,11 +851,77 @@
       "main": [
         [
           {
-            "node": "Finalize Batch",
+            "node": "Tag Success Reply",
             "type": "main",
             "index": 0
           }
         ],
+        [
+          {
+            "node": "Tag Err Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Success Phone A": {
+      "main": [
+        [
+          {
+            "node": "Finalize Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Success Phone B": {
+      "main": [
+        [
+          {
+            "node": "Finalize Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Success Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Err Phone A": {
+      "main": [
+        [
+          {
+            "node": "Dead Letter Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Err Phone B": {
+      "main": [
+        [
+          {
+            "node": "Dead Letter Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Err Reply": {
+      "main": [
         [
           {
             "node": "Dead Letter Admin",
@@ -993,8 +1039,8 @@
   "name": "WhatsApp AI - v12.5 Enterprise",
   "settings": {
     "executionOrder": "v1",
-    "saveDataSuccessExecution": "all",
-    "saveExecutionProgress": true,
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
     "saveManualExecutions": true
   },
   "staticData": {
