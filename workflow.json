@@ -4,7 +4,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "evolution-webhook",
-        "responseMode": "responseNode",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "65f757d5-7045-45df-90aa-a959a4a10519",
@@ -379,7 +379,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "continueOnFail": true
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -417,7 +417,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "continueOnFail": true
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -455,7 +455,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "continueOnFail": true
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
