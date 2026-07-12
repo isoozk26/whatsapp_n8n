@@ -870,7 +870,7 @@ nodes = [
             "conditions": {
                 "options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 1},
                 "conditions": [
-                    {"id": "cond-allow", "leftValue": "={{ !$json.body.data.key.fromMe || ['++', '--'].includes($json.body.data.message?.conversation || $json.body.data.message?.extendedTextMessage?.text || '') }}", "rightValue": True, "operator": {"type": "boolean", "operation": "equals"}},
+                    {"id": "cond-allow", "leftValue": "={{ !$json.body?.data?.key?.fromMe || ['++', '--'].includes($json.body?.data?.message?.conversation || $json.body?.data?.message?.extendedTextMessage?.text || '') }}", "rightValue": True, "operator": {"type": "boolean", "operation": "equals"}},
                     {"id": "cond-no-group", "leftValue": "={{ $json.body.data.key.remoteJid }}", "rightValue": "@g.us", "operator": {"type": "string", "operation": "notEndsWith"}},
                     {"id": "cond-no-broadcast", "leftValue": "={{ $json.body.data.key.remoteJid }}", "rightValue": "@broadcast", "operator": {"type": "string", "operation": "notEndsWith"}}
                 ],

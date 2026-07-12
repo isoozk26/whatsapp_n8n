@@ -44,7 +44,7 @@
           "conditions": [
             {
               "id": "cond-allow",
-              "leftValue": "={{ !$json.body.data.key.fromMe || ['++', '--'].includes($json.body.data.message?.conversation || $json.body.data.message?.extendedTextMessage?.text || '') }}",
+              "leftValue": "={{ !$json.body?.data?.key?.fromMe || ['++', '--'].includes($json.body?.data?.message?.conversation || $json.body?.data?.message?.extendedTextMessage?.text || '') }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
