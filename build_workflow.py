@@ -476,7 +476,11 @@ parse_ai_output_js = (
     "  'direkt takılır',\n"
     "  'rahatlıkla kullanabilirsiniz'\n"
     "];\n\n"
-    "if (verification.priceVerified !== true && PRICE_PATTERN.test(replyDraft)) {\n"
+    "const UNSAFE_CONTENT = /(?:https?:\\/\\/|www\\.)[^\\s]+|şifre|kredi\\s?kart|\\bcvv\\b|\\botp\\b/i;\n"
+    "if (UNSAFE_CONTENT.test(replyDraft)) {\n"
+    "  guardrailTriggered = true;\n"
+    "  triggeredRule = 'Güvenli olmayan bağlantı veya hassas veri talebi';\n"
+    "} else if (verification.priceVerified !== true && PRICE_PATTERN.test(replyDraft)) {\n"
     "  guardrailTriggered = true;\n"
     "  triggeredRule = 'Doğrulanmamış rakamsal fiyat/TL halüsinasyonu';\n"
     "} else if (verification.stockVerified !== true || verification.compatibilityVerified !== true) {\n"
@@ -631,6 +635,9 @@ parse_ai_output_js = (
     "  notifyAdmin = true;\n"
     "  pauseAutomation = false;\n"
     "  askVehicleInfo = false;\n"
+    "  const sourceCode = (entities.productCodes && entities.productCodes.length > 0) ? (entities.productCodes[0].code || entities.productCodes[0].raw || entities.productCodes[0]) : 'Belirtilen';\n"
+    "  const prefBrands = (entities.preferredBrands && entities.preferredBrands.length > 0) ? entities.preferredBrands.join(' veya ') : 'muadil';\n"
+    "  replyDraft = `${sourceCode} kodu için ${prefBrands} talebinizi aldım. Yanlış parça yönlendirmemek için muadil kodu üretici kataloğundan teyit ederek paylaşacağız. Yetkilimiz kontrol sonrası size dönüş yapacaktır.`;\n"
     "} else if (caseType === 'partial_code') {\n"
     "  requiresHumanAction = false;\n"
     "  notifyAdmin = false;\n"
@@ -736,7 +743,7 @@ parse_ai_output_js = (
     "const formattedCodes = currentCodes.length > 0 ? currentCodes.map(c => `• ${c}`).join(' ') : 'Belirtilmedi';\n"
     "const codeStr = provenanceViolation ? `⚠️ ŞÜPHELİ AI KODU: ${unverifiedCode}\\n  Temizlenen Kodlar: ${formattedCodes}` : formattedCodes;\n"
     "const formattedVehicles = Array.isArray(entities.vehicles) && entities.vehicles.length > 0 ? entities.vehicles.map(v => typeof v === 'object' ? `• ${v.brand || ''} ${v.model || ''} ${v.year || ''}`.trim() : `• ${v}`).join(' ') : (caseType === 'exact_code_price_stock' ? 'Gerekli değil (Tam kod verildi)' : 'Belirtilmedi');\n\n"
-    "const bildirim = `🔥 SATIŞA HAZIR TALEP — SLA 5 DK\\n` +\n"
+    "const bildirim = `${headerTitle} — SLA 5 DK\\n` +\n"
     "  `Müşteri: ${senderName} (${senderNumber})\\n` +\n"
     "  `Ürün: ${codeStr}\\n` +\n"
     "  `Miktar: ${quantity}\\n` +\n"
@@ -901,7 +908,7 @@ nodes = [
         "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [1008, 960]
     },
     {
-        "parameters": {"jsCode": store_context_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": store_context_js},
         "id": get_node_id("Store Context"), "name": "Store Context",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1248, 640]
     },
@@ -932,12 +939,12 @@ nodes = [
         "position": [1552, 864], "id": get_node_id("Simple Memory"), "name": "Simple Memory"
     },
     {
-        "parameters": {"jsCode": parse_ai_output_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": parse_ai_output_js},
         "id": get_node_id("Parse AI Output"), "name": "Parse AI Output",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1808, 624]
     },
     {
-        "parameters": {"jsCode": clear_batch_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": clear_batch_js},
         "id": get_node_id("Finalize Batch"), "name": "Finalize Batch",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2800, 640]
     },
@@ -1062,13 +1069,13 @@ connections = {
     "Is Command?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
     "Store Context": {"main": [[{"node": "AI Agent", "type": "main", "index": 0}]]},
     "AI Agent": {"main": [[{"node": "Parse AI Output", "type": "main", "index": 0}]]},
-    "Parse AI Output": {"main": [[{"node": "Should Notify Admins?", "type": "main", "index": 0}, {"node": "Should Reply Customer?", "type": "main", "index": 0}]]},
-    "Finalize Batch": {"main": [[]]},
+    "Parse AI Output": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+    "Finalize Batch": {"main": [[{"node": "Should Notify Admins?", "type": "main", "index": 0}, {"node": "Should Reply Customer?", "type": "main", "index": 0}]]},
     "Should Notify Admins?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
     "Should Reply Customer?": {"main": [[{"node": "Reply to Customer", "type": "main", "index": 0}], []]},
-    "Phone A Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
-    "Phone B Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
-    "Reply to Customer": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+    "Phone A Send": {"main": [[]]},
+    "Phone B Send": {"main": [[]]},
+    "Reply to Customer": {"main": [[]]},
     "Schedule Trigger": {"main": [[{"node": "Stale Batch Check", "type": "main", "index": 0}, {"node": "Idle Timeout Check", "type": "main", "index": 0}]]},
     "Stale Batch Check": {"main": [[{"node": "Stale Exists?", "type": "main", "index": 0}]]},
     "Stale Exists?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
