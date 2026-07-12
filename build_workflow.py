@@ -795,6 +795,9 @@ parse_ai_output_js = (
     "    shouldNotifyAdmin = false;\n"
     "  }\n"
     "}\n\n"
+    "let headerTitle = '';\n"
+    "let yetkiliAksiyonu = '';\n"
+    "if (caseType === 'non_product' || action === 'handoff') {\n"
     "  headerTitle = '⚠️ ŞİKAYET / İADE / TEMSİLCİ TALEBİ';\n"
     "  yetkiliAksiyonu = 'Müşteri memnuniyeti / İade prosedürü / Özel talep kontrolü';\n"
     "} else if (caseType === 'exact_code_compatibility' || intent === 'product_compatibility') {\n"
@@ -1128,7 +1131,7 @@ nodes = [
                   {"name": "Content-Type", "value": "application/json"}
               ]},
               "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
-              "body": "={{ JSON.stringify({ number: '905052237182', text: '🚨 SİSTEM HATASI (Dead-Letter):\\nBir mesaj 3 denemeye rağmen Evolution API üzerinden WhatsApp\\\'a iletilemedi.\\nLütfen n8n panosunu kontrol edin.' }) }}",
+              "body": "={{ JSON.stringify({ number: '905052237182', text: `🚨 SİSTEM HATASI (Dead-Letter)\\n\\n• Hedef/Müşteri: ${$json.senderNumber || $json.number || 'Bilinmiyor'}\\n• Başarısız Kanal: ${$node[\"Phone A Send\"].error ? 'Phone A Send' : ($node[\"Phone B Send\"].error ? 'Phone B Send' : 'Reply to Customer')}\\n• Batch Token: ${$json.batchToken || 'Bilinmiyor'}\\n• Hata Detayı: ${JSON.stringify($json.error || $json.message || 'Evolution API Bağlantı/Timeout Hatası')}\\n• Execution ID: ${$execution.id || 'Bilinmiyor'}\\n\\nLütfen n8n panelinden ilgili execution kaydını inceleyin.` }) }}",
               "options": {"timeout": 30000}
           },
           "id": get_node_id("Dead Letter Admin"), "name": "Dead Letter Admin",
@@ -1219,3 +1222,30 @@ with open("workflow.json", "w", encoding="utf-8") as f:
     json.dump(wf, f, indent=2, ensure_ascii=False)
 
 print(f"workflow.json v12.5 Enterprise generated: {len(nodes)} nodes, {len(connections)} connection sources")
+
+# ── Automated JS Syntax Verification (P1 Requirement) ──
+import subprocess
+import os
+
+print("Running automated node --check syntax verification on all JS nodes...")
+syntax_failed = False
+for node in wf.get("nodes", []):
+    if "jsCode" in node.get("parameters", {}):
+        code = node["parameters"]["jsCode"]
+        n_name = node["name"].replace(" ", "_").replace("?", "")
+        tmp_js = f"tmp_check_{n_name}.js"
+        with open(tmp_js, "w", encoding="utf-8") as jf:
+            jf.write(code)
+        res = subprocess.run(["node", "--check", tmp_js], capture_output=True, text=True)
+        if os.path.exists(tmp_js):
+            os.remove(tmp_js)
+        if res.returncode != 0:
+            print(f"[FAIL] SYNTAX ERROR in node [{node['name']}]:\n{res.stderr.strip()}")
+            syntax_failed = True
+        else:
+            print(f"[PASS] Syntax OK [{node['name']}]")
+
+if syntax_failed:
+    if os.path.exists("workflow.json"):
+        os.remove("workflow.json")
+    raise RuntimeError("BUILD ABORTED: JavaScript syntax check FAILED on one or more nodes!")
