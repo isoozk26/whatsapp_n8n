@@ -1082,6 +1082,21 @@ nodes = [
         "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 864],
         "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueErrorOutput"
     },
+      {
+          "parameters": {
+              "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
+              "sendHeaders": True,
+              "headerParameters": {"parameters": [
+                  {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                  {"name": "Content-Type", "value": "application/json"}
+              ]},
+              "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
+              "body": "={{ JSON.stringify({ number: '905052237182', text: '🚨 SİSTEM HATASI (Dead-Letter):\\nBir mesaj 3 denemeye rağmen Evolution API üzerinden WhatsApp\\\'a iletilemedi.\\nLütfen n8n panosunu kontrol edin.' }) }}",
+              "options": {"timeout": 30000}
+          },
+          "id": get_node_id("Dead Letter Admin"), "name": "Dead Letter Admin",
+          "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 1000]
+      },
     {
         "parameters": {"rule": {"interval": [{"field": "seconds", "secondsInterval": 15}]}},
         "id": get_node_id("Schedule Trigger"), "name": "Schedule Trigger",
@@ -1134,9 +1149,10 @@ connections = {
       "Finalize Batch": {"main": [[]]},
     "Should Notify Admins?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
     "Should Reply Customer?": {"main": [[{"node": "Reply to Customer", "type": "main", "index": 0}], []]},
-      "Phone A Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
-      "Phone B Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
-      "Reply to Customer": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+      "Phone A Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}], [{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
+      "Phone B Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}], [{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
+      "Reply to Customer": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}], [{"node": "Dead Letter Admin", "type": "main", "index": 0}]]},
+      "Dead Letter Admin": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
     "Schedule Trigger": {"main": [[{"node": "Stale Batch Check", "type": "main", "index": 0}, {"node": "Idle Timeout Check", "type": "main", "index": 0}]]},
     "Stale Batch Check": {"main": [[{"node": "Stale Exists?", "type": "main", "index": 0}]]},
     "Stale Exists?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},

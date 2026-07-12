@@ -462,6 +462,40 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "https://evo.filtreoto.online/message/sendText/filtr",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ number: '905052237182', text: '🚨 SİSTEM HATASI (Dead-Letter):\\nBir mesaj 3 denemeye rağmen Evolution API üzerinden WhatsApp\\'a iletilemedi.\\nLütfen n8n panosunu kontrol edin.' }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c104dd57-357c-5a39-a19b-d66f44fb5758",
+      "name": "Dead Letter Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        1000
+      ]
+    },
+    {
+      "parameters": {
         "rule": {
           "interval": [
             {
@@ -727,6 +761,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Dead Letter Admin",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -738,10 +779,35 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Dead Letter Admin",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Reply to Customer": {
+      "main": [
+        [
+          {
+            "node": "Finalize Batch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dead Letter Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dead Letter Admin": {
       "main": [
         [
           {
