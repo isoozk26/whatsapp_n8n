@@ -452,7 +452,7 @@ parse_ai_output_js = (
     "// ═══════════════════════════════════════════════════════════════\n"
     "let guardrailTriggered = false;\n"
     "let triggeredRule = '';\n\n"
-    "const PRICE_PATTERN = /(?:₺\\s*\\d+(?:[\\.,]\\d+)?|\\d+(?:[\\.,]\\d+)?\\s*(?:TL|₺|TRY|Lira)|(?:fiyat[ıi]?|ücret|bedel|tutar)\\s*[:=]?\\s*\\d{2,})/i;\n"
+    "const PRICE_PATTERN = /(?:₺\\s*\\d+(?:[\\.,]\\d+)?|\\d+(?:[\\.,]\\d+)?\\s*(?:TL|₺|TRY|Lira)|(?:fiyat[ıi]?|ücret|bedel|tutar)\\s*[:=]?\\s*\\d{2,}|(?:yüz|bin|milyon)\\s+(?:lira|tl))/i;\n"
     "const COMPAT_GUARANTEE = /(?:(?:kesin(?:likle)?|garanti|tam(?:amen)?|net|birebir|%100|%99)\\s*(?:uy(?:ar|umlu|um|gundur)?|olur|oturur|tak[ıi]l[ıi]r|geçer)|(?:ara(?:c|ç|c[ıi]n[ıi]z)a?|motor(?:a|u|unuza)?|model(?:e|inize)?)\\s+(?:tam\\s+)?(?:uyar|uygundur|uyumludur|olur)|\\b(?:uygundur|uyumludur)\\b)/i;\n"
     "const STOCK_GUARANTEE = /(?:stok(?:ta|larımızda|umuzda|larda)?|elimizde|depo(?:muz)?da)\\s+(?:mevcut(?:tur|dur)?|var(?:dır)?|bulun(?:uyor|maktad[ıi]r)|uygun(?:dur)?|mevcuttur)/i;\n"
     "const BANNED_PHRASES = [\n"
@@ -468,7 +468,13 @@ parse_ai_output_js = (
     "  'birebir muadilidir',\n"
     "  'yerine kullanabilirsiniz',\n"
     "  'garanti uyar',\n"
-    "  'garanti uygundur'\n"
+    "  'garanti uygundur',\n"
+    "  'mevcut görünüyor',\n"
+    "  'sorunsuz kullanabilirsiniz',\n"
+    "  'birebir karşılığıdır',\n"
+    "  'tam karşılığıdır',\n"
+    "  'direkt takılır',\n"
+    "  'rahatlıkla kullanabilirsiniz'\n"
     "];\n\n"
     "if (verification.priceVerified !== true && PRICE_PATTERN.test(replyDraft)) {\n"
     "  guardrailTriggered = true;\n"
@@ -533,7 +539,7 @@ parse_ai_output_js = (
     "function isVehicleComplete(vehicles) {\n"
     "  if (!Array.isArray(vehicles) || vehicles.length === 0) return false;\n"
     "  const vinStringMatch = /\\b[A-HJ-NPR-Z0-9]{17}\\b/i;\n"
-    "  const engineRegex = /(?:\\b\\d+[\\.,]\\d+\\s*(?:td[iı]|ts[iı]|cdti|hd[iı]|tdci|mjet|tfsi|vvt-?i|l|lt|cc)?\\b|\\b\\d+\\s*(?:hp|bg|ps|kw|cc)\\b|\\b(?:td[iı]|ts[iı]|cdti|hd[iı]|tdci|mjet|tfsi)\\b|\\b[A-Z0-9]{3,5}\\b)/i;\n\n"
+    "  const engineRegex = /(?:\\b\\d+[\\.,]\\d+\\s*(?:td[iı]|ts[iı]|cdti|hd[iı]|tdci|mjet|tfsi|vvt-?i|l|lt|cc)?\\b|\\b\\d+\\s*(?:hp|bg|ps|kw|cc)\\b|\\b(?:td[iı]|ts[iı]|cdti|hd[iı]|tdci|mjet|tfsi)\\b)/i;\n\n"
     "  for (const v of vehicles) {\n"
     "    if (typeof v === 'string') {\n"
     "      const trimmed = v.trim();\n"
@@ -581,6 +587,12 @@ parse_ai_output_js = (
     "  action = 'handoff';\n"
     "  handoffReason = `Katalog/Mesaj dışı parça kodu uydurma şüphesi (Provenance: '${unverifiedCode}')`;\n"
     "  replyDraft = 'Parça kodunuzu ve araç uyumluluğunu netleştirmek üzere talebinizi yetkilimize aktarıyorum.';\n"
+    "  if (Array.isArray(entities.productCodes)) {\n"
+    "    entities.productCodes = entities.productCodes.filter(c => {\n"
+    "      const v = typeof c === 'object' && c !== null ? String(c.raw || c.code || '') : String(c || '');\n"
+    "      return !v.includes(unverifiedCode) && !unverifiedCode.includes(v);\n"
+    "    });\n"
+    "  }\n"
     "} else if (confidenceValue < 0.55 && intent !== 'greeting' && intent !== 'unclear') {\n"
     "  requiresHumanAction = true;\n"
     "  notifyAdmin = true;\n"
@@ -722,14 +734,16 @@ parse_ai_output_js = (
     "  headerTitle = '🔄 SATIŞ TALEBİ GÜNCELLENDİ';\n"
     "}\n\n"
     "const formattedCodes = currentCodes.length > 0 ? currentCodes.map(c => `• ${c}`).join(' ') : 'Belirtilmedi';\n"
+    "const codeStr = provenanceViolation ? `⚠️ ŞÜPHELİ AI KODU: ${unverifiedCode}\\n  Temizlenen Kodlar: ${formattedCodes}` : formattedCodes;\n"
     "const formattedVehicles = Array.isArray(entities.vehicles) && entities.vehicles.length > 0 ? entities.vehicles.map(v => typeof v === 'object' ? `• ${v.brand || ''} ${v.model || ''} ${v.year || ''}`.trim() : `• ${v}`).join(' ') : (caseType === 'exact_code_price_stock' ? 'Gerekli değil (Tam kod verildi)' : 'Belirtilmedi');\n\n"
     "const bildirim = `${headerTitle}\\n` +\n"
     "  `Müşteri: ${senderName} (${senderNumber})\\n` +\n"
     "  `Talep türü: ${caseType}\\n` +\n"
-    "  `Kodlar: ${formattedCodes}\\n` +\n"
+    "  `Kodlar: ${codeStr}\\n` +\n"
     "  `Miktar: ${quantity}\\n` +\n"
     "  `Araç bilgisi: ${formattedVehicles}\\n` +\n"
-    "  `Yetkili aksiyonu: ${yetkiliAksiyonu}\\n\\n` +\n"
+    "  `Yetkili aksiyonu: ${yetkiliAksiyonu}\\n` +\n"
+    "  (handoffReason ? `📌 Handoff Nedeni: ${handoffReason}\\n\\n` : '\\n') +\n"
     "  `📌 AI Özeti: ${allMessagesText.replace(/\\s+/g, ' ').slice(0, 160)}\\n` +\n"
     "  `🤖 AI Cevabı: ${replyDraft}`;\n\n"
     "return [{\n"
@@ -756,7 +770,11 @@ parse_ai_output_js = (
 )
 
 clear_batch_js = (
-    "const input = $input.first().json;\n"
+    "let input = {};\n"
+    "try { input = $item(\"Parse AI Output\").$json; } catch(e) {}\n"
+    "if (!input.senderNumber) {\n"
+    "  try { input = $input.first().json; } catch(e) {}\n"
+    "}\n"
     "const staticData = $getWorkflowStaticData('global');\n"
     "const senderNumber = String(input.senderNumber || '');\n\n"
     "if (!staticData._manualModes) staticData._manualModes = {};\n\n"
@@ -823,10 +841,13 @@ idle_timeout_check_js = (
 # ── Node Definitions ──
 nodes = [
     {
-        "parameters": {"httpMethod": "POST", "path": "evolution-webhook", "responseMode": "responseNode", "options": {}},
+        "parameters": {
+            "authentication": "headerAuth",
+            "httpMethod": "POST", "path": "evolution-webhook", "responseMode": "responseNode", "options": {"responseHeaders": {"entries": []}}
+        },
         "id": get_node_id("Webhook1"), "name": "Webhook1",
-        "type": "n8n-nodes-base.webhook", "typeVersion": 1.1,
-        "position": [240, 640], "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
+        "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [240, 640],
+        "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
     },
     {
         "parameters": {"respondWith": "json", "responseBody": "={\"status\":\"ok\"}", "options": {}},
@@ -913,8 +934,8 @@ nodes = [
     },
     {
         "parameters": {"jsCode": clear_batch_js},
-        "id": get_node_id("Clear Batch"), "name": "Clear Batch",
-        "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2032, 624]
+        "id": get_node_id("Finalize Batch"), "name": "Finalize Batch",
+        "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2800, 640]
     },
     {
         "parameters": {
@@ -951,10 +972,11 @@ nodes = [
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
             "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim }) }}",
-            "options": {"timeout": 30000, "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000, "batching": {"batch": {"batchSize": 1, "batchInterval": 100}}}
+            "options": {"timeout": 30000, "batching": {"batch": {"batchSize": 1, "batchInterval": 100}}}
         },
         "id": get_node_id("Phone A Send"), "name": "Phone A Send",
-        "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 416]
+        "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 416],
+        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000
     },
     {
         "parameters": {
@@ -966,10 +988,11 @@ nodes = [
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
             "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim }) }}",
-            "options": {"timeout": 30000, "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000}
+            "options": {"timeout": 30000}
         },
         "id": get_node_id("Phone B Send"), "name": "Phone B Send",
-        "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 624]
+        "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 624],
+        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000
     },
     {
         "parameters": {
@@ -981,10 +1004,11 @@ nodes = [
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
             "body": "={{ JSON.stringify({ number: $json.senderNumber, text: $json.cevap }) }}",
-            "options": {"timeout": 30000, "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000}
+            "options": {"timeout": 30000}
         },
         "id": get_node_id("Reply to Customer"), "name": "Reply to Customer",
-        "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 864]
+        "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 864],
+        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000
     },
     {
         "parameters": {"rule": {"interval": [{"field": "seconds", "secondsInterval": 15}]}},
@@ -1034,10 +1058,13 @@ connections = {
     "Is Command?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
     "Store Context": {"main": [[{"node": "AI Agent", "type": "main", "index": 0}]]},
     "AI Agent": {"main": [[{"node": "Parse AI Output", "type": "main", "index": 0}]]},
-    "Parse AI Output": {"main": [[{"node": "Clear Batch", "type": "main", "index": 0}]]},
-    "Clear Batch": {"main": [[{"node": "Should Notify Admins?", "type": "main", "index": 0}, {"node": "Should Reply Customer?", "type": "main", "index": 0}]]},
+    "Parse AI Output": {"main": [[{"node": "Should Notify Admins?", "type": "main", "index": 0}, {"node": "Should Reply Customer?", "type": "main", "index": 0}]]},
+    "Finalize Batch": {"main": [[]]},
     "Should Notify Admins?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
     "Should Reply Customer?": {"main": [[{"node": "Reply to Customer", "type": "main", "index": 0}], []]},
+    "Phone A Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+    "Phone B Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+    "Reply to Customer": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
     "Schedule Trigger": {"main": [[{"node": "Stale Batch Check", "type": "main", "index": 0}, {"node": "Idle Timeout Check", "type": "main", "index": 0}]]},
     "Stale Batch Check": {"main": [[{"node": "Stale Exists?", "type": "main", "index": 0}]]},
     "Stale Exists?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
