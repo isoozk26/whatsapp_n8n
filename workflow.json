@@ -2,15 +2,10 @@
   "nodes": [
     {
       "parameters": {
-        "authentication": "headerAuth",
         "httpMethod": "POST",
         "path": "evolution-webhook",
         "responseMode": "responseNode",
-        "options": {
-          "responseHeaders": {
-            "entries": []
-          }
-        }
+        "options": {}
       },
       "id": "65f757d5-7045-45df-90aa-a959a4a10519",
       "name": "Webhook1",

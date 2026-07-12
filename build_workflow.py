@@ -842,8 +842,7 @@ idle_timeout_check_js = (
 nodes = [
     {
         "parameters": {
-            "authentication": "headerAuth",
-            "httpMethod": "POST", "path": "evolution-webhook", "responseMode": "responseNode", "options": {"responseHeaders": {"entries": []}}
+            "httpMethod": "POST", "path": "evolution-webhook", "responseMode": "responseNode", "options": {}
         },
         "id": get_node_id("Webhook1"), "name": "Webhook1",
         "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [240, 640],
