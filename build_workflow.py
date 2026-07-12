@@ -433,10 +433,11 @@ parse_ai_output_js = (
     "if (entities.quantity && entities.quantity !== 'Belirtilmedi') {\n"
     "  const nums = String(entities.quantity).match(/\\d+/g);\n"
     "  if (nums && nums.length > 0) {\n"
-    "    const textHasNum = nums.some(n => allMessagesText.includes(n));\n"
-    "    if (!textHasNum) entities.quantity = 'Belirtilmedi';\n"
+    "    const num = nums[0];\n"
+    "    const qtyRegex = new RegExp(`\\\\b${num}\\\\s*(?:adet|tane|pcs|x)|(?:x)\\\\s*${num}\\\\b`, \'i\');\n"
+    "    const textHasNumContext = qtyRegex.test(allMessagesText);\n"
+    "    if (!textHasNumContext) entities.quantity = \'Belirtilmedi\';\n"
     "  } else {\n"
-    "    entities.quantity = 'Belirtilmedi';\n"
     "  }\n"
     "}\n\n"
     "// P0-2: Vehicle Provenance\n"
@@ -564,6 +565,15 @@ parse_ai_output_js = (
     "// PRV-001: PROVENANCE CHECK (Katalog/Mesaj Dışı Parça Kodu Halüsinasyon Kontrolü)\n"
     "// ═══════════════════════════════════════════════════════════════\n"
     "const extractedCodeItems = Array.isArray(entities.productCodes) ? entities.productCodes : [];\n"
+    "if (extractedCodeItems.length > 0) {\n"
+    "  const rawCodes = extractedCodeItems.map(c => typeof c === 'object' ? (c.code || c.raw) : c).filter(Boolean);\n"
+    "  const sorted = [...new Set(rawCodes)].sort((a, b) => String(b).length - String(a).length);\n"
+    "  const deduped = [];\n"
+    "  for (const c of sorted) {\n"
+    "    if (!deduped.some(selected => String(selected).includes(String(c)))) deduped.push(c);\n"
+    "  }\n"
+    "  entities.productCodes = deduped;\n"
+    "}\n"
     "let provenanceViolation = false;\n"
     "let unverifiedCode = '';\n\n"
     "if (extractedCodeItems.length > 0 && intent !== 'greeting' && caseType !== 'greeting') {\n"
@@ -1120,13 +1130,13 @@ connections = {
     "Is Command?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
     "Store Context": {"main": [[{"node": "AI Agent", "type": "main", "index": 0}]]},
     "AI Agent": {"main": [[{"node": "Parse AI Output", "type": "main", "index": 0}]]},
-    "Parse AI Output": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
-    "Finalize Batch": {"main": [[{"node": "Should Notify Admins?", "type": "main", "index": 0}, {"node": "Should Reply Customer?", "type": "main", "index": 0}]]},
+      "Parse AI Output": {"main": [[{"node": "Should Notify Admins?", "type": "main", "index": 0}, {"node": "Should Reply Customer?", "type": "main", "index": 0}]]},
+      "Finalize Batch": {"main": [[]]},
     "Should Notify Admins?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
     "Should Reply Customer?": {"main": [[{"node": "Reply to Customer", "type": "main", "index": 0}], []]},
-    "Phone A Send": {"main": [[]]},
-    "Phone B Send": {"main": [[]]},
-    "Reply to Customer": {"main": [[]]},
+      "Phone A Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+      "Phone B Send": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+      "Reply to Customer": {"main": [[{"node": "Finalize Batch", "type": "main", "index": 0}]]},
     "Schedule Trigger": {"main": [[{"node": "Stale Batch Check", "type": "main", "index": 0}, {"node": "Idle Timeout Check", "type": "main", "index": 0}]]},
     "Stale Batch Check": {"main": [[{"node": "Stale Exists?", "type": "main", "index": 0}]]},
     "Stale Exists?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
@@ -1154,4 +1164,4 @@ wf["pinData"] = {}
 with open("workflow.json", "w", encoding="utf-8") as f:
     json.dump(wf, f, indent=2, ensure_ascii=False)
 
-print(f"workflow.json v11 Enterprise generated: {len(nodes)} nodes, {len(connections)} connection sources")
+print(f"workflow.json v12.4 Enterprise generated: {len(nodes)} nodes, {len(connections)} connection sources")
