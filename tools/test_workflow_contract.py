@@ -43,6 +43,23 @@ def main():
     for contract in ("_deliveryLedger", "completedChannel", "allCompleted", "Object.assign"):
         assert contract in finalize_code, f"Finalize contract missing: {contract}"
 
+    stale = next(n for n in workflow["nodes"] if n["name"] == "Stale Batch Check")
+    stale_code = stale["parameters"]["jsCode"]
+    assert "BATCH_WINDOW_MS    = 120 * 1000" in stale_code
+    assert "IDLE_WINDOW_MS" not in stale_code
+    assert "MAX_WAIT_MS" not in stale_code
+
+    parse = next(n for n in workflow["nodes"] if n["name"] == "Parse AI Output")
+    parse_code = parse["parameters"]["jsCode"]
+    for contract in (
+        "shouldNotifyAdmin = true",
+        "phoneA: true",
+        "phoneB: true",
+        "shouldReplyCustomer",
+        "expectedChannels['customer']",
+    ):
+        assert contract in parse_code, f"Three-channel batch contract missing: {contract}"
+
     for node in workflow["nodes"]:
         parameters = node.get("parameters", {})
         if parameters.get("mode") != "runOnceForEachItem":
