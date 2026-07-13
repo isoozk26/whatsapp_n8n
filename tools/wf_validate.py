@@ -46,6 +46,17 @@ def validate(path="workflow.json"):
         # JS kod kontrolu
         js = n.get("parameters", {}).get("jsCode", "")
         if js:
+            mode = n.get("parameters", {}).get("mode", "runOnceForAllItems")
+            if mode == "runOnceForEachItem":
+                for disallowed in ("$input.first()", "$input.all()", "$input.last()"):
+                    if disallowed in js:
+                        errors.append(
+                            f"'{name}' runOnceForEachItem modunda yasak girdi erişimi kullanıyor: {disallowed}"
+                        )
+                if re.search(r"return\s*\[\s*\{", js):
+                    errors.append(
+                        f"'{name}' runOnceForEachItem modunda öğe dizisi döndürüyor"
+                    )
             opens = js.count("{") + js.count("(") + js.count("[")
             closes = js.count("}") + js.count(")") + js.count("]")
             if opens != closes:

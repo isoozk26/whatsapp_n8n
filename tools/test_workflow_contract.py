@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline contract tests for the generated n8n workflow."""
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -33,11 +34,27 @@ def main():
         assert targets(workflow, success_tag, 0) == ["Finalize Batch"]
         assert targets(workflow, error_tag, 0) == ["Dead Letter Admin"]
 
+    assert targets(workflow, "Should Notify Admins?", 1) == ["Finalize Batch"]
+    assert targets(workflow, "Should Reply Customer?", 1) == ["Finalize Batch"]
+
     assert targets(workflow, "Dead Letter Admin", 0) == ["Finalize Batch"]
     finalize = next(n for n in workflow["nodes"] if n["name"] == "Finalize Batch")
     finalize_code = finalize["parameters"]["jsCode"]
     for contract in ("_deliveryLedger", "completedChannel", "allCompleted", "Object.assign"):
         assert contract in finalize_code, f"Finalize contract missing: {contract}"
+
+    for node in workflow["nodes"]:
+        parameters = node.get("parameters", {})
+        if parameters.get("mode") != "runOnceForEachItem":
+            continue
+        code = parameters.get("jsCode", "")
+        for disallowed in ("$input.first()", "$input.all()", "$input.last()"):
+            assert disallowed not in code, (
+                f"{node['name']} uses {disallowed} in runOnceForEachItem mode"
+            )
+        assert not re.search(r"return\s*\[\s*\{", code), (
+            f"{node['name']} returns an item array in runOnceForEachItem mode"
+        )
 
     print("[PASS] workflow graph and delivery-ledger contracts")
     return 0

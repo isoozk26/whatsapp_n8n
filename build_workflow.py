@@ -226,12 +226,12 @@ stale_batch_check_js = (
 )
 
 store_context_js = (
-    "const input = $input.first().json;\n\n"
+    "const input = $input.item.json;\n\n"
     "const allMessages  = String(input.allMessagesText || '');\n"
 )
 
 store_context_js = (
-    "const input = $input.first().json;\n\n"
+    "const input = $input.item.json;\n\n"
     "const allMessages  = String(input.allMessagesText || '');\n"
     "const messageCount = Number(input.messageCount || 0);\n"
     "const senderName   = String(input.senderName || '');\n\n"
@@ -290,7 +290,7 @@ store_context_js = (
     "if (input.hasImages) prompt += '📸 MÜŞTERİ GÖRSEL GÖNDERDİ: Sistemde henüz doğrudan görsel işleme (vision model) aktif değildir. Görselden parça kodu veya marka KESİNLİKLE UYDURMA/HALÜSİNASYON YAPMA! Eğer mesaj metninde net bir parça kodu yoksa, replyDraft içinde tam olarak \"Görsel ulaştı. Ürün üzerindeki marka ve parça kodunu yazılı olarak paylaşabilir misiniz?\" cevabını ver (ve codeStatus: \"uncertain\", source: \"vision\" olarak işaretle).\\n';\n"
     "prompt += '═══════════════════════════════════════\\n\\n';\n"
     "prompt += 'Yeni müşteri mesajları:\\n' + allMessages;\n\n"
-    "return [{\n"
+    "return {\n"
     "  json: {\n"
     "    senderNumber: input.senderNumber,\n"
     "    senderName: input.senderName,\n"
@@ -302,7 +302,7 @@ store_context_js = (
     "    hasImages: input.hasImages || false,\n"
     "    _prompt: prompt\n"
     "  }\n"
-    "}];"
+    "};"
 )
 
 ai_agent_system_message = (
@@ -362,7 +362,8 @@ ai_agent_system_message = (
 
 parse_ai_output_js = (
     "const staticData = $getWorkflowStaticData('global');\n"
-    "const rawAiOutput = $input.first().json?.output || $input.first().json?.aiResult || '';\n"
+    "const currentInput = $input.item.json;\n"
+    "const rawAiOutput = currentInput?.output || currentInput?.aiResult || '';\n"
     "const aiOutput = typeof rawAiOutput === 'string' ? rawAiOutput : JSON.stringify(rawAiOutput);\n\n"
     "let senderNumber = '';\n"
     "let senderName = '';\n"
@@ -383,11 +384,11 @@ parse_ai_output_js = (
     "const batch = staticData._batches[senderNumber];\n"
     "const validClaim = Boolean(batch && batch.processing === true && batch.processingToken === batchToken);\n\n"
     "if (!validClaim && senderNumber) {\n"
-    "  return [{ json: {\n"
+    "  return { json: {\n"
     "    senderNumber, senderName, batchToken, action: 'ignore', intent: 'other', caseType: 'other',\n"
     "    cevap: '', missingFields: [], confidence: 0, handoffReason: 'Geçersiz veya süresi dolmuş işlem yutuldu',\n"
     "    notifyAdmins: false, validClaim: false, bildirim: ''\n"
-    "  }}];\n"
+    "  }};\n"
     "}\n\n"
     "let parsed = null;\n"
     "try {\n"
@@ -400,13 +401,13 @@ parse_ai_output_js = (
     "  } catch(e2) {}\n"
     "}\n\n"
     "if (!parsed) {\n"
-    "  return [{ json: {\n"
+    "  return { json: {\n"
     "    senderNumber, senderName, batchToken, action: 'handoff', intent: 'unclear', caseType: 'unclear',\n"
     "    cevap: 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.',\n"
     "    missingFields: [], confidence: 0, handoffReason: 'AI JSON ayrıştırma hatası',\n"
     "    notifyAdmins: true, validClaim: true, pauseAutomation: true,\n"
     "    bildirim: `⚠️ AI ÇIKTISI AYRIŞTIRILAMADI\\nMüşteri: ${senderName} (${senderNumber})\\nMesaj: ${allMessagesText}`\n"
-    "  }}];\n"
+    "  }};\n"
     "}\n\n"
     "const intent = String(parsed.intent || 'other').trim();\n"
     "let caseType = String(parsed.caseType || intent || 'other').trim();\n"
@@ -486,7 +487,7 @@ parse_ai_output_js = (
     "if (input.hasImages) prompt += '📸 MÜŞTERİ GÖRSEL GÖNDERDİ: Sistemde henüz doğrudan görsel işleme (vision model) aktif değildir. Görselden parça kodu veya marka KESİNLİKLE UYDURMA/HALÜSİNASYON YAPMA! Eğer mesaj metninde net bir parça kodu yoksa, replyDraft içinde tam olarak \"Görsel ulaştı. Ürün üzerindeki marka ve parça kodunu yazılı olarak paylaşabilir misiniz?\" cevabını ver (ve codeStatus: \"uncertain\", source: \"vision\" olarak işaretle).\\n';\n"
     "prompt += '═══════════════════════════════════════\\n\\n';\n"
     "prompt += 'Yeni müşteri mesajları:\\n' + allMessages;\n\n"
-    "return [{\n"
+    "return {\n"
     "  json: {\n"
     "    senderNumber: input.senderNumber,\n"
     "    senderName: input.senderName,\n"
@@ -498,7 +499,7 @@ parse_ai_output_js = (
     "    hasImages: input.hasImages || false,\n"
     "    _prompt: prompt\n"
     "  }\n"
-    "}];"
+    "};"
 )
 
 ai_agent_system_message = (
@@ -558,7 +559,8 @@ ai_agent_system_message = (
 
 parse_ai_output_js = (
     "const staticData = $getWorkflowStaticData('global');\n"
-            "const rawAiOutput = $input.first().json?.output || $input.first().json?.aiResult || '';\n"
+    "const currentInput = $input.item.json;\n"
+    "const rawAiOutput = currentInput?.output || currentInput?.aiResult || '';\n"
             "const aiOutput = typeof rawAiOutput === 'string' ? rawAiOutput : JSON.stringify(rawAiOutput);\n\n"
     "let senderNumber = '';\n"
     "let senderName = '';\n"
@@ -579,11 +581,11 @@ parse_ai_output_js = (
     "const batch = staticData._batches[senderNumber];\n"
     "const validClaim = Boolean(batch && batch.processing === true && batch.processingToken === batchToken);\n\n"
     "if (!validClaim && senderNumber) {\n"
-    "  return [{ json: {\n"
+    "  return { json: {\n"
     "    senderNumber, senderName, batchToken, action: 'ignore', intent: 'other', caseType: 'other',\n"
     "    cevap: '', missingFields: [], confidence: 0, handoffReason: 'Geçersiz veya süresi dolmuş işlem yutuldu',\n"
     "    notifyAdmins: false, validClaim: false, bildirim: ''\n"
-    "  }}];\n"
+    "  }};\n"
     "}\n\n"
     "let parsed = null;\n"
     "if (typeof rawAiOutput === 'object' && rawAiOutput !== null) {\n"
@@ -600,13 +602,13 @@ parse_ai_output_js = (
     "  }\n"
     "}\n\n"
     "if (!parsed) {\n"
-    "  return [{ json: {\n"
+    "  return { json: {\n"
     "    senderNumber, senderName, batchToken, action: 'handoff', intent: 'unclear', caseType: 'unclear',\n"
     "    cevap: 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.',\n"
     "    missingFields: [], confidence: 0, handoffReason: 'AI JSON ayrıştırma hatası',\n"
     "    notifyAdmins: true, validClaim: true, pauseAutomation: true,\n"
     "    bildirim: `⚠️ AI ÇIKTISI AYRIŞTIRILAMADI\\nMüşteri: ${senderName} (${senderNumber})\\nMesaj: ${allMessagesText}`\n"
-    "  }}];\n"
+    "  }};\n"
     "}\n\n"
     "const intent = String(parsed.intent || 'other').trim();\n"
     "let caseType = String(parsed.caseType || intent || 'other').trim();\n"
@@ -717,7 +719,7 @@ parse_ai_output_js = (
     "// ═══════════════════════════════════════════════════════════════\n"
     "// GRD-002: VERIFICATION HARD-RESET (No External Verification Node)\n"
     "// ═══════════════════════════════════════════════════════════════\n"
-    "const hasExternalVerification = Boolean($input.first().json?.externalVerificationVerified === true);\n"
+    "const hasExternalVerification = Boolean(currentInput?.externalVerificationVerified === true);\n"
     "if (!hasExternalVerification) {\n"
     "  verification.priceVerified = false;\n"
     "  verification.stockVerified = false;\n"
@@ -1072,7 +1074,7 @@ parse_ai_output_js = (
     "    completed: {}\n"
     "  };\n"
     "}\n\n"
-    "return [{\n"
+    "return {\n"
     "  json: {\n"
     "    senderNumber,\n"
     "    senderName,\n"
@@ -1092,14 +1094,14 @@ parse_ai_output_js = (
     "    expectsReply: Boolean(parsed.expectsReply === true || askVehicleInfo === true),\n"
     "    validClaim: true\n"
     "  }\n"
-    "}];"
+    "};"
 )
 
 clear_batch_js = (
     "let input = {};\n"
-    "try { input = Object.assign({}, $item(\"Parse AI Output\").$json, $input.first().json); } catch(e) {}\n"
+    "try { input = Object.assign({}, $item(\"Parse AI Output\").$json, $input.item.json); } catch(e) {}\n"
     "if (!input.senderNumber) {\n"
-    "  try { input = $input.first().json; } catch(e) {}\n"
+    "  try { input = $input.item.json; } catch(e) {}\n"
     "}\n"
     "const staticData = $getWorkflowStaticData('global');\n"
     "const senderNumber = String(input.senderNumber || '');\n"
@@ -1119,7 +1121,7 @@ clear_batch_js = (
     "  if (nowTs - (staticData._deliveryLedger[k].createdAt || 0) > 600000) delete staticData._deliveryLedger[k];\n"
     "}\n\n"
     "if (staticData._finalizedTokens[batchToken]) {\n"
-    "  return [{ json: input }];\n"
+    "  return { json: input };\n"
     "}\n\n"
     "const completedChannel = String(input.completedChannel || '');\n"
     "if (staticData._deliveryLedger[batchToken]) {\n"
@@ -1129,7 +1131,7 @@ clear_batch_js = (
     "  }\n"
     "  const allCompleted = Object.keys(ledger.expected || {}).every(ch => !ledger.expected[ch] || ledger.completed[ch]);\n"
     "  if (!allCompleted) {\n"
-    "    return [{ json: input }];\n"
+    "    return { json: input };\n"
     "  }\n"
     "  delete staticData._deliveryLedger[batchToken];\n"
     "}\n\n"
@@ -1170,7 +1172,7 @@ clear_batch_js = (
     "  if (!staticData._lastReply) staticData._lastReply = {};\n"
     "  staticData._lastReply[senderNumber] = Date.now();\n"
     "}\n\n"
-    "return [{ json: input }];"
+    "return { json: input };"
 )
 
 idle_timeout_check_js = (
@@ -1464,8 +1466,8 @@ connections = {
     "AI Agent": {"main": [[{"node": "Parse AI Output", "type": "main", "index": 0}]]},
       "Parse AI Output": {"main": [[{"node": "Should Notify Admins?", "type": "main", "index": 0}, {"node": "Should Reply Customer?", "type": "main", "index": 0}]]},
       "Finalize Batch": {"main": [[]]},
-    "Should Notify Admins?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
-    "Should Reply Customer?": {"main": [[{"node": "Reply to Customer", "type": "main", "index": 0}], []]},
+    "Should Notify Admins?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], [{"node": "Finalize Batch", "type": "main", "index": 0}]]},
+    "Should Reply Customer?": {"main": [[{"node": "Reply to Customer", "type": "main", "index": 0}], [{"node": "Finalize Batch", "type": "main", "index": 0}]]},
       "Phone A Send": {"main": [[{"node": "Tag Success Phone A", "type": "main", "index": 0}], [{"node": "Tag Err Phone A", "type": "main", "index": 0}]]},
       "Phone B Send": {"main": [[{"node": "Tag Success Phone B", "type": "main", "index": 0}], [{"node": "Tag Err Phone B", "type": "main", "index": 0}]]},
       "Reply to Customer": {"main": [[{"node": "Tag Success Reply", "type": "main", "index": 0}], [{"node": "Tag Err Reply", "type": "main", "index": 0}]]},

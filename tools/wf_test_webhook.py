@@ -13,19 +13,19 @@ def send_webhook(message_text, sender_number="905331112233", sender_name="Test M
     if not message_id:
         message_id = str(uuid.uuid4())
     
+    # n8n's Webhook node adds the outer `body` field. The HTTP request body
+    # must match Evolution's event payload directly, without another wrapper.
     payload = {
-        "body": {
-            "data": {
-                "key": {
-                    "remoteJid": f"{sender_number}@s.whatsapp.net",
-                    "fromMe": from_me,
-                    "id": message_id
-                },
-                "message": {
-                    "conversation": message_text
-                },
-                "pushName": sender_name
-            }
+        "data": {
+            "key": {
+                "remoteJid": f"{sender_number}@s.whatsapp.net",
+                "fromMe": from_me,
+                "id": message_id
+            },
+            "message": {
+                "conversation": message_text
+            },
+            "pushName": sender_name
         }
     }
     
