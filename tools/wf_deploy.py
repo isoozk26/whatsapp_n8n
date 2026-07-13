@@ -11,6 +11,7 @@ N8N_URL = 'https://n8n.filtreoto.online'
 
 def deploy(workflow_path='workflow.json'):
     url = f'{N8N_URL}/api/v1/workflows/{WORKFLOW_ID}'
+    context = ssl._create_unverified_context()
     
     with open(workflow_path, 'r', encoding='utf-8') as f:
         workflow = json.load(f)
@@ -24,11 +25,23 @@ def deploy(workflow_path='workflow.json'):
             if k in workflow['settings']:
                 settings[k] = workflow['settings'][k]
     
+    get_req = urllib.request.Request(url, method='GET')
+    get_req.add_header('X-N8N-API-KEY', TOKEN)
+    get_req.add_header('accept', 'application/json')
+    try:
+        with urllib.request.urlopen(get_req, context=context) as response:
+            live_workflow = json.loads(response.read().decode('utf-8'))
+    except Exception as exc:
+        print(f'  HATA: Canli workflow durumu okunamadi, deploy iptal: {exc}')
+        return False
+
+    live_was_active = live_workflow.get('active') is True
     payload = {
         'name': workflow.get('name'),
         'nodes': workflow.get('nodes'),
         'connections': workflow.get('connections'),
-        'settings': settings
+        'settings': settings,
+        'staticData': live_workflow.get('staticData', workflow.get('staticData', {}))
     }
     
     req_data = json.dumps(payload).encode('utf-8')
@@ -36,8 +49,6 @@ def deploy(workflow_path='workflow.json'):
     req.add_header('X-N8N-API-KEY', TOKEN)
     req.add_header('Content-Type', 'application/json')
     req.add_header('accept', 'application/json')
-    context = ssl._create_unverified_context()
-    
     print(f'Yukleniyor: {workflow_path}')
     print(f'  Workflow: {workflow.get("name")}')
     print(f'  Node: {len(workflow.get("nodes", []))}')
@@ -47,7 +58,18 @@ def deploy(workflow_path='workflow.json'):
             res_json = json.loads(response.read().decode('utf-8'))
             print(f'  BASARILI')
             print(f'  Active: {res_json.get("active")}')
-            return True
+        if live_was_active:
+            for action in ('deactivate', 'activate'):
+                action_req = urllib.request.Request(f'{url}/{action}', data=b'{}', method='POST')
+                action_req.add_header('X-N8N-API-KEY', TOKEN)
+                action_req.add_header('Content-Type', 'application/json')
+                action_req.add_header('accept', 'application/json')
+                with urllib.request.urlopen(action_req, context=context) as response:
+                    published = json.loads(response.read().decode('utf-8'))
+            if published.get('active') is not True:
+                raise RuntimeError('Publish dogrulamasi basarisiz: active=true donmedi')
+            print(f'  Published Version: {published.get("activeVersionId") or published.get("versionId")}')
+        return True
     except urllib.error.HTTPError as he:
         print(f'  HATA {he.code}: {he.read().decode("utf-8")[:200]}')
         return False

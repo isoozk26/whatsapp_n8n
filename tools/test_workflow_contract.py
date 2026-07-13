@@ -32,7 +32,7 @@ def main():
         assert targets(workflow, sender, 0) == [success_tag]
         assert targets(workflow, sender, 1) == [error_tag]
         assert targets(workflow, success_tag, 0) == ["Finalize Batch"]
-        assert targets(workflow, error_tag, 0) == ["Dead Letter Admin"]
+        assert targets(workflow, error_tag, 0) == ["Dead Letter Admin", "Finalize Batch"]
 
     assert targets(workflow, "Should Notify Admins?", 1) == ["Finalize Batch"]
     assert targets(workflow, "Should Reply Customer?", 1) == ["Finalize Batch"]
@@ -51,7 +51,7 @@ def main():
     for field in ("commandMessageId", "commandFromMe", "commandRemoteJid"):
         assert field in collector_code
 
-    assert targets(workflow, "Dead Letter Admin", 0) == ["Finalize Batch"]
+    assert targets(workflow, "Dead Letter Admin", 0) == []
     finalize = next(n for n in workflow["nodes"] if n["name"] == "Finalize Batch")
     finalize_code = finalize["parameters"]["jsCode"]
     for contract in ("_deliveryLedger", "completedChannel", "allCompleted", "Object.assign"):
@@ -62,6 +62,11 @@ def main():
     assert "BATCH_WINDOW_MS    = 120 * 1000" in stale_code
     assert "IDLE_WINDOW_MS" not in stale_code
     assert "MAX_WAIT_MS" not in stale_code
+    assert "enabled !== true" in stale_code, "Legacy false manual-mode entries must be cleaned"
+
+    assert collector_code.count("Object.entries(staticData._seenMessageIds)") == 1
+    assert "cleanupIntervalMs = 5 * 60 * 1000" in collector_code
+    assert "delete staticData._manualModes[senderNumber]" in collector_code
 
     parse = next(n for n in workflow["nodes"] if n["name"] == "Parse AI Output")
     parse_code = parse["parameters"]["jsCode"]
@@ -86,6 +91,19 @@ def main():
         assert not re.search(r"return\s*\[\s*\{", code), (
             f"{node['name']} returns an item array in runOnceForEachItem mode"
         )
+
+    source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
+    for assignment in ("store_context_js", "ai_agent_system_message", "parse_ai_output_js"):
+        assert len(re.findall(rf"^{assignment}\s*=", source, flags=re.MULTILINE)) == 1, (
+            f"Duplicate assignment remains: {assignment}"
+        )
+    assert "catch(e) {}" not in source and "catch(e2) {}" not in source
+    assert "except Exception:\n    wf = {}" not in source
+
+    for deploy_script in (ROOT / "upload_to_n8n.py", ROOT / "tools" / "wf_deploy.py"):
+        deploy_source = deploy_script.read_text(encoding="utf-8")
+        assert "deactivate" in deploy_source and "activate" in deploy_source
+        assert "staticData" in deploy_source
 
     print("[PASS] workflow graph and delivery-ledger contracts")
     return 0
