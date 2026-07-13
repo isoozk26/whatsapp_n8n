@@ -1,0 +1,426 @@
+# WhatsApp AI Workflow — Mimari Denetim Raporu & SWOT Analizi
+
+**Workflow ID:** MbJkVXLDCOZ5umpp  
+**Denetim Tarihi:** 13 Temmuz 2026  
+**Workflow:** WhatsApp AI - v12.5 Enterprise  
+**Canlı Ortam:** n8n.filtreoto.online  
+**WhatsApp Altyapısı:** Evolution API — filtr instance  
+**Kaynak Kod:** `build_workflow.py` (1554 satır, 94KB) → `workflow.json` (78KB, 28 node)  
+**Not:** Bu rapor hazırlanırken kod değişikliği yapılmamıştır.
+
+---
+
+## 1. YÖNETİCİ ÖZETİ
+
+Bu denetim, WhatsApp AI müşteri destek sisteminin (Workflow ID: MbJkVXLDCOZ5umpp) kapsamlı mimari analizini, güvenlik denetimini ve stratejik SWOT değerlendirmesini içermektedir.
+
+**Sistemin temel amacı:** Müşterinin WhatsApp üzerinden peş peşe yazdığı mesajları ayrı ayrı cevaplamak yerine tek bir konuşma paketi içinde toplamak, 120 saniyelik pencerede bekletmek, GPT-4o-mini ile sınıflandırmak ve çok kanallı bildirim yapmaktır.
+
+**Tespit edilen ana bulgular:**
+- **1 KRİTİK güvenlik açığı:** Evolution API anahtarı 6 noktada hardcoded
+- **3 YÜKSEK seviyeli güvenlik açığı:** JWT token kaynak kodda, webhook auth yok, sessiz hata yutma
+- **5 potansiyel race condition** senaryosu
+- **Test kapsamı çok düşük:** Politika motoru, guardrail'ler ve teslimat deferi test edilmemiş
+- **1 bellek sızıntısı riski:** `_manualModes` asla temizlenmiyor
+- **12 güçlü yön**, **12 zayıf yön**, **10 fırsat**, **10 tehdit** tespit edildi
+
+---
+
+## 2. MİMARİ ANALİZ
+
+### 2.1 Sistem Mimarisi Özeti
+
+Sistem, WhatsApp üzerinden müşteri mesajlarını toplayan, 120 saniyelik pencerede bekleten, AI ile sınıflandıran ve çok kanallı bildirim yapan bir n8n workflowudur.
+
+**Tek kaynak mimari:** `build_workflow.py` → `workflow.json` → n8n canlı deploy
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     VERİ AKIŞI MİMARİSİ                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  WhatsApp → Evolution API → n8n Webhook (/evolution-webhook)    │
+│                                    │                            │
+│                              fromMe Check                       │
+│                           ┌────┴────┐                           │
+│                        true        false                        │
+│                    (++/-- komut)  (normal mesaj)                │
+│                         │              │                        │
+│                  Delete+Notify    Batch Collector               │
+│                                    │                            │
+│                              Should Process?                    │
+│                           ┌────┴────┐                           │
+│                        false        true                        │
+│                    (beklemede)  (120sn doldu)                   │
+│                                    │                            │
+│                           Store Context (regex)                 │
+│                                    │                            │
+│                            AI Agent (GPT-4o-mini)               │
+│                                    │                            │
+│                         Parse AI Output (politika)              │
+│                              ┌─────┼─────┐                      │
+│                              │     │     │                      │
+│                          Phone A Phone B Customer               │
+│                              │     │     │                      │
+│                          Tag Success/Err (her kanal)            │
+│                              │     │     │                      │
+│                          Dead Letter (hatalı ise)               │
+│                              │     │     │                      │
+│                           Finalize Batch                        │
+│                                                                 │
+│  ──── Paralel Zamanlayıcı (her 15sn) ────                      │
+│  Schedule Trigger ─┬─ Stale Batch Check → Store Context → ...   │
+│                    └─ Idle Timeout Check → Phone A+B Bildirim   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 Node Haritası (28 Node)
+
+| Kategori | Node Sayısı | Node Adları |
+|----------|:-----------:|-------------|
+| Giriş | 2 | Webhook1, fromMe Check |
+| Mesaj Toplama | 2 | Batch Collector, Should Process? |
+| Komut Yönetimi | 3 | Is Command?, Delete Command Message, (bildirimler) |
+| AI İşlem Hattı | 4 | Store Context, AI Agent, OpenAI Chat Model1, Simple Memory |
+| Politika & Karar | 4 | Parse AI Output, Should Notify Admins?, Should Reply Customer?, Clear Batch |
+| Gönderim | 5 | Phone A Send, Phone B Send, Reply to Customer, Dead Letter Admin, (Delete Command) |
+| Durum Takibi | 5 | Schedule Trigger, Stale Batch Check, Stale Exists?, Idle Timeout Check, Idle Alert? |
+| Etiketleme | 3 | Tag Success Phone A/B/Reply, Tag Err Phone A/B/Reply |
+
+### 2.3 Durum Yönetimi (StaticData)
+
+| Alan | Başlangıç | Temizleme Stratejisi | Risk |
+|------|-----------|---------------------|------|
+| `_batches` | Boş obje | Batch boşsa sil, manuel modda sil | Düşük |
+| `_manualModes` | Boş obje | **Asla silinmez** — `true`/`false` sadece toggle | **Yüksek (bellek sızıntısı)** |
+| `_seenMessageIds` | Boş obje | 6 saat TTL + 3000 üst limit (LRU) | Orta (her mesajda O(n) tarama) |
+| `_unclearCounts` | Boş obje | `unclear` olmayan caseType'ta sil | Düşük |
+| `_adminNotifications` | Boş obje | 500 kayıt limiti, 200 eski silinir | Düşük |
+| `_deliveryLedger` | Boş obje | 10 dakika TTL | Düşük |
+| `_finalizedTokens` | Boş obje | 10 dakika TTL | Düşük |
+| `_lastReply` | Boş obje | Idle alerttet veya yeni mesajda sil | Düşük |
+
+### 2.4 İşlem Zaman Çizelgesi
+
+```
+T+0s     Müşteri ilk mesajı gönderir
+T+0s     Webhook yanıt verir, mesaj batch'e eklenir
+T+15s    İlk Stale Batch Check çalışır (henüz 120sn dolmadı)
+T+30s    İkinci Stale Batch Check
+...
+T+120s   120 saniye doldu → batch processing'e alınır
+T+120-135s Sonraki Stale Batch Check'te batch claimed edilir
+T+135s   Store Context (regex tarama)
+T+136s   AI Agent (GPT-4o-mini çağrısı)
+T+137s   Parse AI Output (politika motoru)
+T+138s   Phone A + Phone B + Customer gönderimi (paralel)
+T+138s   Teslimat defteri kontrolü
+T+139s   Batch kapatılır
+```
+
+### 2.5 Politika Motoru Karar Matrisi
+
+| Senaryo | İnsan Gerekli | Admin Bildirim | Otomasyon Durdur | Araç Bilgisi İste |
+|---------|:---:|:---:|:---:|:---:|
+| Schema ihlali | Evet | Evet | Evet | — |
+| Kaynak ihlali (PRV-001) | Evet | Evet | Evet | — |
+| Güven < 0.55 | Evet | Evet | Evet | — |
+| Guardrail tetiklendi | Evet | Evet | Hayır | — |
+| Tam kod + fiyat/stok | Evet | Evet | Hayır | Hayır |
+| Tam kod + uyumluluk (araç yeterli) | Evet | Evet | Hayır | Hayır |
+| Tam kod + uyumluluk (araç eksik) | Hayır | Hayır | Hayır | **Evet** |
+| Muadil/çapraz referans | Evet | Evet | Hayır | Hayır |
+| Kısmi kod | Hayır | Hayır | Hayır | — |
+| Araç bazlı (araç yeterli) | Evet | Evet | Hayır | Hayır |
+| Araç bazlı (araç eksik) | Hayır | Hayır | Hayır | **Evet** |
+| Ürün dışı | Evet | Evet | Evet | — |
+| Belirsiz (2x+) | Evet | Evet | Evet | — |
+| Selamlama | Hayır | Hayır | Hayır | — |
+
+---
+
+## 3. DENETİM RAPORU
+
+### 3.1 GÜVENLİK BULGULARI
+
+#### KRİTİK — Hardcoded API Anahtarı (6 tekrar)
+
+**Bulgu:** Evolution API anahtarı `089311B617B8-48CF-8BD6-29759A57FDBF` kaynak kodda düz metin olarak 6 kez tekrar ediyor.
+
+| Konum | Satır | Node |
+|-------|:-----:|------|
+| `build_workflow.py` | 1267 | Delete Command Message |
+| `build_workflow.py` | 1349 | Phone A Send |
+| `build_workflow.py` | 1365 | Phone B Send |
+| `build_workflow.py` | 1381 | Reply to Customer |
+| `build_workflow.py` | 1397 | Dead Letter Admin |
+| `upload_to_n8n.py` | 5 | n8n API JWT tokenı |
+
+**Risk:** Repo erişimi olan herkes WhatsApp mesajı gönderebilir, mesaj silebilir veya Evolution API'yi suistimal edebilir.  
+**Öneri:** Tüm API anahtarlarını n8n credential vault'una taşıyın. `upload_to_n8n.py`'daki JWT tokenını ortam değişkenine taşıyın.
+
+---
+
+#### YÜKSEK — n8n API JWT Tokenı Kaynak Kodda
+
+**Bulgu:** `upload_to_n8n.py:5` satırında n8n API JWT tokenı düz metin olarak yer alıyor. Bu token ile workflow güncellenebilir, silinebilir veya okunabilir.
+
+**Öneri:** Token'ı `.env` dosyasına veya n8n credential system'ine taşıyın.
+
+---
+
+#### YÜKSEK — Webhook Authentication Yok
+
+**Bulgu:** `/webhook/evolution-webhook` endpoint'inde herhangi bir authentication mekanizması bulunmuyor. Evolution API'den gelen webhook'lar doğrulanmıyor.
+
+**Risk:** Yetkisiz kaynaklar sahte webhook'lar gönderebilir.  
+**Öneri:** Webhook secret/token veya IP whitelist ekleyin.
+
+---
+
+#### ORTA — Hardcoded Admin Telefon Numaraları (4 tekrar)
+
+**Bulgu:** `905052237182`, `905306056066`, `905363955525` numaraları hem yetkilendirme mantığında hem de gönderim hedeflerinde hardcoded.
+
+**Öneri:** Numaraları n8n credential system veya environment variable'a taşıyın.
+
+---
+
+#### ORTA — SSL Doğrulaması Devre Dışı (4 dosya)
+
+**Bulgu:** `ssl._create_unverified_context()` 4 farklı dosyada kullanılıyor:
+
+| Dosya | Satır |
+|-------|:-----:|
+| `upload_to_n8n.py` | 8 |
+| `tools/wf_test_webhook.py` | 10 |
+| `tools/wf_deploy.py` | 39 |
+| `tools/live_customer_scenario_test.py` | 50 |
+
+**Risk:** Man-in-the-middle saldırılarına açık.  
+**Öneri:** SSL sertifika doğrulamasını tüm dosyalarda etkinleştirin.
+
+---
+
+### 3.2 KOD KALİTESİ BULGULARI
+
+#### YÜKSEK — Sessiz Hata Yutma (7 catch bloğu)
+
+| Satır | Blok | Yutulan Hata |
+|-------|------|-------------|
+| 378-385 | `Store Context` okuma | Upstream node hatası |
+| 399-406 | AI JSON parse (1. deneme) | Geçersiz JSON |
+| 575-582 | `Store Context` okuma (tekrar) | Aynı |
+| 599-606 | AI JSON parse (tekrar) | Aynı |
+| 1103 | Batch okuma | Merge hatası |
+| 1105 | Input okuma | `$input.item.json` hatası |
+| 1509-1513 | Workflow.json okuma | Bozuk dosya — tüm veriyi siler |
+
+**Risk:** Hatalar sessizce yutuluyor, debug imkansız. Özellikle satır 1509'daki `except Exception: wf = {}`如果 workflow.json bozulursa tüm veriyi sessizce siler.  
+**Öneri:** Her catch bloğuna logging ekleyin. Kritik hatalarda fail-safe davranın.
+
+---
+
+#### ORTA — Ölü/Kopya Kod (3 Değişken)
+
+| Değişken | İlk Tanım | İkinci Tanım (Override) | Satırlar |
+|----------|-----------|------------------------|----------|
+| `store_context_js` | 233-236 (eksik) | 238-311 (tam) | 233 vs 238 |
+| `ai_agent_system_message` | 313-366 | 510-563 (aynı) | 313 vs 510 |
+| `parse_ai_output_js` | 368-508 | 565-1099 (genişletilmiş) | 368 vs 565 |
+
+**Risk:** Eski/sürümü kalmış kod blokları karışıklığa yol açabilir.  
+**Öneri:** İlk tanımları silin.
+
+---
+
+#### ORTA — Bellek Sızıntısı: `_manualModes`
+
+**Bulgu:** `_manualModes` asla temizlenmiyor. `++` ile `true`, `--` ile `false` yapılıyor ancak entry hiç silinmiyor.
+
+**Risk:** Uzun süreli kullanımda _manualModes objesi büyüyecek.  
+**Öneri:** Müşteri batch'i tamamen silindiğinde `_manualModes` entry'sini de silin.
+
+---
+
+#### DÜŞÜK — `_seenMessageIds` O(n) Temizleme
+
+**Bulgu:** Her gelen mesajda tüm `_seenMessageIds` objesi taranıyor (6 saat TTL kontrolü). 3000 entry ile bu performans sorunu olabilir.
+
+**Öneri:** Lazy cleanup veya periyodik cleanup kullanın.
+
+---
+
+### 3.3 EŞ ZAMANLILIK (RACE CONDITION) BULGULARI
+
+#### YÜKSEK — Batch Collector ↔ Stale Batch Check Çarpışması
+
+**Bulgu:** `splice(0)` (satır 203) ve `batch.processing = true` (satır 206) ayrı satırlarda. Eğer n8n aynı anda iki execution çalıştırırsa mesaj kaybolabilir.
+
+**Mevcut Korum:** JavaScript tek threaded event loop'u — synchronous bloc içinde güvenli.  
+**Risk:** n8n paralel execution başlatırsa risk gerçekleşir.
+
+---
+
+#### ORTA — Finalize Batch Çoklu Yoldan Çağrı
+
+**Bulgu:** Hem `Should Notify Admins?` hem `Should Reply Customer?` bağımsız olarak `Finalize Batch`'e bağlanıyor. Aynı batchToken için iki paralel finalizasyon denemesi olabilir.
+
+**Mevcut Korum:** `_finalizedTokens` idempotancy guard'ı var.  
+**Risk:** Guard 10 dakika sonra TTL ile siliniyor — bu sürede geç teslimat gelirse çift kapatma riski.
+
+---
+
+### 3.4 TEST KAPSAMI ANALİZİ
+
+| Test Dosyası | Tür | Senaryo Sayısı | Kalite |
+|-------------|-----|:--------------:|--------|
+| `wf_test.py` | Python simülasyonu | 5 | **Düşük** — Production'dan farklı field isimleri, assertion yok |
+| `wf_test_webhook.py` | Canlı webhook | 10 | **Orta** — Gerçek webhook gönderiyor ama yanıt doğrulama yok |
+| `test_workflow_contract.py` | Statik sözleşme | ~15 | **Yüksek** — Graph yapısal doğrulama iyi |
+| `wf_test_templates.py` | Dokümantasyon | 20 | **Yok** — Sadece print, executable değil |
+| `live_customer_scenario_test.py` | Canlı test | 1 | **Düşük** — Tek senaryo |
+
+#### Kritik Test Kapsamı Boşlukları
+
+| Kapsam Alanı | Durum | Risk |
+|-------------|-------|------|
+| Politika motoru (8 caseType) | **Test edilmemiş** | Yüksek |
+| Guardrail ihlalleri (fiyat halüsinasyonu, stok garantisi) | **Test edilmemiş** | Yüksek |
+| Kaynak ihlali (PRV-001 — AI uydurma ürün kodu) | **Test edilmemiş** | Yüksek |
+| Teslimat hatası → Dead Letter → Finalize | **Test edilmemiş** | Yüksek |
+| Teslimat defteri (3 kanal tamamlama) | **Test edilmemiş** | Yüksek |
+| batchToken izolasyonu | **Test edilmemiş** | Yüksek |
+| İşlem zaman aşımı kurtarma (2 dk) | **Test edilmemiş** | Yüksek |
+| Manuel mod (handoff → pauseAutomation) | **Test edilmemiş** | Orta |
+| Idle timeout (10 dk sessizlik) | **Test edilmemiş** | Orta |
+| Belirsiz talep artışı (2x → handoff) | **Test edilmemiş** | Orta |
+| Admin bildirim soğutma (3 dk) | **Test edilmemiş** | Orta |
+
+---
+
+### 3.5 DEPLOY GÜVENLİĞİ
+
+| Konu | Durum | Risk |
+|------|-------|------|
+| staticData koruma | `upload_to_n8n.py` live staticData'yı okuyup koruyor | İyi |
+| Workflow publish | Deploy sonrası workflow publish edilmezse canlıda eski sürüm çalışır | **Orta** |
+| Rollback mekanizması | Yok — eski workflow.json git history'den geri alınabilir | Orta |
+| Schema doğrulama | `wf_validate.py` ile yapılıyor | İyi |
+| JS syntax check | `node --check` ile build'te doğrulanıyor | İyi |
+
+---
+
+## 4. SWOT ANALİZİ
+
+### Güçlü Yönler (Strengths)
+
+| # | Güçlü Yön | Açıklama |
+|---|-----------|----------|
+| S1 | **Tek kaynak mimarisi** | `build_workflow.py` tek dosyada tüm mantığı tanımlıyor. Değişiklik takibi kolay, tutarlılık yüksek. |
+| S2 | **120 saniyelik toplama penceresi** | Müşteri mesajları tek tek değil, konuşma bütünlüğü içinde değerlendiriliyor. Bu, klasik chatbot'lardan önemli bir fark. |
+| S3 | **Çok kanallı bildirim** | Telefon A + Telefon B + müşteri — üç ayrı kanal. Tek kanal başarısız olsa bile bilgi ulaşır. |
+| S4 | **Politika motoru** | AI çıktısı doğrudan müşteriye gitmiyor. Fiyat/stok/uyumluluk halüsinasyonlarına karşı ikinci kontrol katmanı var. |
+| S5 | **Teslimat defteri** | 3 kanalın teslimat durumu takip ediliyor. Batch ancak tüm kanallar tamamlandığında kapatılıyor. |
+| S6 | **Dead-letter sistemi** | Başarısız gönderimler sessiz kalmıyor — hata bildirimi üretiliyor. |
+| S7 | **Tekrarlanan mesaj koruması** | `_seenMessageIds` ile deduplikasyon. 6 saat TTL ve 3000 kayıt üst limiti. |
+| S8 | **Batch token izolasyonu** | Gecikmiş veya eski AI cevapları yanlış müşteriye gitmesin diye token doğrulaması. |
+| S9 | **Manuel/otonom mod** | `++`/`--` komutlarıyla sohbet içinden kontrol. AI hatalı davrandığında insan müdahalesine hızlı geçiş. |
+| S10 | **İşlem zaman aşımı kurtarma** | 2 dakika süren AI işlemleri otomatik olarak yeniden kuyruğa alınıyor. |
+| S11 | **Test araçları ekosistemi** | 11 farklı test/aracı dosyası. Validate, build, diff, inspect, demo, test template'leri mevcut. |
+| S12 | **Build-time JS doğrulama** | Her JS bloğu `node --check` ile syntax doğrulamasından geçiyor. |
+
+### Zayıf Yönler (Weaknesses)
+
+| # | Zayıf Yön | Açıklama |
+|---|-----------|----------|
+| W1 | **Hardcoded API anahtarları** | Evolution API key 6 kez, n8n JWT token 1 kez kaynak kodda. Güvenlik açığı. |
+| W2 | **Test kapsamı çok düşük** | Politika motoru, guardrail'ler, teslimat defteri, race condition'lar test edilmemiş. |
+| W3 | **Sessiz hata yutma** | 7 `catch(e) {}` bloğu. Hatalar loglanmadan yutuluyor, debug imkansız. |
+| W4 | **Bellek sızıntısı (_manualModes)** | Entry'ler asla silinmiyor. Uzun süreli kullanımda büyüme riski. |
+| W5 | **Ölü/kopya kod** | 3 JS bloğu iki kez tanımlanmış. İkinciler birincileri override ediyor. |
+| W6 | **Veritabanı yok** | Tüm durum verileri n8n staticData içinde. Crash durumunda veri kaybı riski. |
+| W7 | **Vision modeli yok** | Fotoğraflar analiz edilmiyor. AI'dan fotoğraf yorumlamaması isteniyor ama bu bir sınır. |
+| W8 | **Gerçek fiyat/stok entegrasyonu yok** | AI kesin fiyat/stok bilgisi veremiyor — her seferinde "yetkilimiz kontrol edecek" deniyor. |
+| W9 | **Workflow publish adımı unutulabilir** | Deploy sonrası publish edilmezse canlıda eski sürüm kalır. |
+| W10 | **Mock testler production'dan farklı** | `wf_test.py`'deki mock field isimleri (`messages`) production'dakinden (`pendingMessages`) farklı. |
+| W11 | **Webhook authentication yok** | Herhangi bir kaynaktan sahte webhook gönderilebilir. |
+| W12 | **120sn pencere pratikte 120-135sn** | 15sn tarama aralığı nedeniyle gerçek gecikme değişken. |
+
+### Fırsatlar (Opportunities)
+
+| # | Fırsat | Etki |
+|---|--------|------|
+| O1 | **Stok/fiyat API entegrasyonu** | Doğrudan tedarikçi veya kendi stok sistemi ile entegrasyon. AI'nın "yetkilimiz kontrol edecek" demesi ortadan kalkar. |
+| O2 | **Vision API entegrasyonu** | GPT-4o'nun vision özelliği ile fotoğraf analizi. Müşteri fotoğraf gönderdiğinde ürün kodu otomatik çıkartılabilir. |
+| O3 | **Gelişmiş test kapsamı** | Politika motoru, guardrail ve teslimat testleri eklenerek regresyon testi güvenilirliği artar. |
+| O4 | **Grafik tabanlı dashboard** | n8n execution geçmişinden real-time istatistik: yanıt süreleri, başarı oranları, manuel mod sıklığı. |
+| O5 | **Çoklu dil desteği** | AI prompt'una İngilikce/Almanca/Arapça desteği eklenebilir. |
+| O6 | **Müşteri memnuniyet anketi** | Otomatik cevap sonrası kısa anket: "Yardımcı olabildik mi?" — sürekli iyileştirme. |
+| O7 | **A/B test altyapısı** | Farklı AI model.prompt kombinasyonlarını test etme. |
+| O8 | **CI/CD pipeline** | Git push → otomatik test → deploy → publish. Manuel deploy riskini ortadan kaldırır. |
+| O9 | **Persistent veritabanı** | PostgreSQL/MongoDB ile staticData'yı desteklemek. Crash dayanıklılık ve sorgulama imkanı. |
+| O10 | **Redis-based kuyruk** | 120 saniyelik pencereyi Redis ile yönetmek. n8n bağımsız ölçekleme. |
+
+### Tehditler (Threats)
+
+| # | Tehdit | Olasılık | Etki |
+|---|--------|:--------:|------|
+| T1 | **API anahtarı sızıntısı** | Yüksek | Kritik — WhatsApp spam, hesap askıya alma |
+| T2 | **Evolution API kesintisi** | Orta | Yüksek — tüm müşteri iletişimi durur |
+| T3 | **n8n staticData kaybı** | Düşük | Yüksek — bekleyen batch'ler, manuel modlar silinir |
+| T4 | **AI model maliyet artışı** | Yüksek | Orta — GPT-4o-mini fiyat değişikliği |
+| T5 | **WhatsApp politika değişikliği** | Düşük | Yüksek — numara engelleme, API kısıtlaması |
+| T6 | **ReDoS saldırısı** | Düşük | Orta — regex pattern'leri manipüle edilebilir |
+| T7 | **Race condition istismarı** | Düşük | Orta — aynı anda çok fazla mesaj gelmesi |
+| T8 | **KVKK uyumsuzluğu** | Orta | Yüksek — müşteri telefon numaraları ve mesajları işleniyor |
+| T9 | **Deploy hatası** | Orta | Yüksek — publish edilmemiş workflow, eski kod canlıda kalır |
+| T10 | **GPT-4o-mini kalite düşüşü** | Orta | Orta — AI cevap kalitesi etkilenir |
+
+---
+
+## 5. ÖNERİLER (Öncelik sırasına göre)
+
+### P0 — Acil (Bu hafta)
+
+1. **API anahtarlarını n8n credential vault'una taşı** — Evolution API key 6 noktadan kaldırılıp tek credential'a bağlanmalı.
+2. **`upload_to_n8n.py` JWT token'ını `.env`'e taşı** — Kaynak kodda API tokenı bırakılmamalı.
+3. **Catch bloklarına logging ekle** — En azından `console.error()` ile hata detayı loglanmalı.
+4. **SSL doğrulamasını etkinleştir** — `ssl._create_unverified_context()` kaldırılmalı.
+
+### P1 — Kısa Vadeli (2 hafta)
+
+5. **Politika motoru için unit test yaz** — Her caseType, her guardrail, her provenance kontrolü için test.
+6. **Teslimat defteri testleri yaz** — 3 kanal farklı sıralamalarla tamamlanmalı, idempotancy doğrulanmalı.
+7. **`_manualModes` temizleme ekle** — Batch silinirken `_manualModes` entry'si de silinmeli.
+8. **Ölü kodu temizle** — İlk `store_context_js`, `ai_agent_system_message`, `parse_ai_output_js` tanımlarını kaldır.
+9. **Webhook authentication ekle** — Evolution API webhook secret/token ile doğrulama.
+
+### P2 — Orta Vadeli (1 ay)
+
+10. **Stok/fiyat API entegrasyonu** — En azından fiyat sorgulama entegrasyonu.
+11. **CI/CD pipeline** — Git push → test → build → deploy → publish otomasyonu.
+12. **Persistent veritabanı** — PostgreSQL ile staticData'yı destekle.
+13. **Test coverage artırımı** — wf_test.py'yi production ile uyumlu hale getir, assertion ekle.
+
+### P3 — Uzun Vadeli (3 ay)
+
+14. **Vision API entegrasyonu** — Fotoğraf analizi.
+15. **Çoklu dil desteği**.
+16. **Monitoring dashboard** — n8n execution geçmişinden real-time metrikler.
+
+---
+
+## 6. DOĞRULAMA PLANI
+
+Raporun doğrulanması için yapılması gerekenler:
+
+1. `build_workflow.py` dosyasında belirtilen satır numaralarının güncel sürümde de doğru olup olmadığını kontrol et.
+2. Canlı n8n ortamında workflow'un aktif olup olmadığını ve publish edildiğini doğrula.
+3. `upload_to_n8n.py` ile deploy sonrası workflow'un çalıştığını doğrula.
+4. Tüm hardcoded API anahtarlarının hangi dosyalarda bulunduğunu `grep` ile doğrula.
+
+---
+
+**Rapor Sonu**  
+Kaynak: `build_workflow.py`, `workflow.json`, `upload_to_n8n.py`, `tools/` dizinindeki tüm test dosyaları

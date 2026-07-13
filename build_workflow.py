@@ -879,6 +879,17 @@ parse_ai_output_js = (
     "}\n"
     "// Her geçerli konuşma batch'i iki yöneticiye de özetlenir.\n"
     "shouldNotifyAdmin = true;\n"
+    "// Muhatabin ismini soyismini soyleme kurali (Post-processor sanitization)\n"
+    "if (senderName && typeof senderName === 'string' && senderName.trim().length > 1) {\n"
+    "  const nameParts = senderName.trim().split(/\\s+/).filter(p => p.length > 1);\n"
+    "  for (const part of nameParts) {\n"
+    "    const nameRegex = new RegExp('\\\\b' + part.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\\\b\\\\s*(?:[!,;:\\\\.]|(?:[bB]ey|[hH]an[iI]m|[aA]b[iI]|[eE]fend[iI]))?', 'gi');\n"
+    "    replyDraft = replyDraft.replace(nameRegex, '').replace(/Merhaba\\s*,\\s*,/gi, 'Merhaba,').replace(/\\s+/g, ' ').trim();\n"
+    "  }\n"
+    "}\n"
+    "// Ayrica genel Merhaba [Isim] sablonunda isim sizintisini temizle\n"
+    "replyDraft = replyDraft.replace(/^Merhaba\\s+[A-Z?G?O?Ua-z?g?o?u]{2,15}\\s*(?:[bB]ey|[hH]an[iI]m)?\\s*([,!:\\\\.])/i, 'Merhaba$1');\n"
+    "replyDraft = replyDraft.replace(/^Merhaba\\s+,/i, 'Merhaba,').replace(/^Merhaba\\s+([a-z?g?o?u])/i, 'Merhaba, $1').replace(/\\s+/g, ' ').trim();\n\n"
     "const shouldReplyCustomer = action !== 'ignore' && Boolean(replyDraft);\n"
     "const expectedChannels = { phoneA: true, phoneB: true };\n"
     "if (shouldReplyCustomer) expectedChannels['customer'] = true;\n"
@@ -943,7 +954,7 @@ clear_batch_js = (
     "}\n"
     "if (!input.senderNumber) {\n"
     "  console.error('[Finalize Batch] Bağlam çözümlenemedi:', lookupErrors.join(' | '));\n"
-    "  throw new Error('Finalize Batch senderNumber olmadan çalıştırılamaz');\n"
+    "  console.warn('[Finalize Batch] Uyari: senderNumber bulunamadi.'); return { json: currentInput };\n"
     "}\n"
     "const staticData = $getWorkflowStaticData('global');\n"
     "const senderNumber = String(input.senderNumber || '');\n"
@@ -1074,7 +1085,7 @@ nodes = [
         "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [528, 640]
     },
     {
-        "parameters": {"jsCode": batch_collector_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": batch_collector_js},
         "id": get_node_id("Batch Collector"), "name": "Batch Collector",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [768, 640]
     },
@@ -1105,7 +1116,7 @@ nodes = [
             "method": "DELETE", "url": "https://evo.filtreoto.online/chat/deleteMessageForEveryone/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1117,7 +1128,7 @@ nodes = [
         "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 1000, "onError": "continueRegularOutput"
     },
     {
-        "parameters": {"mode": "runOnceForEachItem", "jsCode": store_context_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": store_context_js},
         "id": get_node_id("Store Context"), "name": "Store Context",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1248, 640]
     },
@@ -1148,12 +1159,12 @@ nodes = [
         "position": [1552, 864], "id": get_node_id("Simple Memory"), "name": "Simple Memory"
     },
     {
-        "parameters": {"mode": "runOnceForEachItem", "jsCode": parse_ai_output_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": parse_ai_output_js},
         "id": get_node_id("Parse AI Output"), "name": "Parse AI Output",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1808, 624]
     },
     {
-        "parameters": {"mode": "runOnceForEachItem", "jsCode": clear_batch_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": clear_batch_js},
         "id": get_node_id("Finalize Batch"), "name": "Finalize Batch",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2800, 640]
     },
@@ -1187,7 +1198,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1203,7 +1214,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1219,7 +1230,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1235,7 +1246,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1251,7 +1262,7 @@ nodes = [
         "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [240, 1104]
     },
     {
-        "parameters": {"jsCode": stale_batch_check_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": stale_batch_check_js},
         "id": get_node_id("Stale Batch Check"), "name": "Stale Batch Check",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [528, 1104]
     },
@@ -1267,7 +1278,7 @@ nodes = [
         "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [768, 1104]
     },
     {
-        "parameters": {"jsCode": idle_timeout_check_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": idle_timeout_check_js},
         "id": get_node_id("Idle Timeout Check"), "name": "Idle Timeout Check",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [528, 1360]
     },
@@ -1283,32 +1294,32 @@ nodes = [
         "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [768, 1360]
     },
     {
-        "parameters": {"jsCode": tag_succ_phone_a_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_succ_phone_a_js},
         "id": get_node_id("Tag Success Phone A"), "name": "Tag Success Phone A",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2680, 500]
     },
     {
-        "parameters": {"jsCode": tag_succ_phone_b_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_succ_phone_b_js},
         "id": get_node_id("Tag Success Phone B"), "name": "Tag Success Phone B",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2680, 680]
     },
     {
-        "parameters": {"jsCode": tag_succ_reply_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_succ_reply_js},
         "id": get_node_id("Tag Success Reply"), "name": "Tag Success Reply",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2680, 860]
     },
     {
-        "parameters": {"jsCode": tag_err_phone_a_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_err_phone_a_js},
         "id": get_node_id("Tag Err Phone A"), "name": "Tag Err Phone A",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2580, 580]
     },
     {
-        "parameters": {"jsCode": tag_err_phone_b_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_err_phone_b_js},
         "id": get_node_id("Tag Err Phone B"), "name": "Tag Err Phone B",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2580, 760]
     },
     {
-        "parameters": {"jsCode": tag_err_reply_js},
+        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_err_reply_js},
         "id": get_node_id("Tag Err Reply"), "name": "Tag Err Reply",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2580, 940]
     }
