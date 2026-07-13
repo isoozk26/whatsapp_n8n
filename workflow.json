@@ -70,7 +70,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '').replace('@lid', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst messageText = (input.body.data.message?.conversation\n  || input.body.data.message?.extendedTextMessage?.text\n  || input.body.data.message?.imageMessage?.caption\n  || '[Medya]').trim();\n\nconst messageId = String(input.body.data.key.id || '');\nconst fromMe = input.body.data.key.fromMe === true;\nconst now = Date.now();\nconst maxMessages = 30;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._seenMessageIds) staticData._seenMessageIds = {};\n\n// Deduplication Check (TTL + Size Limit)\nif (messageId && staticData._seenMessageIds[messageId]) {\n  return [{ json: { _action: 'ignore', reason: 'duplicate_message', messageId } }];\n}\nif (messageId) {\n  staticData._seenMessageIds[messageId] = now;\n  const seenTtlMs = 6 * 60 * 60 * 1000; // 6 saat TTL\n  for (const [id, seenAt] of Object.entries(staticData._seenMessageIds)) {\n    if (now - Number(seenAt || 0) > seenTtlMs) delete staticData._seenMessageIds[id];\n  }\n  const ids = Object.keys(staticData._seenMessageIds);\n  if (ids.length > 3000) {\n    ids.sort((a, b) => staticData._seenMessageIds[a] - staticData._seenMessageIds[b])\n       .slice(0, ids.length - 2500)\n       .forEach(id => delete staticData._seenMessageIds[id]);\n  }\n}\n\n// === YETKİLİ KULLANICI KONTROLÜ (fromMe veya Yönetici Numaraları) ===\nconst ownerNumbers = ['905052237182', '905306056066'];\nconst isAuthorized = fromMe || ownerNumbers.includes(senderNumber);\n\n// === ++/-- KOMUTLARI: YALNIZCA YETKİLİ İSE KOMUT OLARAK İŞLE (CMD-001) ===\nif (isAuthorized && messageText === '++') {\n  staticData._manualModes[senderNumber] = true;\n  delete staticData._batches[senderNumber];\n  return [{ json: {\n    _action: 'command',\n    senderNumber: senderNumber,\n    command: 'paused',\n    bildirim: 'Sistem Manuel De - ' + senderName + ' (' + senderNumber + ')'\n  }}];\n}\n\nif (isAuthorized && messageText === '--') {\n  staticData._manualModes[senderNumber] = false;\n  return [{ json: {\n    _action: 'command',\n    senderNumber: senderNumber,\n    command: 'resumed',\n    bildirim: 'Sistem Otomatik - ' + senderName + ' (' + senderNumber + ')'\n  }}];\n}\n\nif (fromMe || staticData._manualModes[senderNumber] === true) {\n  return [{ json: { _action: 'ignore' } }];\n}\n\n// === IDL-002: Müşteriden yeni mesaj (!fromMe) geldiyse idle sayacını sil ===\nif (!fromMe && staticData._lastReply && staticData._lastReply[senderNumber]) {\n  delete staticData._lastReply[senderNumber];\n}\n\n// === BATCH TOPLAMA (State Isolation ile) ===\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    pendingMessages: [],\n    processingMessages: [],\n    pendingStartedAt: now,\n    lastMessageAt: now,\n    processingStartedAt: null,\n    processingToken: null,\n    senderName: senderName,\n    processing: false,\n    hasImages: false\n  };\n}\n\nconst batch = staticData._batches[senderNumber];\nif (!Array.isArray(batch.pendingMessages)) batch.pendingMessages = [];\nif (!Array.isArray(batch.processingMessages)) batch.processingMessages = [];\n\nif (batch.pendingMessages.length >= maxMessages) {\n  return [{ json: { _action: 'spam_limit', senderNumber, senderName } }];\n}\n\nconst hasImage = input.body.data.message?.imageMessage ? true : false;\nif (hasImage) batch.hasImages = true;\n\nif (!batch.pendingStartedAt || batch.pendingMessages.length === 0) {\n  batch.pendingStartedAt = now;\n}\n\nbatch.pendingMessages.push({\n  id: messageId,\n  text: messageText,\n  type: hasImage ? 'image' : 'text',\n  timestamp: now,\n  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),\n  mediaUrl: input.body.data.message?.imageMessage?.url || null,\n  mediaKey: input.body.data.message?.imageMessage?.mediaKey || null,\n  mimetype: input.body.data.message?.imageMessage?.mimetype || null\n});\n\nbatch.lastMessageAt = now;\nbatch.senderName = senderName;\n\n// BAT-001: Fast-path bozukluğunu engelle, tüm batch işlemlerini Stale Batch Check (claimBatch) yapsın\nreturn [{ json: {\n  _action: batch.processing ? 'queued_during_processing' : 'queued',\n  senderNumber,\n  senderName,\n  pendingCount: batch.pendingMessages.length,\n  processing: batch.processing === true\n}}];"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\nconst rawJid = input.body.data.key.remoteJid || '';\nconst senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '').replace('@lid', '');\nconst senderName = input.body.data.pushName || senderNumber;\nconst messageText = (input.body.data.message?.conversation\n  || input.body.data.message?.extendedTextMessage?.text\n  || input.body.data.message?.imageMessage?.caption\n  || '[Medya]').trim();\n\nconst messageId = String(input.body.data.key.id || '');\nconst fromMe = input.body.data.key.fromMe === true;\nconst now = Date.now();\nconst maxMessages = 30;\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nif (!staticData._seenMessageIds) staticData._seenMessageIds = {};\n\n// Deduplication Check (TTL + Size Limit)\nif (messageId && staticData._seenMessageIds[messageId]) {\n  return [{ json: { _action: 'ignore', reason: 'duplicate_message', messageId } }];\n}\nif (messageId) {\n  staticData._seenMessageIds[messageId] = now;\n  const seenTtlMs = 6 * 60 * 60 * 1000; // 6 saat TTL\n  for (const [id, seenAt] of Object.entries(staticData._seenMessageIds)) {\n    if (now - Number(seenAt || 0) > seenTtlMs) delete staticData._seenMessageIds[id];\n  }\n  const ids = Object.keys(staticData._seenMessageIds);\n  if (ids.length > 3000) {\n    ids.sort((a, b) => staticData._seenMessageIds[a] - staticData._seenMessageIds[b])\n       .slice(0, ids.length - 2500)\n       .forEach(id => delete staticData._seenMessageIds[id]);\n  }\n}\n\n// === YETKİLİ KULLANICI KONTROLÜ (fromMe veya Yönetici Numaraları) ===\nconst ownerNumbers = ['905052237182', '905306056066', '905363955525'];\nconst isAuthorized = fromMe || ownerNumbers.includes(senderNumber);\n\n// === ++/-- KOMUTLARI: YALNIZCA YETKİLİ İSE KOMUT OLARAK İŞLE (CMD-001) ===\nif (isAuthorized && messageText === '++') {\n  staticData._manualModes[senderNumber] = true;\n  delete staticData._batches[senderNumber];\n  return [{ json: {\n    _action: 'command',\n    senderNumber: senderNumber,\n    command: 'paused',\n    commandMessageId: messageId,\n    commandFromMe: fromMe,\n    commandRemoteJid: rawJid,\n    commandParticipant: input.body.data.key.participant || '',\n    bildirim: 'Sistem Manuel De - ' + senderName + ' (' + senderNumber + ')'\n  }}];\n}\n\nif (isAuthorized && messageText === '--') {\n  staticData._manualModes[senderNumber] = false;\n  return [{ json: {\n    _action: 'command',\n    senderNumber: senderNumber,\n    command: 'resumed',\n    commandMessageId: messageId,\n    commandFromMe: fromMe,\n    commandRemoteJid: rawJid,\n    commandParticipant: input.body.data.key.participant || '',\n    bildirim: 'Sistem Otomatik - ' + senderName + ' (' + senderNumber + ')'\n  }}];\n}\n\nif (fromMe || staticData._manualModes[senderNumber] === true) {\n  return [{ json: { _action: 'ignore' } }];\n}\n\n// === IDL-002: Müşteriden yeni mesaj (!fromMe) geldiyse idle sayacını sil ===\nif (!fromMe && staticData._lastReply && staticData._lastReply[senderNumber]) {\n  delete staticData._lastReply[senderNumber];\n}\n\n// === BATCH TOPLAMA (State Isolation ile) ===\nif (!staticData._batches[senderNumber]) {\n  staticData._batches[senderNumber] = {\n    pendingMessages: [],\n    processingMessages: [],\n    pendingStartedAt: now,\n    lastMessageAt: now,\n    processingStartedAt: null,\n    processingToken: null,\n    senderName: senderName,\n    processing: false,\n    hasImages: false\n  };\n}\n\nconst batch = staticData._batches[senderNumber];\nif (!Array.isArray(batch.pendingMessages)) batch.pendingMessages = [];\nif (!Array.isArray(batch.processingMessages)) batch.processingMessages = [];\n\nif (batch.pendingMessages.length >= maxMessages) {\n  return [{ json: { _action: 'spam_limit', senderNumber, senderName } }];\n}\n\nconst hasImage = input.body.data.message?.imageMessage ? true : false;\nif (hasImage) batch.hasImages = true;\n\nif (!batch.pendingStartedAt || batch.pendingMessages.length === 0) {\n  batch.pendingStartedAt = now;\n}\n\nbatch.pendingMessages.push({\n  id: messageId,\n  text: messageText,\n  type: hasImage ? 'image' : 'text',\n  timestamp: now,\n  time: new Date(now).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),\n  mediaUrl: input.body.data.message?.imageMessage?.url || null,\n  mediaKey: input.body.data.message?.imageMessage?.mediaKey || null,\n  mimetype: input.body.data.message?.imageMessage?.mimetype || null\n});\n\nbatch.lastMessageAt = now;\nbatch.senderName = senderName;\n\n// BAT-001: Fast-path bozukluğunu engelle, tüm batch işlemlerini Stale Batch Check (claimBatch) yapsın\nreturn [{ json: {\n  _action: batch.processing ? 'queued_during_processing' : 'queued',\n  senderNumber,\n  senderName,\n  pendingCount: batch.pendingMessages.length,\n  processing: batch.processing === true\n}}];"
       },
       "id": "cf3dc39b-5fa7-5389-ac72-94e2862a9cc2",
       "name": "Batch Collector",
@@ -146,6 +146,44 @@
         1008,
         960
       ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "https://evo.filtreoto.online/chat/deleteMessageForEveryone/filtr",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ id: $json.commandMessageId, fromMe: $json.commandFromMe === true, remoteJid: $json.commandRemoteJid, ...($json.commandParticipant ? { participant: $json.commandParticipant } : {}) }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "cmd-delete-message-node",
+      "name": "Delete Command Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1248,
+        1080
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -726,6 +764,11 @@
       "main": [
         [
           {
+            "node": "Delete Command Message",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Phone A Send",
             "type": "main",
             "index": 0
@@ -736,6 +779,11 @@
             "index": 0
           }
         ],
+        []
+      ]
+    },
+    "Delete Command Message": {
+      "main": [
         []
       ]
     },

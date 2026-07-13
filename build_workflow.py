@@ -9,6 +9,7 @@ node_ids = {
     "Batch Collector": "cf3dc39b-5fa7-5389-ac72-94e2862a9cc2",
     "Should Process?": "6d6eba4b-4ded-5387-8f29-7d518c86632f",
     "Is Command?": "cc-001-cmd-check",
+    "Delete Command Message": "cmd-delete-message-node",
     "Store Context": "d7ae6ef8-a8e2-5779-a8fb-7a98a18f48c3",
     "AI Agent": "9409b931-1973-4c94-9d6e-5c255f6ee037",
     "OpenAI Chat Model1": "1b7c08e5-1da2-4a07-b017-370d41c50e85",
@@ -69,7 +70,7 @@ batch_collector_js = (
     "  }\n"
     "}\n\n"
     "// === YETKİLİ KULLANICI KONTROLÜ (fromMe veya Yönetici Numaraları) ===\n"
-    "const ownerNumbers = ['905052237182', '905306056066'];\n"
+    "const ownerNumbers = ['905052237182', '905306056066', '905363955525'];\n"
     "const isAuthorized = fromMe || ownerNumbers.includes(senderNumber);\n\n"
     "// === ++/-- KOMUTLARI: YALNIZCA YETKİLİ İSE KOMUT OLARAK İŞLE (CMD-001) ===\n"
     "if (isAuthorized && messageText === '++') {\n"
@@ -79,6 +80,10 @@ batch_collector_js = (
     "    _action: 'command',\n"
     "    senderNumber: senderNumber,\n"
     "    command: 'paused',\n"
+    "    commandMessageId: messageId,\n"
+    "    commandFromMe: fromMe,\n"
+    "    commandRemoteJid: rawJid,\n"
+    "    commandParticipant: input.body.data.key.participant || '',\n"
     "    bildirim: 'Sistem Manuel De - ' + senderName + ' (' + senderNumber + ')'\n"
     "  }}];\n"
     "}\n\n"
@@ -88,6 +93,10 @@ batch_collector_js = (
     "    _action: 'command',\n"
     "    senderNumber: senderNumber,\n"
     "    command: 'resumed',\n"
+    "    commandMessageId: messageId,\n"
+    "    commandFromMe: fromMe,\n"
+    "    commandRemoteJid: rawJid,\n"
+    "    commandParticipant: input.body.data.key.participant || '',\n"
     "    bildirim: 'Sistem Otomatik - ' + senderName + ' (' + senderNumber + ')'\n"
     "  }}];\n"
     "}\n\n"
@@ -1251,6 +1260,22 @@ nodes = [
         "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [1008, 960]
     },
     {
+        "parameters": {
+            "method": "DELETE", "url": "https://evo.filtreoto.online/chat/deleteMessageForEveryone/filtr",
+            "sendHeaders": True,
+            "headerParameters": {"parameters": [
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "Content-Type", "value": "application/json"}
+            ]},
+            "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
+            "body": "={{ JSON.stringify({ id: $json.commandMessageId, fromMe: $json.commandFromMe === true, remoteJid: $json.commandRemoteJid, ...($json.commandParticipant ? { participant: $json.commandParticipant } : {}) }) }}",
+            "options": {"timeout": 15000}
+        },
+        "id": get_node_id("Delete Command Message"), "name": "Delete Command Message",
+        "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1248, 1080],
+        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 1000, "onError": "continueRegularOutput"
+    },
+    {
         "parameters": {"mode": "runOnceForEachItem", "jsCode": store_context_js},
         "id": get_node_id("Store Context"), "name": "Store Context",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1248, 640]
@@ -1453,7 +1478,8 @@ connections = {
     "fromMe Check": {"main": [[{"node": "Batch Collector", "type": "main", "index": 0}], []]},
     "Batch Collector": {"main": [[{"node": "Should Process?", "type": "main", "index": 0}, {"node": "Is Command?", "type": "main", "index": 0}]]},
     "Should Process?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
-    "Is Command?": {"main": [[{"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
+    "Is Command?": {"main": [[{"node": "Delete Command Message", "type": "main", "index": 0}, {"node": "Phone A Send", "type": "main", "index": 0}, {"node": "Phone B Send", "type": "main", "index": 0}], []]},
+    "Delete Command Message": {"main": [[]]},
     "Store Context": {"main": [[{"node": "AI Agent", "type": "main", "index": 0}]]},
     "AI Agent": {"main": [[{"node": "Parse AI Output", "type": "main", "index": 0}]]},
       "Parse AI Output": {"main": [[{"node": "Should Notify Admins?", "type": "main", "index": 0}, {"node": "Should Reply Customer?", "type": "main", "index": 0}]]},

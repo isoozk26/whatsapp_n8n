@@ -37,6 +37,20 @@ def main():
     assert targets(workflow, "Should Notify Admins?", 1) == ["Finalize Batch"]
     assert targets(workflow, "Should Reply Customer?", 1) == ["Finalize Batch"]
 
+    command_targets = targets(workflow, "Is Command?", 0)
+    assert command_targets == ["Delete Command Message", "Phone A Send", "Phone B Send"]
+    delete_command = next(n for n in workflow["nodes"] if n["name"] == "Delete Command Message")
+    assert delete_command["parameters"]["method"] == "DELETE"
+    assert delete_command["parameters"]["url"].endswith("/chat/deleteMessageForEveryone/filtr")
+    for field in ("commandMessageId", "commandFromMe", "commandRemoteJid"):
+        assert field in delete_command["parameters"]["body"]
+
+    collector = next(n for n in workflow["nodes"] if n["name"] == "Batch Collector")
+    collector_code = collector["parameters"]["jsCode"]
+    assert "905363955525" in collector_code
+    for field in ("commandMessageId", "commandFromMe", "commandRemoteJid"):
+        assert field in collector_code
+
     assert targets(workflow, "Dead Letter Admin", 0) == ["Finalize Batch"]
     finalize = next(n for n in workflow["nodes"] if n["name"] == "Finalize Batch")
     finalize_code = finalize["parameters"]["jsCode"]
