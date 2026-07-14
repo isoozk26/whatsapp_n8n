@@ -1143,7 +1143,7 @@ nodes = [
             "method": "DELETE", "url": "https://evo.filtreoto.online/chat/deleteMessageForEveryone/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY')},
+                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1225,7 +1225,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY')},
+                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1241,7 +1241,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY')},
+                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1257,7 +1257,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY')},
+                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1273,7 +1273,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY')},
+                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
