@@ -42,7 +42,7 @@ webhook_auth_js = (
     "const input = $input.first().json;\n\n"
     "// WEBHOOK AUTH: URL Token dogrulama (Evolution API v2.3.7 custom header desteklemez)\n"
     "// Token URL'de ?token= olarak gonderilir, burada dogrulanir\n"
-    "const AUTH_TOKEN = $env.WEBHOOK_TOKEN || staticData._webhookAuthToken || '';\n"
+    "const AUTH_TOKEN = staticData._webhookAuthToken || '';\n"
     "if (AUTH_TOKEN) {\n"
     "  const receivedToken = $json.query?.token || '';\n"
     "  if (receivedToken !== AUTH_TOKEN) {\n"
@@ -99,6 +99,7 @@ batch_collector_js = (
     "// === ++/-- KOMUTLARI: YALNIZCA YETKİLİ İSE KOMUT OLARAK İŞLE (CMD-001) ===\n"
     "if (isAuthorized && messageText === '++') {\n"
     "  staticData._manualModes[senderNumber] = true;\n"
+    "  staticData._manualModes = Object.assign({}, staticData._manualModes);\n"
     "  delete staticData._batches[senderNumber];\n"
     "  return [{ json: {\n"
     "    _action: 'command',\n"
@@ -113,6 +114,7 @@ batch_collector_js = (
     "}\n\n"
     "if (isAuthorized && messageText === '--') {\n"
     "  delete staticData._manualModes[senderNumber];\n"
+    "  staticData._manualModes = Object.assign({}, staticData._manualModes);\n"
     "  return [{ json: {\n"
     "    _action: 'command',\n"
     "    senderNumber: senderNumber,\n"
@@ -1399,7 +1401,7 @@ wf["nodes"] = nodes
 wf["connections"] = connections
 wf["settings"] = {"executionOrder": "v1", "saveDataSuccessExecution": "none", "saveExecutionProgress": False, "saveManualExecutions": True}
 if "staticData" not in wf or not wf["staticData"]:
-    wf["staticData"] = {"node:Schedule Trigger": {"recurrenceRules": []}, "global": {"_batches": {}}}
+    wf["staticData"] = {"node:Schedule Trigger": {"recurrenceRules": []}, "global": {"_batches": {}, "_webhookAuthToken": "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"}}
 wf["meta"] = {"templateCredsSetupCompleted": True}
 wf["pinData"] = {}
 
