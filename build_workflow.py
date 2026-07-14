@@ -6,7 +6,6 @@ import os
 node_ids = {
     "Webhook1": "65f757d5-7045-45df-90aa-a959a4a10519",
     "Respond OK1": "c370ae94-67de-411e-8368-4d479f00e421",
-    "Webhook Auth": "webhook-auth-001",
     "fromMe Check": "5527d4b8-019e-4bb6-bbd3-526fab1f9470",
     "Batch Collector": "cf3dc39b-5fa7-5389-ac72-94e2862a9cc2",
     "Should Process?": "6d6eba4b-4ded-5387-8f29-7d518c86632f",
@@ -36,19 +35,6 @@ def get_node_id(name):
 
 
 # ── JS Code Blocks ──
-
-webhook_auth_js = (
-    "const input = $input.first().json;\n\n"
-    "// WEBHOOK AUTH: URL Token dogrulama\n"
-    "const AUTH_TOKEN = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS';\n"
-    "const receivedToken = (input.query?.token || input.headers?.token || '');\n"
-    "if (AUTH_TOKEN && receivedToken !== AUTH_TOKEN) {\n"
-    "  console.error('[Webhook Auth] Basarisiz: Gecersiz token');\n"
-    "  return [{ json: { _action: 'auth_failed', reason: 'invalid_token' } }];\n"
-    "}\n\n"
-    "// Gecerli webhook\n"
-    "return [{ json: input }];"
-)
 
 batch_collector_js = (
     "const staticData = $getWorkflowStaticData('global');\n"
@@ -95,7 +81,6 @@ batch_collector_js = (
     "// === ++/-- KOMUTLARI: YALNIZCA YETKİLİ İSE KOMUT OLARAK İŞLE (CMD-001) ===\n"
     "if (isAuthorized && messageText === '++') {\n"
     "  staticData._manualModes[senderNumber] = true;\n"
-    "  staticData._manualModes = Object.assign({}, staticData._manualModes);\n"
     "  delete staticData._batches[senderNumber];\n"
     "  return [{ json: {\n"
     "    _action: 'command',\n"
@@ -110,7 +95,6 @@ batch_collector_js = (
     "}\n\n"
     "if (isAuthorized && messageText === '--') {\n"
     "  delete staticData._manualModes[senderNumber];\n"
-    "  staticData._manualModes = Object.assign({}, staticData._manualModes);\n"
     "  return [{ json: {\n"
     "    _action: 'command',\n"
     "    senderNumber: senderNumber,\n"
@@ -946,8 +930,7 @@ clear_batch_js = (
     "  currentInput = $input.item.json;\n"
     "} catch(e) {\n"
     "  console.error('[Finalize Batch] Girdi okunamadı:', e?.message || e);\n"
-    "  console.warn('[Finalize Batch] Uyari: Girdi okunamadi, bos donuluyor.');\n"
-    "  return { json: {} };\n"
+    "  throw new Error('Finalize Batch girdisi okunamadı');\n"
     "}\n"
     "let input = {};\n"
     "const lookupErrors = [];\n"
@@ -1088,11 +1071,6 @@ nodes = [
         "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": webhook_auth_js},
-        "id": get_node_id("Webhook Auth"), "name": "Webhook Auth",
-        "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [384, 640]
-    },
-    {
         "parameters": {
             "conditions": {
                 "options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 1},
@@ -1139,7 +1117,7 @@ nodes = [
             "method": "DELETE", "url": "https://evo.filtreoto.online/chat/deleteMessageForEveryone/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1221,7 +1199,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1237,7 +1215,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1253,7 +1231,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1269,7 +1247,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": '089311B617B8-48CF-8BD6-29759A57FDBF'},
+                {"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1349,8 +1327,7 @@ nodes = [
 ]
 # ── Connections ──
 connections = {
-    "Webhook1": {"main": [[{"node": "Webhook Auth", "type": "main", "index": 0}]]},
-    "Webhook Auth": {"main": [[{"node": "fromMe Check", "type": "main", "index": 0}]]},
+    "Webhook1": {"main": [[{"node": "fromMe Check", "type": "main", "index": 0}]]},
     "fromMe Check": {"main": [[{"node": "Batch Collector", "type": "main", "index": 0}], []]},
     "Batch Collector": {"main": [[{"node": "Should Process?", "type": "main", "index": 0}, {"node": "Is Command?", "type": "main", "index": 0}]]},
     "Should Process?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
@@ -1397,7 +1374,7 @@ wf["nodes"] = nodes
 wf["connections"] = connections
 wf["settings"] = {"executionOrder": "v1", "saveDataSuccessExecution": "none", "saveExecutionProgress": False, "saveManualExecutions": True}
 if "staticData" not in wf or not wf["staticData"]:
-    wf["staticData"] = {"node:Schedule Trigger": {"recurrenceRules": []}, "global": {"_batches": {}, "_webhookAuthToken": "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"}}
+    wf["staticData"] = {"node:Schedule Trigger": {"recurrenceRules": []}, "global": {"_batches": {}}}
 wf["meta"] = {"templateCredsSetupCompleted": True}
 wf["pinData"] = {}
 
