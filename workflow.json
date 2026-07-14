@@ -20,7 +20,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst input = $input.first().json;\n\n// WEBHOOK AUTH: URL Token dogrulama (Evolution API v2.3.7 custom header desteklemez)\n// Token URL'de ?token= olarak gonderilir, burada dogrulanir\nconst AUTH_TOKEN = staticData._webhookAuthToken || '';\nif (AUTH_TOKEN) {\n  const receivedToken = $json.query?.token || '';\n  if (receivedToken !== AUTH_TOKEN) {\n    console.error('[Webhook Auth] Basarisiz: Gecersiz veya eksik URL token');\n    return [{ json: { _action: 'auth_failed', reason: 'invalid_url_token' } }];\n  }\n}\n\n// Gecerli webhook - orijinal veriyi devam ettir\nreturn [{ json: input }];"
+        "jsCode": "const input = $input.first().json;\n\n// WEBHOOK AUTH: URL Token dogrulama\nconst AUTH_TOKEN = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS';\nconst receivedToken = (input.query?.token || input.headers?.token || '');\nif (AUTH_TOKEN && receivedToken !== AUTH_TOKEN) {\n  console.error('[Webhook Auth] Basarisiz: Gecersiz token');\n  return [{ json: { _action: 'auth_failed', reason: 'invalid_token' } }];\n}\n\n// Gecerli webhook\nreturn [{ json: input }];"
       },
       "id": "webhook-auth-001",
       "name": "Webhook Auth",

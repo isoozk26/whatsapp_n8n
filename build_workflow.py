@@ -38,19 +38,15 @@ def get_node_id(name):
 # ── JS Code Blocks ──
 
 webhook_auth_js = (
-    "const staticData = $getWorkflowStaticData('global');\n"
     "const input = $input.first().json;\n\n"
-    "// WEBHOOK AUTH: URL Token dogrulama (Evolution API v2.3.7 custom header desteklemez)\n"
-    "// Token URL'de ?token= olarak gonderilir, burada dogrulanir\n"
-    "const AUTH_TOKEN = staticData._webhookAuthToken || '';\n"
-    "if (AUTH_TOKEN) {\n"
-    "  const receivedToken = $json.query?.token || '';\n"
-    "  if (receivedToken !== AUTH_TOKEN) {\n"
-    "    console.error('[Webhook Auth] Basarisiz: Gecersiz veya eksik URL token');\n"
-    "    return [{ json: { _action: 'auth_failed', reason: 'invalid_url_token' } }];\n"
-    "  }\n"
+    "// WEBHOOK AUTH: URL Token dogrulama\n"
+    "const AUTH_TOKEN = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS';\n"
+    "const receivedToken = (input.query?.token || input.headers?.token || '');\n"
+    "if (AUTH_TOKEN && receivedToken !== AUTH_TOKEN) {\n"
+    "  console.error('[Webhook Auth] Basarisiz: Gecersiz token');\n"
+    "  return [{ json: { _action: 'auth_failed', reason: 'invalid_token' } }];\n"
     "}\n\n"
-    "// Gecerli webhook - orijinal veriyi devam ettir\n"
+    "// Gecerli webhook\n"
     "return [{ json: input }];"
 )
 
