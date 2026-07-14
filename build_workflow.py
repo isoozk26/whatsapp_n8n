@@ -42,7 +42,7 @@ webhook_auth_js = (
     "const input = $input.first().json;\n\n"
     "// WEBHOOK AUTH: URL Token dogrulama (Evolution API v2.3.7 custom header desteklemez)\n"
     "// Token URL'de ?token= olarak gonderilir, burada dogrulanir\n"
-    "const AUTH_TOKEN = process.env.WEBHOOK_AUTH_TOKEN || staticData._webhookAuthToken || '';\n"
+    "const AUTH_TOKEN = $env.WEBHOOK_TOKEN || staticData._webhookAuthToken || '';\n"
     "if (AUTH_TOKEN) {\n"
     "  const receivedToken = $json.query?.token || '';\n"
     "  if (receivedToken !== AUTH_TOKEN) {\n"

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """WhatsApp AI v10 - Webhook Test Betigi"""
 import json
+import os
 import urllib.request
 import ssl
 import time
 import uuid
 
-WEBHOOK_URL = "https://n8n.filtreoto.online/webhook/evolution-webhook"
+DEFAULT_TOKEN = "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"
+WEBHOOK_URL = f"https://n8n.filtreoto.online/webhook/evolution-webhook?token={os.environ.get('WEBHOOK_TOKEN', DEFAULT_TOKEN)}"
 # Use default SSL context (verification enabled)
 context = None  # Uses default SSL context with verification
 

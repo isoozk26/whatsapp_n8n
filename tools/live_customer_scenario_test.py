@@ -3,12 +3,14 @@
 
 import argparse
 import json
+import os
 import ssl
 import urllib.request
 import uuid
 
 
-WEBHOOK_URL = "https://n8n.filtreoto.online/webhook/evolution-webhook"
+DEFAULT_TOKEN = "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"
+WEBHOOK_URL = f"https://n8n.filtreoto.online/webhook/evolution-webhook?token={os.environ.get('WEBHOOK_TOKEN', DEFAULT_TOKEN)}"
 CUSTOMER_NUMBER = "905324636090"
 CUSTOMER_NAME = "Canli Test Musterisi"
 SCENARIO_MESSAGE = (
