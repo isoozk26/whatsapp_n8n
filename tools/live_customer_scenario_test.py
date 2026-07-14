@@ -47,7 +47,8 @@ def main() -> int:
         method="POST",
         headers={"Content-Type": "application/json"},
     )
-    context = ssl._create_unverified_context()
+    # Use default SSL context (verification enabled)
+    context = None
     with urllib.request.urlopen(request, context=context, timeout=20) as response:
         response.read()
         print(

@@ -4,14 +4,19 @@ import urllib.request
 import json
 import ssl
 import sys
+import os
 
-TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxODdkNjMwOS1kY2I5LTRkNzYtOGVmOS1mOTMwYjZlYmZlNzMiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiYzYxYjY5ZjEtYTBiNS00NWYzLWI3MTYtYTdiNGFlZTM5Yjc3IiwiaWF0IjoxNzgzNjkwMTQ3LCJleHAiOjE3ODYyMzM2MDB9.wooyq2bNvJe4gxjVtr45tM_PAZ_R2SrmZhDWtcDqcY4'
+TOKEN = os.environ.get('N8N_API_KEY')
+if not TOKEN:
+    raise ValueError("N8N_API_KEY environment variable is required")
+
 WORKFLOW_ID = 'MbJkVXLDCOZ5umpp'
 N8N_URL = 'https://n8n.filtreoto.online'
 
 def deploy(workflow_path='workflow.json'):
     url = f'{N8N_URL}/api/v1/workflows/{WORKFLOW_ID}'
-    context = ssl._create_unverified_context()
+    # Use default SSL context (verification enabled)
+    context = None  # Uses default SSL context with verification
     
     with open(workflow_path, 'r', encoding='utf-8') as f:
         workflow = json.load(f)
@@ -34,7 +39,7 @@ def deploy(workflow_path='workflow.json'):
     except Exception as exc:
         print(f'  HATA: Canli workflow durumu okunamadi, deploy iptal: {exc}')
         return False
-
+    
     live_was_active = live_workflow.get('active') is True
     payload = {
         'name': workflow.get('name'),
