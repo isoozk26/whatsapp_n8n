@@ -11,8 +11,8 @@ import uuid
 
 DEFAULT_TOKEN = "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"
 WEBHOOK_URL = f"https://n8n.filtreoto.online/webhook/evolution-webhook?token={os.environ.get('WEBHOOK_TOKEN', DEFAULT_TOKEN)}"
-CUSTOMER_NUMBER = "905324636090"
-CUSTOMER_NAME = "Canli Test Musterisi"
+CUSTOMER_NUMBER = "905308931939"
+CUSTOMER_NAME = "Hasandurgun"
 SCENARIO_MESSAGE = (
     "Merhaba, 2020 model Renault Clio 1.5 dCi aracim icin yag filtresi "
     "ariyorum. Uyumlu urun ve guncel fiyat konusunda yardimci olur musunuz?"
