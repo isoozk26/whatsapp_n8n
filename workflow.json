@@ -20,7 +20,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst expectedSecret = staticData._webhookSecret || '';\n\nif (!expectedSecret) {\n    const input = $input.item.json;\n    return [{ json: input }];\n}\n\nconst requestBody = $input.first().json.body || $input.first().json;\nconst providedSecret = requestBody.secret || '';\n\nif (providedSecret !== expectedSecret) {\n    throw new Error('Webhook authentication failed: Invalid secret');\n}\n\nconst input = $input.item.json;\nreturn [{ json: input }];\n"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst expectedSecret = staticData._webhookSecret || '';\n\nif (!expectedSecret) {\n    const input = $input.item.json;\n    return [{ json: input }];\n}\n\nconst input = $input.first().json;\nconst queryToken = input?.query?.token || '';\nconst headerToken = input?.headers?.['x-webhook-secret'] || '';\nconst bodySecret = input?.body?.secret || '';\nconst providedSecret = queryToken || headerToken || bodySecret;\nif (providedSecret !== expectedSecret) {\n    throw new Error('Webhook authentication failed: Invalid secret');\n}\n\nreturn [{ json: input }];\n"
       },
       "id": "4802505a-8789-576d-b582-1370fba5b054",
       "name": "Webhook Auth Check",

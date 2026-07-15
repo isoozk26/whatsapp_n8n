@@ -1097,12 +1097,14 @@ nodes = [
                 "    const input = $input.item.json;\n"
                 "    return [{ json: input }];\n"
                 "}\n\n"
-                "const requestBody = $input.first().json.body || $input.first().json;\n"
-                "const providedSecret = requestBody.secret || '';\n\n"
+                "const input = $input.first().json;\n"
+                "const queryToken = input?.query?.token || '';\n"
+                "const headerToken = input?.headers?.['x-webhook-secret'] || '';\n"
+                "const bodySecret = input?.body?.secret || '';\n"
+                "const providedSecret = queryToken || headerToken || bodySecret;\n"
                 "if (providedSecret !== expectedSecret) {\n"
                 "    throw new Error('Webhook authentication failed: Invalid secret');\n"
                 "}\n\n"
-                "const input = $input.item.json;\n"
                 "return [{ json: input }];\n"
             )
         },
