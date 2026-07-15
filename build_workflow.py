@@ -215,7 +215,9 @@ stale_batch_check_js = (
     "  batch.processing = true;\n"
     "  batch.processingStartedAt = now;\n"
     "  batch.processingToken = processingToken;\n"
-    "  batch.pendingStartedAt = null;\n\n"
+    "  batch.pendingStartedAt = null;\n"
+    "  // n8n VM proxy'sinin staticData'yı veritabanına yazması için dirty flag tetikle\n"
+    "  staticData._batches = Object.assign({}, staticData._batches);\n\n"
     "  const allMessagesText = processingMessages\n"
     "    .map((message, index) => `${index + 1}. [${message.time || ''}] ${message.text}`)\n"
     "    .join('\\n');\n\n"
@@ -333,7 +335,8 @@ ai_agent_system_message = (
     "- cross_reference: Müşteri farklı bir kodun veya markanın muadilini soruyor (Örn: \"C 35 154 FILTRON muadili nedir?\").\n"
     "- partial_code: Kod eksik veya belirsiz (Örn: \"712/95\").\n"
     "- vehicle_based_search: Parça kodu vermeden aracı için filtre istiyor (Örn: \"Clio 4 mazot filtresi\").\n"
-    "- non_product: İade, şikayet, ödeme sorunu, bayilik veya insan temsilci talebi.\n\n"
+    "- greeting: Selamlama, tanışma veya parça kodu/araç bilgisi içermeyen genel giriş mesajları (Örn: \"Selam\", \"Filtre var mı?\", \"Merhaba\", \"Kolay gelsin\").\n"
+    "- non_product: İade, şikayet, ödeme sorunu, bayilik veya insan temsilci talebi. DİKKAT: 'Selam', 'merhaba', 'günaydın' gibi selamlaşma kelimeleri VE 'filtre var mi', 'fiyat nedir', 'neler var' gibi ürün sorguları birlikte geldiğinde BU DURUM greeting veya vehicle_based_search olabilir. 'non_product' SADECE açıkça şikayet, iade, geri ödeme, hasar, kırık, bayilik veya temsilci talebi içeren mesajlarda kullanılmalıdır.\n\n"
     "YALNIZCA GEÇERLİ JSON DÖNDÜR (Markdown ekleme, sadece { ile başlayıp } ile bitir):\n"
     "{\n"
     '  "intent": "price_stock",\n'
@@ -765,11 +768,24 @@ parse_ai_output_js = (
     "    pauseAutomation = false;\n"
     "  }\n"
     "} else if (caseType === 'non_product' || intent === 'return_complaint' || intent === 'wholesale') {\n"
-    "  requiresHumanAction = true;\n"
-    "  notifyAdmin = true;\n"
-    "  pauseAutomation = true;\n"
-    "  action = 'handoff';\n"
-    "  handoffReason = `Özel durum veya temsilci talebi (${intent})`;\n"
+    "  // Ek doğrulama: Mesaj gerçekten şikayet/iade/içeriyor mu?\n"
+    "  const complaintKeywords = ['şikayet', 'iade', 'geri', 'para iadesi', 'bozuk', 'hasarlı', 'kırık', 'yanlış', 'eksik', 'sorunlu', 'memnun değil', 'bayilik', 'temsilci'];\n"
+    "  const hasComplaintKeyword = complaintKeywords.some(kw => allMessagesText.toLowerCase().includes(kw));\n"
+    "  if (!hasComplaintKeyword) {\n"
+    "    caseType = 'unclear';\n"
+    "    action = 'reply';\n"
+    "    notifyAdmin = false;\n"
+    "    pauseAutomation = false;\n"
+    "    requiresHumanAction = false;\n"
+    "    replyDraft = 'Hangi konuda yardımcı olabilirim? Filtre mi arıyorsunuz, yoksa başka bir talebiniz mi var?';\n"
+    "    handoffReason = '';\n"
+    "  } else {\n"
+    "    requiresHumanAction = true;\n"
+    "    notifyAdmin = true;\n"
+    "    pauseAutomation = true;\n"
+    "    action = 'handoff';\n"
+    "    handoffReason = `Özel durum veya temsilci talebi (${intent})`;\n"
+    "  }\n"
     "} else if (caseType === 'unclear') {\n"
     "  staticData._unclearCounts[senderNumber] = Number(staticData._unclearCounts[senderNumber] || 0) + 1;\n"
     "  if (staticData._unclearCounts[senderNumber] >= 2) {\n"
@@ -900,6 +916,7 @@ parse_ai_output_js = (
     "    expected: expectedChannels,\n"
     "    completed: {}\n"
     "  };\n"
+    "  staticData._deliveryLedger = Object.assign({}, staticData._deliveryLedger);\n"
     "}\n\n"
     "return {\n"
     "  json: {\n"
@@ -1069,6 +1086,24 @@ nodes = [
         "id": get_node_id("Webhook1"), "name": "Webhook1",
         "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [240, 640],
         "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
+    },
+    {
+        "parameters": {
+            "mode": "runOnceForAllItems",
+            "jsCode": (
+                "const WEBHOOK_SECRET = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS';\n"
+                "const input = $input.item.json;\n"
+                "const queryToken = input?.query?.token || '';\n"
+                "const headerToken = input?.headers?.['x-webhook-secret'] || '';\n"
+                "const token = queryToken || headerToken;\n\n"
+                "if (token !== WEBHOOK_SECRET) {\n"
+                "  throw new Error('Unauthorized: Invalid webhook token');\n"
+                "}\n\n"
+                "return [{ json: input }];\n"
+            )
+        },
+        "id": get_node_id("Webhook Auth Check"), "name": "Webhook Auth Check",
+        "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [388, 640]
     },
     {
         "parameters": {
@@ -1327,7 +1362,8 @@ nodes = [
 ]
 # ── Connections ──
 connections = {
-    "Webhook1": {"main": [[{"node": "fromMe Check", "type": "main", "index": 0}]]},
+    "Webhook1": {"main": [[{"node": "Webhook Auth Check", "type": "main", "index": 0}]]},
+    "Webhook Auth Check": {"main": [[{"node": "fromMe Check", "type": "main", "index": 0}]]},
     "fromMe Check": {"main": [[{"node": "Batch Collector", "type": "main", "index": 0}], []]},
     "Batch Collector": {"main": [[{"node": "Should Process?", "type": "main", "index": 0}, {"node": "Is Command?", "type": "main", "index": 0}]]},
     "Should Process?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
