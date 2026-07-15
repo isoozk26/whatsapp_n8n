@@ -1085,20 +1085,24 @@ nodes = [
         },
         "id": get_node_id("Webhook1"), "name": "Webhook1",
         "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [240, 640],
-        "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
+        "webhookId": "d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f7a"
     },
     {
         "parameters": {
             "mode": "runOnceForAllItems",
             "jsCode": (
-                "const WEBHOOK_SECRET = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS';\n"
-                "const input = $input.item.json;\n"
-                "const queryToken = input?.query?.token || '';\n"
-                "const headerToken = input?.headers?.['x-webhook-secret'] || '';\n"
-                "const token = queryToken || headerToken;\n\n"
-                "if (token !== WEBHOOK_SECRET) {\n"
-                "  throw new Error('Unauthorized: Invalid webhook token');\n"
+                "const staticData = $getWorkflowStaticData('global');\n"
+                "const expectedSecret = staticData._webhookSecret || '';\n\n"
+                "if (!expectedSecret) {\n"
+                "    const input = $input.item.json;\n"
+                "    return [{ json: input }];\n"
                 "}\n\n"
+                "const requestBody = $input.first().json.body || $input.first().json;\n"
+                "const providedSecret = requestBody.secret || '';\n\n"
+                "if (providedSecret !== expectedSecret) {\n"
+                "    throw new Error('Webhook authentication failed: Invalid secret');\n"
+                "}\n\n"
+                "const input = $input.item.json;\n"
                 "return [{ json: input }];\n"
             )
         },
@@ -1410,7 +1414,13 @@ wf["nodes"] = nodes
 wf["connections"] = connections
 wf["settings"] = {"executionOrder": "v1", "saveDataSuccessExecution": "none", "saveExecutionProgress": False, "saveManualExecutions": True}
 if "staticData" not in wf or not wf["staticData"]:
-    wf["staticData"] = {"node:Schedule Trigger": {"recurrenceRules": []}, "global": {"_batches": {}}}
+    wf["staticData"] = {
+        "node:Schedule Trigger": {"recurrenceRules": []},
+        "global": {
+            "_batches": {},
+            "_webhookSecret": os.environ.get('N8N_WEBHOOK_SECRET', 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS')
+        }
+    }
 wf["meta"] = {"templateCredsSetupCompleted": True}
 wf["pinData"] = {}
 

@@ -15,12 +15,12 @@
         240,
         640
       ],
-      "webhookId": "b543e85d-b182-4ddd-af94-3f124a6c2c82"
+      "webhookId": "d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f7a"
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const WEBHOOK_SECRET = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS';\nconst input = $input.item.json;\nconst queryToken = input?.query?.token || '';\nconst headerToken = input?.headers?.['x-webhook-secret'] || '';\nconst token = queryToken || headerToken;\n\nif (token !== WEBHOOK_SECRET) {\n  throw new Error('Unauthorized: Invalid webhook token');\n}\n\nreturn [{ json: input }];\n"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst expectedSecret = staticData._webhookSecret || '';\n\nif (!expectedSecret) {\n    const input = $input.item.json;\n    return [{ json: input }];\n}\n\nconst requestBody = $input.first().json.body || $input.first().json;\nconst providedSecret = requestBody.secret || '';\n\nif (providedSecret !== expectedSecret) {\n    throw new Error('Webhook authentication failed: Invalid secret');\n}\n\nconst input = $input.item.json;\nreturn [{ json: input }];\n"
       },
       "id": "4802505a-8789-576d-b582-1370fba5b054",
       "name": "Webhook Auth Check",
