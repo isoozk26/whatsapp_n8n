@@ -19,6 +19,20 @@
     },
     {
       "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const WEBHOOK_SECRET = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS';\nconst input = $input.item.json;\nconst queryToken = input?.query?.token || '';\nconst headerToken = input?.headers?.['x-webhook-secret'] || '';\nconst token = queryToken || headerToken;\n\nif (token !== WEBHOOK_SECRET) {\n  throw new Error('Unauthorized: Invalid webhook token');\n}\n\nreturn [{ json: input }];\n"
+      },
+      "id": "4802505a-8789-576d-b582-1370fba5b054",
+      "name": "Webhook Auth Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        388,
+        640
+      ]
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -719,6 +733,17 @@
   ],
   "connections": {
     "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Webhook Auth Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Auth Check": {
       "main": [
         [
           {
