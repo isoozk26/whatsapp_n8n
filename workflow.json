@@ -184,7 +184,7 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ id: $json.commandMessageId, fromMe: $json.commandFromMe === true, remoteJid: $json.commandRemoteJid, ...($json.commandParticipant ? { participant: $json.commandParticipant } : {}) }) }}",
         "options": {
-          "timeout": 15000
+          "timeout": 5000
         }
       },
       "id": "cmd-delete-message-node",
@@ -195,9 +195,9 @@
         1248,
         1080
       ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 1000,
+      "retryOnFail": false,
+      "maxTries": 1,
+      "waitBetweenTries": 0,
       "onError": "continueRegularOutput"
     },
     {

@@ -1157,11 +1157,11 @@ nodes = [
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
             "body": "={{ JSON.stringify({ id: $json.commandMessageId, fromMe: $json.commandFromMe === true, remoteJid: $json.commandRemoteJid, ...($json.commandParticipant ? { participant: $json.commandParticipant } : {}) }) }}",
-            "options": {"timeout": 15000}
+            "options": {"timeout": 5000}
         },
         "id": get_node_id("Delete Command Message"), "name": "Delete Command Message",
         "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1248, 1080],
-        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 1000, "onError": "continueRegularOutput"
+        "retryOnFail": False, "maxTries": 1, "waitBetweenTries": 0, "onError": "continueRegularOutput"
     },
     {
         "parameters": {"mode": "runOnceForAllItems", "jsCode": store_context_js},
