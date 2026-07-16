@@ -212,6 +212,42 @@
         "desc": "Webhook 31077 success - tum P0-P1 duzeltmeleri dogrulandi",
         "status": "done",
         "updated_at": "2026-07-17T00:14:37.414542"
+      },
+      {
+        "id": "6.18",
+        "desc": "Webhook Auth Check node'u tamamen kaldirildi (29 node dogrulandi)",
+        "status": "done",
+        "updated_at": "2026-07-17T00:30:34.983407"
+      },
+      {
+        "id": "6.19",
+        "desc": "Webhook1 -> fromMe Check dogrudan baglanti kuruldu",
+        "status": "done",
+        "updated_at": "2026-07-17T00:30:34.983442"
+      },
+      {
+        "id": "6.20",
+        "desc": "Handoff basliklari ayirtildi (sikayet/ai dogrulama/manuel inceleme/temsilci)",
+        "status": "done",
+        "updated_at": "2026-07-17T00:30:34.983446"
+      },
+      {
+        "id": "6.21",
+        "desc": "AI promptuna unclear sinifi tanimi eklendi",
+        "status": "done",
+        "updated_at": "2026-07-17T00:30:34.983449"
+      },
+      {
+        "id": "6.22",
+        "desc": "E2E test basarili - webhook 31141 success, trigger execution'lar basarili",
+        "status": "done",
+        "updated_at": "2026-07-17T00:30:34.983452"
+      },
+      {
+        "id": "6.23",
+        "desc": "Genel E2E puani: 8.4/10 -> 8.7/10 (WAC kaldirildi, handoff duzeltildi, unclear eklendi)",
+        "status": "done",
+        "updated_at": "2026-07-17T00:30:34.983455"
       }
     ]
   }
