@@ -14,3 +14,5 @@
 # Ignore n8n backup files and system generated files
 .agents/
 .gemini/
+.env_token
+__pycache__/
