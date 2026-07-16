@@ -16,3 +16,4 @@
 .gemini/
 .env_token
 __pycache__/
+!.checkpoint_status.json
