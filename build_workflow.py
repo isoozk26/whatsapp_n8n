@@ -1097,30 +1097,6 @@ nodes = [
     },
     {
         "parameters": {
-            "mode": "runOnceForAllItems",
-            "jsCode": (
-                "const staticData = $getWorkflowStaticData('global');\n"
-                "const expectedSecret = staticData._webhookSecret || '';\n\n"
-                "if (!expectedSecret) {\n"
-                "    const input = $input.item.json;\n"
-                "    return [{ json: input }];\n"
-                "}\n\n"
-                "const input = $input.first().json;\n"
-                "const queryToken = input?.query?.token || '';\n"
-                "const headerToken = input?.headers?.['x-webhook-secret'] || '';\n"
-                "const bodySecret = input?.body?.secret || '';\n"
-                "const providedSecret = queryToken || headerToken || bodySecret;\n"
-                "if (providedSecret !== expectedSecret) {\n"
-                "    throw new Error('Webhook authentication failed: Invalid secret');\n"
-                "}\n\n"
-                "return [{ json: input }];\n"
-            )
-        },
-        "id": get_node_id("Webhook Auth Check"), "name": "Webhook Auth Check",
-        "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [388, 640]
-    },
-    {
-        "parameters": {
             "conditions": {
                 "options": {"caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 1},
                 "conditions": [
@@ -1376,8 +1352,7 @@ nodes = [
 ]
 # ── Connections ──
 connections = {
-    "Webhook1": {"main": [[{"node": "Webhook Auth Check", "type": "main", "index": 0}]]},
-    "Webhook Auth Check": {"main": [[{"node": "fromMe Check", "type": "main", "index": 0}]]},
+    "Webhook1": {"main": [[{"node": "fromMe Check", "type": "main", "index": 0}]]},
     "fromMe Check": {"main": [[{"node": "Batch Collector", "type": "main", "index": 0}], []]},
     "Batch Collector": {"main": [[{"node": "Should Process?", "type": "main", "index": 0}, {"node": "Is Command?", "type": "main", "index": 0}]]},
     "Should Process?": {"main": [[{"node": "Store Context", "type": "main", "index": 0}], []]},
