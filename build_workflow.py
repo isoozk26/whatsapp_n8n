@@ -243,7 +243,20 @@ stale_batch_check_js = (
 
 
 store_context_js = (
-    "const input = $input.item.json;\n\n"
+    "const staticData = $getWorkflowStaticData('global');\n"
+    "const expectedSecret = staticData._webhookSecret || process.env.N8N_WEBHOOK_SECRET || '';\n\n"
+    "if (!expectedSecret) {\n"
+    "    const input = $input.item.json;\n"
+    "    return [{ json: input }];\n"
+    "}\n\n"
+    "const input = $input.first().json;\n"
+    "const queryToken = input?.query?.token || '';\n"
+    "const headerToken = input?.headers?.['x-webhook-secret'] || '';\n"
+    "const bodySecret = input?.body?.secret || '';\n"
+    "const providedSecret = queryToken || headerToken || bodySecret;\n"
+    "if (providedSecret !== expectedSecret) {\n"
+    "    throw new Error('Webhook authentication failed: Invalid secret');\n"
+    "}\n\n"
     "const allMessages  = String(input.allMessagesText || '');\n"
     "const messageCount = Number(input.messageCount || 0);\n"
     "const senderName   = String(input.senderName || '');\n\n"
@@ -1081,10 +1094,18 @@ tag_err_reply_js = 'const input = $input.first().json; return [{ json: { ...inpu
 nodes = [
     {
         "parameters": {
-            "httpMethod": "POST", "path": "evolution-webhook", "responseMode": "onReceived", "options": {}
+            "httpMethod": "POST", 
+            "path": "evolution-webhook", 
+            "responseMode": "onReceived", 
+            "options": {},
+            "authentication": "query",
+            "queryAuth": "={{ $credentials.WebhookAuth.token }}"
         },
-        "id": get_node_id("Webhook1"), "name": "Webhook1",
-        "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [240, 640],
+        "id": get_node_id("Webhook1"), 
+        "name": "Webhook1",
+        "type": "n8n-nodes-base.webhook", 
+        "typeVersion": 1.1, 
+        "position": [240, 640],
         "webhookId": "d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f7a"
     },
     {
