@@ -248,6 +248,30 @@
         "desc": "Genel E2E puani: 8.4/10 -> 8.7/10 (WAC kaldirildi, handoff duzeltildi, unclear eklendi)",
         "status": "done",
         "updated_at": "2026-07-17T00:30:34.983455"
+      },
+      {
+        "id": "6.24",
+        "desc": "P1: Code node per-item modlari duzeltildi (Store Context, Parse AI, Finalize, Tag node'lari runOnceForEachItem)",
+        "status": "done",
+        "updated_at": "2026-07-17T00:42:43.598490"
+      },
+      {
+        "id": "6.25",
+        "desc": "P1: Tag node'lari \\ kullanimina gecildi",
+        "status": "done",
+        "updated_at": "2026-07-17T00:42:43.598526"
+      },
+      {
+        "id": "6.26",
+        "desc": "3 webhook ayni anda basarili test (31192, 31193, 31194)",
+        "status": "done",
+        "updated_at": "2026-07-17T00:42:43.598530"
+      },
+      {
+        "id": "6.27",
+        "desc": "E2E puan: 8.6/10 -> 8.9/10 (per-item modlar duzeltildi, scale-out dogrulandi)",
+        "status": "done",
+        "updated_at": "2026-07-17T00:42:43.598533"
       }
     ]
   }
