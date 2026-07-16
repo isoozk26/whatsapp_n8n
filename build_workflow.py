@@ -1098,8 +1098,7 @@ nodes = [
             "path": "evolution-webhook", 
             "responseMode": "onReceived", 
             "options": {},
-            "authentication": "query",
-            "queryAuth": "={{ $credentials.WebhookAuth.token }}"
+
         },
         "id": get_node_id("Webhook1"), 
         "name": "Webhook1",
