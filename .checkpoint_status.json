@@ -1,0 +1,158 @@
+{
+  "CP1": {
+    "name": "KRITIK GUVENLIK - Hardcoded key kaldir",
+    "status": "done",
+    "items": [
+      {
+        "id": "1.1",
+        "desc": "Evolution API key fallback kaldir",
+        "status": "done"
+      },
+      {
+        "id": "1.2",
+        "desc": "workflow.json temizle",
+        "status": "done"
+      },
+      {
+        "id": "1.3",
+        "desc": "workflow.json.backup sil",
+        "status": "done"
+      }
+    ]
+  },
+  "CP2": {
+    "name": "WEBHOOK GUVENLIGI",
+    "status": "done",
+    "items": [
+      {
+        "id": "2.1",
+        "desc": "Evolution API webhook secret ekle",
+        "status": "done",
+        "updated_at": "2026-07-14T14:40:36.525395"
+      },
+      {
+        "id": "2.2",
+        "desc": "n8n Webhook node auth ekle",
+        "status": "done",
+        "updated_at": "2026-07-14T14:40:46.816501"
+      },
+      {
+        "id": "2.3",
+        "desc": "Webhook secret n8n credential'a tasi - DEPLOY EDILDI",
+        "status": "done",
+        "updated_at": "2026-07-16T17:30:42.946084"
+      }
+    ]
+  },
+  "CP3": {
+    "name": "HATA LOGLAMA",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3.1",
+        "desc": "parse_ai_output_js catch bloklarina console.error",
+        "status": "pending"
+      },
+      {
+        "id": "3.2",
+        "desc": "finalize_batch_js catch bloklarina logging",
+        "status": "pending"
+      },
+      {
+        "id": "3.3",
+        "desc": "batch_collector_js catch bloğuna logging",
+        "status": "pending"
+      }
+    ]
+  },
+  "CP4": {
+    "name": "MANUAL MODES BELLEK SIZINTISI",
+    "status": "pending",
+    "items": [
+      {
+        "id": "4.1",
+        "desc": "_manualModes icin 24s TTL ekle",
+        "status": "pending"
+      },
+      {
+        "id": "4.2",
+        "desc": "Batch silinirken _manualModes de sil",
+        "status": "pending"
+      },
+      {
+        "id": "4.3",
+        "desc": "Contract test'e TTL dogrulama ekle",
+        "status": "pending"
+      }
+    ]
+  },
+  "CP5": {
+    "name": "RACE CONDITION KORUMASI",
+    "status": "pending",
+    "items": [
+      {
+        "id": "5.1",
+        "desc": "processingToken atomik kilidi",
+        "status": "pending"
+      },
+      {
+        "id": "5.2",
+        "desc": "splice/processing flag atomik blok",
+        "status": "pending"
+      },
+      {
+        "id": "5.3",
+        "desc": "Race condition test senaryosu",
+        "status": "pending"
+      }
+    ]
+  },
+  "CP6": {
+    "name": "E2E KRITIK DUZELTMELER",
+    "status": "done",
+    "items": [
+      {
+        "id": "6.1",
+        "desc": "Finalize Batch graceful return - throw new Error kaldirildi",
+        "status": "done",
+        "updated_at": "2026-07-16T17:30:42.946132"
+      },
+      {
+        "id": "6.2",
+        "desc": "Phone A Send - $env.ADMIN_PHONE_A fallback eklendi",
+        "status": "done",
+        "updated_at": "2026-07-16T17:30:42.946143"
+      },
+      {
+        "id": "6.3",
+        "desc": "Phone B Send - $env.ADMIN_PHONE_B fallback eklendi",
+        "status": "done",
+        "updated_at": "2026-07-16T17:30:42.946153"
+      },
+      {
+        "id": "6.4",
+        "desc": "Dead Letter Admin - $env.DEAD_LETTER_PHONE fallback eklendi",
+        "status": "done",
+        "updated_at": "2026-07-16T17:30:42.946162"
+      },
+      {
+        "id": "6.5",
+        "desc": "parse_ai_output_js geri yuklendi (af81529'dan kaybolmustu)",
+        "status": "done",
+        "updated_at": "2026-07-16T17:30:42.946166"
+      },
+      {
+        "id": "6.6",
+        "desc": "Bildirim sablonu emoji'li bolumlu formata guncellendi",
+        "status": "done",
+        "updated_at": "2026-07-16T17:30:42.946171"
+      },
+      {
+        "id": "6.7",
+        "desc": "Canliya yayin ve git push tamamlandi",
+        "status": "done",
+        "updated_at": "2026-07-16T17:30:42.946176"
+      }
+    ]
+  }
+}
