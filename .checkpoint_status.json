@@ -152,6 +152,36 @@
         "desc": "Canliya yayin ve git push tamamlandi",
         "status": "done",
         "updated_at": "2026-07-16T17:30:42.946176"
+      },
+      {
+        "id": "6.8",
+        "desc": "P0-1 Store Context auth kaldirildi (Stale Batch Check'ten gelen veride secret yok)",
+        "status": "done",
+        "updated_at": "2026-07-16T23:51:21.810924"
+      },
+      {
+        "id": "6.9",
+        "desc": "Webhook Auth Check node'u kaldirildi (credential tip uyumsuzlugu)",
+        "status": "done",
+        "updated_at": "2026-07-16T23:51:21.811007"
+      },
+      {
+        "id": "6.10",
+        "desc": "Webhook1 authentication=query kaldirildi (httpHeaderAuth uyumsuz)",
+        "status": "done",
+        "updated_at": "2026-07-16T23:51:21.811017"
+      },
+      {
+        "id": "6.11",
+        "desc": "saveDataSuccessExecution none -> all (webhook execution gorunurlugu)",
+        "status": "done",
+        "updated_at": "2026-07-16T23:51:21.811025"
+      },
+      {
+        "id": "6.12",
+        "desc": "Webhook basarili execution 30982 ile dogrulandi",
+        "status": "done",
+        "updated_at": "2026-07-16T23:51:21.811033"
       }
     ]
   }
