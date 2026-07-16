@@ -17,7 +17,7 @@ TEST_NUMBER = "905308931939"
 TEST_NAME = "Hasandurgun"
 
 DEFAULT_TOKEN = "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"
-WEBHOOK_URL = f"https://n8n.filtreoto.online/webhook/evolution-webhook?token={os.environ.get('WEBHOOK_TOKEN', DEFAULT_TOKEN)}"
+WEBHOOK_URL = "https://n8n.filtreoto.online/webhook/evolution-webhook?token={{ $env.WEBHOOK_TOKEN }}"
 context = None
 
 def send_webhook(message_text, sender_number=TEST_NUMBER, sender_name=TEST_NAME, from_me=False, message_id=None):

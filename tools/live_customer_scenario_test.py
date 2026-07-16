@@ -10,7 +10,7 @@ import uuid
 
 
 DEFAULT_TOKEN = "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"
-WEBHOOK_URL = f"https://n8n.filtreoto.online/webhook/evolution-webhook?token={os.environ.get('WEBHOOK_TOKEN', DEFAULT_TOKEN)}"
+WEBHOOK_URL = "https://n8n.filtreoto.online/webhook/evolution-webhook?token={{ $env.WEBHOOK_TOKEN }}"
 CUSTOMER_NUMBER = "905308931939"
 CUSTOMER_NAME = "Hasandurgun"
 SCENARIO_MESSAGE = (
