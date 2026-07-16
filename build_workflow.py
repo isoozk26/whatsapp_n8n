@@ -38,7 +38,7 @@ def get_node_id(name):
 
 batch_collector_js = (
     "const staticData = $getWorkflowStaticData('global');\n"
-    "const input = $input.first().json;\n\n"
+    "const input = $json;\n\n"
     "const rawJid = input.body.data.key.remoteJid || '';\n"
     "const senderNumber = rawJid.replace('@s.whatsapp.net', '').replace('@g.us', '').replace('@lid', '');\n"
     "const senderName = input.body.data.pushName || senderNumber;\n"
@@ -244,7 +244,7 @@ stale_batch_check_js = (
 
 store_context_js = (
     "const staticData = $getWorkflowStaticData('global');\n"
-    "const input = $input.first().json;\n"
+    "const input = $json;\n"
     "const allMessages  = String(input.allMessagesText || '');\n"
     "const messageCount = Number(input.messageCount || 0);\n"
     "const senderName   = String(input.senderName || '');\n\n"
@@ -1072,12 +1072,12 @@ idle_timeout_check_js = (
 # ── Node Definitions ──
 
 # ── Channel Metadata Tagging JS (P1/P2 Requirement) ──
-tag_succ_phone_a_js = 'const input = $input.first().json; return [{ json: { ...input, completedChannel: "phoneA" } }];'
-tag_succ_phone_b_js = 'const input = $input.first().json; return [{ json: { ...input, completedChannel: "phoneB" } }];'
-tag_succ_reply_js = 'const input = $input.first().json; return [{ json: { ...input, completedChannel: "customer" } }];'
-tag_err_phone_a_js = 'const input = $input.first().json; return [{ json: { ...input, failedChannel: "Phone A Send (Yönetici A)", completedChannel: "phoneA" } }];'
-tag_err_phone_b_js = 'const input = $input.first().json; return [{ json: { ...input, failedChannel: "Phone B Send (Yönetici B)", completedChannel: "phoneB" } }];'
-tag_err_reply_js = 'const input = $input.first().json; return [{ json: { ...input, failedChannel: "Reply to Customer (Müşteri Cevap)", completedChannel: "customer" } }];'
+tag_succ_phone_a_js = 'const input = $json; return [{ json: { ...input, completedChannel: "phoneA" } }];'
+tag_succ_phone_b_js = 'const input = $json; return [{ json: { ...input, completedChannel: "phoneB" } }];'
+tag_succ_reply_js = 'const input = $json; return [{ json: { ...input, completedChannel: "customer" } }];'
+tag_err_phone_a_js = 'const input = $json; return [{ json: { ...input, failedChannel: "Phone A Send (Yönetici A)", completedChannel: "phoneA" } }];'
+tag_err_phone_b_js = 'const input = $json; return [{ json: { ...input, failedChannel: "Phone B Send (Yönetici B)", completedChannel: "phoneB" } }];'
+tag_err_reply_js = 'const input = $json; return [{ json: { ...input, failedChannel: "Reply to Customer (Müşteri Cevap)", completedChannel: "customer" } }];'
 
 nodes = [
     {
@@ -1154,7 +1154,7 @@ nodes = [
         "retryOnFail": False, "maxTries": 1, "waitBetweenTries": 0, "onError": "continueRegularOutput"
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": store_context_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": store_context_js},
         "id": get_node_id("Store Context"), "name": "Store Context",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1248, 640]
     },
@@ -1185,12 +1185,12 @@ nodes = [
         "position": [1552, 864], "id": get_node_id("Simple Memory"), "name": "Simple Memory"
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": parse_ai_output_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": parse_ai_output_js},
         "id": get_node_id("Parse AI Output"), "name": "Parse AI Output",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1808, 624]
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": clear_batch_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": clear_batch_js},
         "id": get_node_id("Finalize Batch"), "name": "Finalize Batch",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2800, 640]
     },
@@ -1320,32 +1320,32 @@ nodes = [
         "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [768, 1360]
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_succ_phone_a_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": tag_succ_phone_a_js},
         "id": get_node_id("Tag Success Phone A"), "name": "Tag Success Phone A",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2680, 500]
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_succ_phone_b_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": tag_succ_phone_b_js},
         "id": get_node_id("Tag Success Phone B"), "name": "Tag Success Phone B",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2680, 680]
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_succ_reply_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": tag_succ_reply_js},
         "id": get_node_id("Tag Success Reply"), "name": "Tag Success Reply",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2680, 860]
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_err_phone_a_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": tag_err_phone_a_js},
         "id": get_node_id("Tag Err Phone A"), "name": "Tag Err Phone A",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2580, 580]
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_err_phone_b_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": tag_err_phone_b_js},
         "id": get_node_id("Tag Err Phone B"), "name": "Tag Err Phone B",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2580, 760]
     },
     {
-        "parameters": {"mode": "runOnceForAllItems", "jsCode": tag_err_reply_js},
+        "parameters": {"mode": "runOnceForEachItem", "jsCode": tag_err_reply_js},
         "id": get_node_id("Tag Err Reply"), "name": "Tag Err Reply",
         "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [2580, 940]
     }
