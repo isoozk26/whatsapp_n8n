@@ -751,7 +751,7 @@ parse_ai_output_js = (
     "} else if (caseType === 'exact_code_compatibility') {\n"
     "  if (!isVehicleComplete(entities.vehicles)) {\n"
     "    requiresHumanAction = false;\n"
-    "    notifyAdmin = false;\n"
+    "    notifyAdmin = true;\n"
     "    pauseAutomation = false;\n"
     "    askVehicleInfo = true;\n"
     "    action = 'reply';\n"
@@ -777,7 +777,7 @@ parse_ai_output_js = (
     "} else if (caseType === 'vehicle_based_search') {\n"
     "  if (!isVehicleComplete(entities.vehicles)) {\n"
     "    requiresHumanAction = false;\n"
-    "    notifyAdmin = false;\n"
+    "    notifyAdmin = true;\n"
     "    pauseAutomation = false;\n"
     "    askVehicleInfo = true;\n"
     "    action = 'reply';\n"
@@ -1092,12 +1092,32 @@ idle_timeout_check_js = (
 # ── Node Definitions ──
 
 # ── Channel Metadata Tagging JS (P1/P2 Requirement) ──
-tag_succ_phone_a_js = 'const input = $json; return { json: { ...input, completedChannel: "phoneA" } };'
-tag_succ_phone_b_js = 'const input = $json; return { json: { ...input, completedChannel: "phoneB" } };'
-tag_succ_reply_js = 'const input = $json; return { json: { ...input, completedChannel: "customer" } };'
-tag_err_phone_a_js = 'const input = $json; return { json: { ...input, failedChannel: "Phone A Send (Yönetici A)", completedChannel: "phoneA" } };'
-tag_err_phone_b_js = 'const input = $json; return { json: { ...input, failedChannel: "Phone B Send (Yönetici B)", completedChannel: "phoneB" } };'
-tag_err_reply_js = 'const input = $json; return { json: { ...input, failedChannel: "Reply to Customer (Müşteri Cevap)", completedChannel: "customer" } };'
+tag_context_js = (
+    "const input = $json || {};\n"
+    "let parseContext = {};\n"
+    "try {\n"
+    "  parseContext = $item(\"Parse AI Output\").$json || {};\n"
+    "} catch (e) {}\n"
+    "const merged = {\n"
+    "  ...parseContext,\n"
+    "  ...input,\n"
+    "  senderNumber: input.senderNumber || parseContext.senderNumber || '',\n"
+    "  senderName: input.senderName || parseContext.senderName || '',\n"
+    "  batchToken: input.batchToken || parseContext.batchToken || '',\n"
+    "  action: input.action || parseContext.action || '',\n"
+    "  pauseAutomation: input.pauseAutomation !== undefined ? input.pauseAutomation : parseContext.pauseAutomation,\n"
+    "  expectsReply: input.expectsReply !== undefined ? input.expectsReply : parseContext.expectsReply,\n"
+    "  notifyAdmins: input.notifyAdmins !== undefined ? input.notifyAdmins : parseContext.notifyAdmins,\n"
+    "  bildirim: input.bildirim || parseContext.bildirim || '',\n"
+    "  cevap: input.cevap || parseContext.cevap || ''\n"
+    "};\n"
+)
+tag_succ_phone_a_js = tag_context_js + 'return { json: { ...merged, completedChannel: "phoneA" } };'
+tag_succ_phone_b_js = tag_context_js + 'return { json: { ...merged, completedChannel: "phoneB" } };'
+tag_succ_reply_js = tag_context_js + 'return { json: { ...merged, completedChannel: "customer" } };'
+tag_err_phone_a_js = tag_context_js + 'return { json: { ...merged, failedChannel: "Phone A Send (Yönetici A)", completedChannel: "phoneA" } };'
+tag_err_phone_b_js = tag_context_js + 'return { json: { ...merged, failedChannel: "Phone B Send (Yönetici B)", completedChannel: "phoneB" } };'
+tag_err_reply_js = tag_context_js + 'return { json: { ...merged, failedChannel: "Reply to Customer (Müşteri Cevap)", completedChannel: "customer" } };'
 
 nodes = [
     {

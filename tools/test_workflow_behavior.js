@@ -188,6 +188,21 @@ async function testPolicyAndGuardrails() {
   }), context("batch-1", "Golf için hava filtresi"));
   assert.strictEqual(vehicle.result.askVehicleInfo, true);
   assert.strictEqual(vehicle.result.expectsReply, true);
+  assert.strictEqual(vehicle.result.notifyAdmins, true);
+
+  const compatibility = await runParse(baseAi({
+    intent: "product_compatibility",
+    caseType: "exact_code_compatibility",
+    entities: {
+      productCodes: [{ raw: "MANN W 712/95", code: "W 712/95", brand: "MANN-FILTER" }],
+      vehicles: ["Fiat Egea"],
+      requestedInfo: [],
+      preferredBrands: [],
+      quantity: "Belirtilmedi",
+    },
+  }), context("batch-1", "W 712/95 Fiat Egea uyumlu mu"));
+  assert.strictEqual(compatibility.result.askVehicleInfo, true);
+  assert.strictEqual(compatibility.result.notifyAdmins, true);
 
   const unclearState = stateFor(context());
   const unclearAi = baseAi({ intent: "unclear", caseType: "unclear", entities: { productCodes: [], vehicles: [] } });
@@ -276,12 +291,42 @@ async function testNonBatchNotificationBypass() {
   assert.strictEqual(idleState._finalizedTokens, undefined);
 }
 
+async function testTagContextHydration() {
+  const tag = codeOf("Tag Success Reply");
+  const result = await execute(
+    tag,
+    {},
+    { item: { json: { instance: "filtr", key: { id: "response-only" } } } },
+    (name) => {
+      assert.strictEqual(name, "Parse AI Output");
+      return {
+        $json: {
+          senderNumber: "905320000001",
+          senderName: "Test Müşteri",
+          batchToken: "hydration-token",
+          action: "reply",
+          pauseAutomation: false,
+          expectsReply: true,
+          notifyAdmins: true,
+          cevap: "Merhaba",
+          bildirim: "Lead",
+        },
+      };
+    },
+  );
+  assert.strictEqual(result.json.completedChannel, "customer");
+  assert.strictEqual(result.json.senderNumber, "905320000001");
+  assert.strictEqual(result.json.batchToken, "hydration-token");
+  assert.strictEqual(result.json.notifyAdmins, true);
+}
+
 async function main() {
   await testCommandsAndCleanup();
   await testTimeoutRecoveryAndIdle();
   await testPolicyAndGuardrails();
   await testDeliveryLedgerPermutations();
   await testNonBatchNotificationBypass();
+  await testTagContextHydration();
   console.log("[PASS] policy, guardrail, timeout, manual-mode, idle and delivery-ledger behaviors");
 }
 
