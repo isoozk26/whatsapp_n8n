@@ -1,4 +1,7 @@
 {
+  "name": "WhatsApp AI - v12.5 Enterprise",
+  "description": null,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -157,7 +160,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_API_KEY }}"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -373,7 +376,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_API_KEY }}"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -384,7 +387,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: ($env.ADMIN_PHONE_A || '905052237182'), text: $json.bildirim }) }}",
+        "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim }) }}",
         "options": {
           "timeout": 30000,
           "batching": {
@@ -417,7 +420,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_API_KEY }}"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -428,7 +431,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: ($env.ADMIN_PHONE_B || '905306056066'), text: $json.bildirim }) }}",
+        "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim }) }}",
         "options": {
           "timeout": 30000
         }
@@ -455,7 +458,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_API_KEY }}"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -493,7 +496,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.EVOLUTION_API_KEY }}"
+              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
             },
             {
               "name": "Content-Type",
@@ -504,7 +507,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: ($env.DEAD_LETTER_PHONE || '905052237182'), text: `🚨 SİSTEM HATASI (Dead-Letter)\n\n• Hedef/Müşteri: ${$json.senderNumber || $json.number || 'Bilinmiyor'}\n• Başarısız Kanal: ${$json.failedChannel || 'Bilinmeyen Kanal'}\n• Batch Token: ${$json.batchToken || 'Yok'}\n• Hata Detayı: ${JSON.stringify($json.error || $json.message || 'Evolution API HTTP Bağlantı/Timeout Hatası')}\n• Execution ID: ${$execution.id || 'Yok'}\n\nLütfen n8n panelinden ilgili execution kaydını kontrol edin.` }) }}",
+        "body": "={{ JSON.stringify({ number: '905052237182', text: `🚨 SİSTEM HATASI (Dead-Letter)\n\n• Hedef/Müşteri: ${$json.senderNumber || $json.number || 'Bilinmiyor'}\n• Başarısız Kanal: ${$json.failedChannel || 'Bilinmeyen Kanal'}\n• Batch Token: ${$json.batchToken || 'Yok'}\n• Hata Detayı: ${JSON.stringify($json.error || $json.message || 'Evolution API HTTP Bağlantı/Timeout Hatası')}\n• Execution ID: ${$execution.id || 'Yok'}\n\nLütfen n8n panelinden ilgili execution kaydını kontrol edin.` }) }}",
         "options": {
           "timeout": 30000
         }
@@ -541,7 +544,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\n\nconst BATCH_WINDOW_MS    = 120 * 1000;     // İlk mesajdan itibaren sabit 120 sn toplama penceresi\nconst PROCESSING_TIMEOUT = 2 * 60 * 1000;  // 2 dk AI işlem timeout recovery\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nfor (const [number, manualEntry] of Object.entries(staticData._manualModes)) {\n  if (!manualEntry || typeof manualEntry !== 'object' || !manualEntry.enabled) {\n    delete staticData._manualModes[number];\n  }\n}\n\nconst ready = [];\n\nfor (const [number, rawBatch] of Object.entries(staticData._batches)) {\n  const batch = rawBatch || {};\n  if (!Array.isArray(batch.pendingMessages)) batch.pendingMessages = Array.isArray(batch.messages) ? batch.messages : [];\n  if (!Array.isArray(batch.processingMessages)) batch.processingMessages = [];\n  delete batch.messages;\n\nconst _me = staticData._manualModes[number];\n  if (_me && _me.enabled === true) {\n    const MANUAL_TTL_MS = 30 * 60 * 1000;\n    if (_me.createdAt && (Date.now() - Number(_me.createdAt)) > MANUAL_TTL_MS) {\n      delete staticData._manualModes[number];\n    } else {\n      delete staticData._batches[number];\n      continue;\n    }\n  }\n\n  // Yarım kalan AI işlemini yeniden kuyruğa al\n  if (batch.processing === true && batch.processingStartedAt && (now - Number(batch.processingStartedAt) > PROCESSING_TIMEOUT)) {\n    batch.pendingMessages = [...batch.processingMessages, ...batch.pendingMessages];\n    batch.processingMessages = [];\n    batch.processing = false;\n    batch.processingStartedAt = null;\n    batch.processingToken = null;\n  }\n\n  if (batch.processing === true) continue;\n  if (!batch.pendingMessages.length) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  const startTime = Number(batch.pendingStartedAt || batch.startTime || now);\n  const totalTime = now - startTime;\n\n  const isWindowReached = totalTime >= BATCH_WINDOW_MS;\n\n  if (isWindowReached) {\n    ready.push({ number, lastTime: Number(batch.lastMessageAt || batch.lastMessageTime || now), batch, triggeredBy: '120_second_window' });\n  }\n}\n\nready.sort((a, b) => a.lastTime - b.lastTime);\nif (ready.length === 0) {\n  return [{ json: { senderNumber: '', messageCount: 0, _ready: false } }];\n}\n\nconst outputItems = [];\nconst batchLimit = Math.min(ready.length, 10);\nfor (let i = 0; i < batchLimit; i++) {\n  const selected = ready[i];\n  const { number, batch } = selected;\n  const processingMessages = batch.pendingMessages.splice(0);\n  const processingToken = number + '-' + now + '-' + Math.random().toString(36).slice(2, 10);\n\n  batch.processingMessages = processingMessages;\n  batch.processing = true;\n  batch.processingStartedAt = now;\n  batch.processingToken = processingToken;\n  batch.pendingStartedAt = null;\n  // n8n VM proxy'sinin staticData'yı veritabanına yazması için dirty flag tetikle\n  staticData._batches = Object.assign({}, staticData._batches);\n\n  const allMessagesText = processingMessages\n    .map((message, index) => `${index + 1}. [${message.time || ''}] ${message.text}`)\n    .join('\\n');\n\n  const hasImages = processingMessages.some(m => m.type === 'image');\n  const imageMessages = processingMessages\n    .filter(m => m.type === 'image' && m.mediaUrl)\n    .map(m => ({ mediaUrl: m.mediaUrl, mediaKey: m.mediaKey, mimetype: m.mimetype }));\n\n  outputItems.push({\n    json: {\n      _ready: true,\n      senderNumber: number,\n      senderName: batch.senderName || number,\n      messageCount: processingMessages.length,\n      allMessagesText,\n      batchToken: processingToken,\n      hasImages,\n      imageMessages\n    }\n  });\n}\nreturn outputItems;"
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\n\nconst BATCH_WINDOW_MS    = 120 * 1000;     // İlk mesajdan itibaren sabit 120 sn toplama penceresi\nconst PROCESSING_TIMEOUT = 2 * 60 * 1000;  // 2 dk AI işlem timeout recovery\n\nif (!staticData._batches) staticData._batches = {};\nif (!staticData._manualModes) staticData._manualModes = {};\nfor (const [number, manualEntry] of Object.entries(staticData._manualModes)) {\n  if (!manualEntry || typeof manualEntry !== 'object' || !manualEntry.enabled) {\n    delete staticData._manualModes[number];\n  }\n}\n\nconst ready = [];\n\nfor (const [number, rawBatch] of Object.entries(staticData._batches)) {\n  const batch = rawBatch || {};\n  if (!Array.isArray(batch.pendingMessages)) batch.pendingMessages = Array.isArray(batch.messages) ? batch.messages : [];\n  if (!Array.isArray(batch.processingMessages)) batch.processingMessages = [];\n  delete batch.messages;\n\nconst _me = staticData._manualModes[number];\n  if (_me && _me.enabled === true) {\n    const MANUAL_TTL_MS = 30 * 60 * 1000;\n    if (_me.createdAt && (Date.now() - Number(_me.createdAt)) > MANUAL_TTL_MS) {\n      delete staticData._manualModes[number];\n    } else {\n      delete staticData._batches[number];\n      continue;\n    }\n  }\n\n  // Yarım kalan AI işlemini yeniden kuyruğa al\n  if (batch.processing === true && batch.processingStartedAt && (now - Number(batch.processingStartedAt) > PROCESSING_TIMEOUT)) {\n    batch.pendingMessages = [...batch.processingMessages, ...batch.pendingMessages];\n    batch.processingMessages = [];\n    batch.processing = false;\n    batch.processingStartedAt = null;\n    batch.processingToken = null;\n  }\n\n  if (batch.processing === true) continue;\n  if (!batch.pendingMessages.length) {\n    delete staticData._batches[number];\n    continue;\n  }\n\n  const startTime = Number(batch.pendingStartedAt || batch.startTime || batch.lastMessageAt || now);\n  const totalTime = now - startTime;\n\n  const isWindowReached = totalTime >= BATCH_WINDOW_MS;\n\n  if (isWindowReached) {\n    ready.push({ number, lastTime: Number(batch.lastMessageAt || batch.lastMessageTime || now), batch, triggeredBy: '120_second_window' });\n  }\n}\n\nready.sort((a, b) => a.lastTime - b.lastTime);\nif (ready.length === 0) {\n  return [{ json: { senderNumber: '', messageCount: 0, _ready: false } }];\n}\n\nconst outputItems = [];\nconst batchLimit = Math.min(ready.length, 10);\nfor (let i = 0; i < batchLimit; i++) {\n  const selected = ready[i];\n  const { number, batch } = selected;\n  const processingMessages = batch.pendingMessages.splice(0);\n  const processingToken = number + '-' + now + '-' + Math.random().toString(36).slice(2, 10);\n\n  batch.processingMessages = processingMessages;\n  batch.processing = true;\n  batch.processingStartedAt = now;\n  batch.processingToken = processingToken;\n  batch.pendingStartedAt = null;\n  // n8n VM proxy'sinin staticData'yı veritabanına yazması için dirty flag tetikle\n  staticData._batches = Object.assign({}, staticData._batches);\n\n  const allMessagesText = processingMessages\n    .map((message, index) => `${index + 1}. [${message.time || ''}] ${message.text}`)\n    .join('\\n');\n\n  const hasImages = processingMessages.some(m => m.type === 'image');\n  const imageMessages = processingMessages\n    .filter(m => m.type === 'image' && m.mediaUrl)\n    .map(m => ({ mediaUrl: m.mediaUrl, mediaKey: m.mediaKey, mimetype: m.mimetype }));\n\n  outputItems.push({\n    json: {\n      _ready: true,\n      senderNumber: number,\n      senderName: batch.senderName || number,\n      messageCount: processingMessages.length,\n      allMessagesText,\n      batchToken: processingToken,\n      hasImages,\n      imageMessages\n    }\n  });\n}\nreturn outputItems;"
       },
       "id": "7fa1b04c-9639-5b87-99e7-e21c1d1bfc3b",
       "name": "Stale Batch Check",
@@ -1110,15 +1113,10 @@
       ]
     }
   },
-  "pinData": {},
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
-  "name": "WhatsApp AI - v12.5 Enterprise",
   "settings": {
     "executionOrder": "v1",
     "saveDataSuccessExecution": "all",
-    "saveExecutionProgress": false,
+    "saveExecutionProgress": true,
     "saveManualExecutions": true
   },
   "staticData": {
@@ -1130,7 +1128,37 @@
       "_manualModes": {},
       "_lastReply": {},
       "_seenMessageIds": {},
-      "_unclearCounts": {}
+      "_unclearCounts": {},
+      "_webhookSecret": "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"
     }
-  }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "74341e23-a961-4659-aecd-d37883dfcb17",
+  "activeVersionId": null,
+  "versionCounter": 12048,
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-07-15T17:59:20.514Z",
+      "createdAt": "2026-07-15T17:59:20.514Z",
+      "role": "workflow:owner",
+      "workflowId": "g5UAfSi9bj7mRRCn",
+      "projectId": "7UDT6Ut8TqBbBwdI",
+      "project": {
+        "updatedAt": "2026-06-06T15:07:13.810Z",
+        "createdAt": "2026-06-06T15:02:55.255Z",
+        "id": "7UDT6Ut8TqBbBwdI",
+        "name": "İsmail Ozkaracan <isoozk@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "187d6309-dcb9-4d76-8ef9-f930b6ebfe73"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
 }

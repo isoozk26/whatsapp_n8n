@@ -212,7 +212,7 @@ stale_batch_check_js = (
     "    delete staticData._batches[number];\n"
     "    continue;\n"
     "  }\n\n"
-    "  const startTime = Number(batch.pendingStartedAt || batch.startTime || now);\n"
+    "  const startTime = Number(batch.pendingStartedAt || batch.startTime || batch.lastMessageAt || now);\n"
     "  const totalTime = now - startTime;\n\n"
     "  const isWindowReached = totalTime >= BATCH_WINDOW_MS;\n\n"
     "  if (isWindowReached) {\n"
@@ -1162,7 +1162,7 @@ nodes = [
             "method": "DELETE", "url": "https://evo.filtreoto.online/chat/deleteMessageForEveryone/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1244,11 +1244,11 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
-            "body": "={{ JSON.stringify({ number: ($env.ADMIN_PHONE_A || '905052237182'), text: $json.bildirim }) }}",
+            "body": "={{ JSON.stringify({ number: '905052237182', text: $json.bildirim }) }}",
             "options": {"timeout": 30000, "batching": {"batch": {"batchSize": 1, "batchInterval": 100}}}
         },
         "id": get_node_id("Phone A Send"), "name": "Phone A Send",
@@ -1260,11 +1260,11 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
-            "body": "={{ JSON.stringify({ number: ($env.ADMIN_PHONE_B || '905306056066'), text: $json.bildirim }) }}",
+            "body": "={{ JSON.stringify({ number: '905306056066', text: $json.bildirim }) }}",
             "options": {"timeout": 30000}
         },
         "id": get_node_id("Phone B Send"), "name": "Phone B Send",
@@ -1276,7 +1276,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1292,11 +1292,11 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
+                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
-            "body": "={{ JSON.stringify({ number: ($env.DEAD_LETTER_PHONE || '905052237182'), text: `🚨 SİSTEM HATASI (Dead-Letter)\n\n• Hedef/Müşteri: ${$json.senderNumber || $json.number || 'Bilinmiyor'}\n• Başarısız Kanal: ${$json.failedChannel || 'Bilinmeyen Kanal'}\n• Batch Token: ${$json.batchToken || 'Yok'}\n• Hata Detayı: ${JSON.stringify($json.error || $json.message || 'Evolution API HTTP Bağlantı/Timeout Hatası')}\n• Execution ID: ${$execution.id || 'Yok'}\n\nLütfen n8n panelinden ilgili execution kaydını kontrol edin.` }) }}",
+            "body": "={{ JSON.stringify({ number: '905052237182', text: `🚨 SİSTEM HATASI (Dead-Letter)\n\n• Hedef/Müşteri: ${$json.senderNumber || $json.number || 'Bilinmiyor'}\n• Başarısız Kanal: ${$json.failedChannel || 'Bilinmeyen Kanal'}\n• Batch Token: ${$json.batchToken || 'Yok'}\n• Hata Detayı: ${JSON.stringify($json.error || $json.message || 'Evolution API HTTP Bağlantı/Timeout Hatası')}\n• Execution ID: ${$execution.id || 'Yok'}\n\nLütfen n8n panelinden ilgili execution kaydını kontrol edin.` }) }}",
             "options": {"timeout": 30000}
         },
         "id": get_node_id("Dead Letter Admin"), "name": "Dead Letter Admin",
@@ -1417,7 +1417,7 @@ except OSError as exc:
 wf["name"] = "WhatsApp AI - v12.5 Enterprise"
 wf["nodes"] = nodes
 wf["connections"] = connections
-wf["settings"] = {"executionOrder": "v1", "saveDataSuccessExecution": "all", "saveExecutionProgress": False, "saveManualExecutions": True}
+wf["settings"] = {"executionOrder": "v1", "saveDataSuccessExecution": "all", "saveExecutionProgress": True, "saveManualExecutions": True}
 if "staticData" not in wf or not wf["staticData"]:
     wf["staticData"] = {
         "node:Schedule Trigger": {"recurrenceRules": []},
