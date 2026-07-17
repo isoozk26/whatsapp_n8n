@@ -940,6 +940,25 @@ parse_ai_output_js = (
     "  staticData._deliveryLedger = Object.assign({}, staticData._deliveryLedger);\n"
     "}\n\n"
     "const bildirimSanitized = String(bildirim || '')\n"
+    "  .replace(/ürş/g, 'Urun/Kod')\n"
+    "  .replace(/Bügşn/g, 'Bugun')\n"
+    "  .replace(/gÖnderdi/g, 'gonderdi')\n"
+    "  .replace(/Müşteri/g, 'Musteri')\n"
+    "  .replace(/Araç/g, 'Arac')\n"
+    "  .replace(/İstenen/g, 'Istenen')\n"
+    "  .replace(/İsmail Özkaracan/g, 'Ismail Ozkaracan')\n"
+    "  .replace(/✓/g, '-')\n"
+    "  .replace(/👤/g, 'Musteri:')\n"
+    "  .replace(/📞/g, 'Telefon:')\n"
+    "  .replace(/📦/g, '')\n"
+    "  .replace(/🚗/g, '')\n"
+    "  .replace(/🎯/g, '')\n"
+    "  .replace(/👨/g, '')\n"
+    "  .replace(/💬/g, '')\n"
+    "  .replace(/🤖/g, '')\n"
+    "  .replace(/📌/g, '')\n"
+    "  .replace(/⏱/g, 'SLA:')\n"
+    "  .replace(/─+/g, '--------------')\n"
     "  .replace(/Ã¼rÅŸ/g, 'Urun/Kod')\n"
     "  .replace(/BÃ¼gÅŸn/g, 'Bugun')\n"
     "  .replace(/gÃ–nderdi/g, 'gonderdi')\n"
@@ -1298,7 +1317,7 @@ nodes = [
         },
         "id": get_node_id("Phone A Send"), "name": "Phone A Send",
         "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 416],
-        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueErrorOutput"
+        "retryOnFail": False, "maxTries": 1, "waitBetweenTries": 0, "onError": "continueErrorOutput"
     },
     {
         "parameters": {
@@ -1314,7 +1333,7 @@ nodes = [
         },
         "id": get_node_id("Phone B Send"), "name": "Phone B Send",
         "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 624],
-        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueErrorOutput"
+        "retryOnFail": False, "maxTries": 1, "waitBetweenTries": 0, "onError": "continueErrorOutput"
     },
     {
         "parameters": {
@@ -1330,7 +1349,7 @@ nodes = [
         },
         "id": get_node_id("Reply to Customer"), "name": "Reply to Customer",
         "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [2480, 864],
-        "retryOnFail": True, "maxTries": 3, "waitBetweenTries": 2000, "onError": "continueErrorOutput"
+        "retryOnFail": False, "maxTries": 1, "waitBetweenTries": 0, "onError": "continueErrorOutput"
     },
     {
         "parameters": {
