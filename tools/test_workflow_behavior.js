@@ -101,7 +101,7 @@ async function testCommandsAndCleanup() {
   const collector = codeOf("Batch Collector");
   const plus = await execute(collector, state, webhookInput("905320000001", "++", true, "cmd-plus"));
   assert.strictEqual(plus[0].json.command, "paused");
-  assert.strictEqual(state._manualModes["905320000001"], true);
+  assert.strictEqual(state._manualModes["905320000001"].enabled, true);
 
   const minus = await execute(collector, state, webhookInput("905320000001", "--", true, "cmd-minus"));
   assert.strictEqual(minus[0].json.command, "resumed");
@@ -113,7 +113,7 @@ async function testTimeoutRecoveryAndIdle() {
   const number = "905320000002";
   const now = Date.now();
   const state = {
-    _manualModes: { legacyFalse: false },
+    _manualModes: { legacyFalse: { enabled: false, createdAt: 0 } },
     _batches: {
       [number]: {
         pendingMessages: [{ text: "yeni", time: "10:01" }],
@@ -130,7 +130,7 @@ async function testTimeoutRecoveryAndIdle() {
   assert.strictEqual(ready[0].json.messageCount, 2);
   assert.strictEqual(state._batches[number].processing, true);
   assert.notStrictEqual(state._batches[number].processingToken, "expired");
-  assert.strictEqual(Object.hasOwn(state._manualModes, "legacyFalse"), false);
+  assert.strictEqual(Object.hasOwn(state._manualModes, "legacyFalse"), false, "Legacy entry should be cleaned up");
 
   const idleState = { _lastReply: { [number]: now - 11 * 60 * 1000 } };
   const alerts = await execute(codeOf("Idle Timeout Check"), idleState, {}, () => ({}));
