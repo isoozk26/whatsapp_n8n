@@ -157,7 +157,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
             },
             {
               "name": "Content-Type",
@@ -373,7 +373,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
             },
             {
               "name": "Content-Type",
@@ -417,7 +417,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
             },
             {
               "name": "Content-Type",
@@ -455,7 +455,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
             },
             {
               "name": "Content-Type",
@@ -493,7 +493,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "089311B617B8-48CF-8BD6-29759A57FDBF"
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
             },
             {
               "name": "Content-Type",
@@ -635,7 +635,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const input = $json; return [{ json: { ...input, completedChannel: \"phoneA\" } }];"
+        "jsCode": "const input = $json; return { json: { ...input, completedChannel: \"phoneA\" } };"
       },
       "id": "e34403d6-8091-5f15-966f-830f88779093",
       "name": "Tag Success Phone A",
@@ -649,7 +649,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const input = $json; return [{ json: { ...input, completedChannel: \"phoneB\" } }];"
+        "jsCode": "const input = $json; return { json: { ...input, completedChannel: \"phoneB\" } };"
       },
       "id": "f62d978c-fc11-5181-b9da-e4e01bc5eb53",
       "name": "Tag Success Phone B",
@@ -663,7 +663,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const input = $json; return [{ json: { ...input, completedChannel: \"customer\" } }];"
+        "jsCode": "const input = $json; return { json: { ...input, completedChannel: \"customer\" } };"
       },
       "id": "c1521992-6382-596e-b596-5eccbd50bca9",
       "name": "Tag Success Reply",
@@ -677,7 +677,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const input = $json; return [{ json: { ...input, failedChannel: \"Phone A Send (Yönetici A)\", completedChannel: \"phoneA\" } }];"
+        "jsCode": "const input = $json; return { json: { ...input, failedChannel: \"Phone A Send (Yönetici A)\", completedChannel: \"phoneA\" } };"
       },
       "id": "25989e30-22fb-5f3b-9f13-506e845a9451",
       "name": "Tag Err Phone A",
@@ -691,7 +691,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const input = $json; return [{ json: { ...input, failedChannel: \"Phone B Send (Yönetici B)\", completedChannel: \"phoneB\" } }];"
+        "jsCode": "const input = $json; return { json: { ...input, failedChannel: \"Phone B Send (Yönetici B)\", completedChannel: \"phoneB\" } };"
       },
       "id": "b2a1b8b4-e24a-5b3c-bf60-4572d0b3eaf9",
       "name": "Tag Err Phone B",
@@ -705,7 +705,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const input = $json; return [{ json: { ...input, failedChannel: \"Reply to Customer (Müşteri Cevap)\", completedChannel: \"customer\" } }];"
+        "jsCode": "const input = $json; return { json: { ...input, failedChannel: \"Reply to Customer (Müşteri Cevap)\", completedChannel: \"customer\" } };"
       },
       "id": "a115ffa1-f66f-588d-b95b-9e98f3f60841",
       "name": "Tag Err Reply",

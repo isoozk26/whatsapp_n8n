@@ -1092,12 +1092,12 @@ idle_timeout_check_js = (
 # ── Node Definitions ──
 
 # ── Channel Metadata Tagging JS (P1/P2 Requirement) ──
-tag_succ_phone_a_js = 'const input = $json; return [{ json: { ...input, completedChannel: "phoneA" } }];'
-tag_succ_phone_b_js = 'const input = $json; return [{ json: { ...input, completedChannel: "phoneB" } }];'
-tag_succ_reply_js = 'const input = $json; return [{ json: { ...input, completedChannel: "customer" } }];'
-tag_err_phone_a_js = 'const input = $json; return [{ json: { ...input, failedChannel: "Phone A Send (Yönetici A)", completedChannel: "phoneA" } }];'
-tag_err_phone_b_js = 'const input = $json; return [{ json: { ...input, failedChannel: "Phone B Send (Yönetici B)", completedChannel: "phoneB" } }];'
-tag_err_reply_js = 'const input = $json; return [{ json: { ...input, failedChannel: "Reply to Customer (Müşteri Cevap)", completedChannel: "customer" } }];'
+tag_succ_phone_a_js = 'const input = $json; return { json: { ...input, completedChannel: "phoneA" } };'
+tag_succ_phone_b_js = 'const input = $json; return { json: { ...input, completedChannel: "phoneB" } };'
+tag_succ_reply_js = 'const input = $json; return { json: { ...input, completedChannel: "customer" } };'
+tag_err_phone_a_js = 'const input = $json; return { json: { ...input, failedChannel: "Phone A Send (Yönetici A)", completedChannel: "phoneA" } };'
+tag_err_phone_b_js = 'const input = $json; return { json: { ...input, failedChannel: "Phone B Send (Yönetici B)", completedChannel: "phoneB" } };'
+tag_err_reply_js = 'const input = $json; return { json: { ...input, failedChannel: "Reply to Customer (Müşteri Cevap)", completedChannel: "customer" } };'
 
 nodes = [
     {
@@ -1162,7 +1162,7 @@ nodes = [
             "method": "DELETE", "url": "https://evo.filtreoto.online/chat/deleteMessageForEveryone/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1244,7 +1244,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1260,7 +1260,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1276,7 +1276,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
@@ -1292,7 +1292,7 @@ nodes = [
             "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
             "sendHeaders": True,
             "headerParameters": {"parameters": [
-                {"name": "apikey", "value": "089311B617B8-48CF-8BD6-29759A57FDBF"},
+                {"name": "apikey", "value": "={{ $env.EVOLUTION_API_KEY }}"},
                 {"name": "Content-Type", "value": "application/json"}
             ]},
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",

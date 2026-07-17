@@ -62,7 +62,7 @@ def main():
     assert "BATCH_WINDOW_MS    = 120 * 1000" in stale_code
     assert "IDLE_WINDOW_MS" not in stale_code
     assert "MAX_WAIT_MS" not in stale_code
-    assert "enabled !== true" in stale_code, "Legacy false manual-mode entries must be cleaned"
+    assert "typeof manualEntry !== 'object' || !manualEntry.enabled" in stale_code, "Legacy/invalid manual-mode entries must be cleaned"
 
     assert collector_code.count("Object.entries(staticData._seenMessageIds)") == 1
     assert "cleanupIntervalMs = 5 * 60 * 1000" in collector_code
@@ -71,9 +71,9 @@ def main():
     parse = next(n for n in workflow["nodes"] if n["name"] == "Parse AI Output")
     parse_code = parse["parameters"]["jsCode"]
     for contract in (
-        "shouldNotifyAdmin = true",
-        "phoneA: true",
-        "phoneB: true",
+        "let shouldNotifyAdmin = notifyAdmin",
+        "expectedChannels.phoneA = true",
+        "expectedChannels.phoneB = true",
         "shouldReplyCustomer",
         "expectedChannels['customer']",
     ):

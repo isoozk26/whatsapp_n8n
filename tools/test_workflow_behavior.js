@@ -16,8 +16,12 @@ function codeOf(name) {
 }
 
 async function execute(code, staticData, input, lookup = () => ({ item: { json: {} } })) {
-  const fn = new AsyncFunction("$getWorkflowStaticData", "$input", "$", "$item", code);
-  return fn(() => staticData, input, lookup, lookup);
+  const currentJson =
+    input?.item?.json ??
+    input?.first?.()?.json ??
+    {};
+  const fn = new AsyncFunction("$getWorkflowStaticData", "$input", "$", "$item", "$json", code);
+  return fn(() => staticData, input, lookup, lookup, currentJson);
 }
 
 function webhookInput(number, text, fromMe, id) {
@@ -59,6 +63,9 @@ function stateFor(ctx) {
       },
     },
     _manualModes: {},
+    _deliveryLedger: {},
+    _adminNotifications: {},
+    _unclearCounts: {},
   };
 }
 
