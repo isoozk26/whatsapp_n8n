@@ -11,6 +11,8 @@ veritabanındaki izole `whatsapp_ai` schema'sında tutulur.
 - Yönetici kartları bölümlü formata geçirildi; araç talepleri için güvenli bilgi
   tamamlama akışı eklendi.
 - AI parse hatasının tanınabilir talepleri yanlışlıkla manuel moda alması düzeltildi.
+- Mesajlar 120 saniyelik havuzda birleştirilir; ürün kodu ve eksik araç bilgisi
+  talepleri ayrı cevap politikalarıyla işlenir.
 
 Ayrıntılı sürüm notları için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
 

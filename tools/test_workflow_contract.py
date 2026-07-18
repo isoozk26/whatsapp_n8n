@@ -70,6 +70,8 @@ def main():
     assert "CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'dead'))" in SQL
     assert "assignee_name text" in SQL
     assert "AT TIME ZONE 'Europe/Istanbul'" in SQL
+    assert "interval '120 seconds'" in SQL
+    assert "interval '10 seconds'" not in SQL
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)

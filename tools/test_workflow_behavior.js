@@ -91,7 +91,7 @@ async function testPolicy() {
     caseType: "partial_code",
     replyDraft: "Merhaba Mann Filtre, MANN W 712/95 talebiniz alındı.",
   });
-  assert(name.json.cevap.includes("MANN W 712/95"));
+  assert(name.json.cevap.includes("W 712/95"));
   assert(!name.json.cevap.startsWith("Merhaba Mann Filtre"));
 
   const hasan = await runParse({
@@ -109,8 +109,8 @@ async function testPolicy() {
   assert.strictEqual(hasan.json.action, "reply");
   assert.strictEqual(hasan.json.pauseAutomation, false);
   assert.strictEqual(hasan.json.askVehicleInfo, true);
-  assert(hasan.json.cevap.includes("motor hacmini"));
-  assert(hasan.json.cevap.includes("beygir gücünü"));
+  assert(hasan.json.cevap.includes("motor hacmi (CC)"));
+  assert(hasan.json.cevap.includes("motor gücü (kW/HP)"));
   assert(hasan.json.bildirim.includes("🚗 ARAÇ BAZLI PARÇA ARAMA"));
   assert(hasan.json.bildirim.includes("• Fiat Egea 2022"));
   assert(hasan.json.bildirim.includes("📦 Ürün/Kod\nBelirtilmedi"));
@@ -131,8 +131,25 @@ async function testPolicy() {
   assert.strictEqual(hasanInvalid.json.action, "reply");
   assert.strictEqual(hasanInvalid.json.retryAi, false);
   assert.strictEqual(hasanInvalid.json.pauseAutomation, false);
-  assert(hasanInvalid.json.cevap.includes("motor hacmini"));
+  assert(hasanInvalid.json.cevap.includes("motor hacmi (CC)"));
   assert(hasanInvalid.json.bildirim.includes("Mann filtre marka var mı"));
+
+  const vehicleDetails = await runParse({
+    intent: "vehicle_search", caseType: "vehicle_based_search",
+    entities: { productCodes: [], vehicles: [] }, replyDraft: "", confidence: 0.2,
+  }, context("1. [21:22] Fiat Egea 2022 yağ filtresi\n2. [21:23] 1.6 TDI motor"));
+  assert.strictEqual(vehicleDetails.json.pauseAutomation, false);
+  assert(vehicleDetails.json.cevap.includes("motor gücü (kW/HP)"));
+  assert(!vehicleDetails.json.cevap.includes("marka"));
+  assert(vehicleDetails.json.bildirim.includes("Fiat Egea 2022"));
+
+  const directCode = await runParse({
+    intent: "other", caseType: "other", entities: {}, replyDraft: "", confidence: 0.2,
+  }, { ...context("MANN W 712/95 filtre stok fiyat"), detectedCodes: ["W 712/95"] });
+  assert.strictEqual(directCode.json.caseType, "exact_code_price_stock");
+  assert.strictEqual(directCode.json.pauseAutomation, false);
+  assert(directCode.json.cevap.includes("W 712/95"));
+  assert(directCode.json.cevap.includes("güncel stok ve net fiyat"));
 }
 
 async function testDeliveryTags() {

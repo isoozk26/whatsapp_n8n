@@ -2,6 +2,15 @@
 
 ## 2026-07-18 - PostgreSQL Outbox ve Güvenilirlik
 
+### Takip Düzeltmeleri
+
+- Mesaj havuzu ilk mesajdan itibaren 120 saniye bekleyecek şekilde güncellendi.
+- Doğrudan filtre kodu içeren talepler stok ve net fiyat kontrolü akışına alındı.
+- Araç bazlı aramada marka, model, üretim yılı, CC ve kW/HP alanları tamamlanır
+  hale getirildi; eksik alanlar müşteriye açıkça soruluyor.
+- Düşük güvenli fakat deterministik araç taleplerinin manuel moda geçmesi engellendi.
+- Atanan kişi adındaki Türkçe karakter kodlama sorunu düzeltildi.
+
 ### Mimari
 
 - Batch, mesaj dedupe, manuel mod, bildirim cooldown ve kanal teslimatları

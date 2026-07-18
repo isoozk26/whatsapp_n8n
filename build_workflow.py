@@ -106,7 +106,7 @@ store_context_js = r"""
 const row = $json || {};
 const messages = Array.isArray(row.messages) ? row.messages : [];
 const allMessagesText = String(row.all_messages_text || '');
-const detectedCodes = [...new Set((allMessagesText.toUpperCase().match(/\b[A-Z0-9]{1,6}(?:[ -][A-Z0-9]{2,8}){1,3}\b/g) || [])
+const detectedCodes = [...new Set((allMessagesText.toUpperCase().match(/\b(?:[A-Z]{1,5}[ -]?)?\d{2,}(?:[/. -][A-Z0-9]{1,8})+\b|\b[A-Z]{1,5}[ -]?\d{2,}\b/g) || [])
   .map(x => x.trim()).filter(x => /\d/.test(x)))].slice(0, 20);
 return { json: {
   senderNumber: String(row.sender_number || ''), senderName: String(row.sender_name || row.sender_number || ''),
@@ -171,8 +171,8 @@ if (vehicleRequestDetected && ['other','unclear','vehicle_based_search'].include
   caseType = 'vehicle_based_search';
   intent = 'vehicle_search';
 }
-const deterministicCase = vehicleRequestDetected
-  || ['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','greeting','non_product'].includes(caseType);
+const deterministicCase = vehicleRequestDetected || (Array.isArray(ctx.detectedCodes) && ctx.detectedCodes.length > 0)
+  || ['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','vehicle_based_search','greeting','non_product'].includes(caseType);
 
 if (!allowed.has(caseType)) {
   caseType = 'unclear'; action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
@@ -180,8 +180,8 @@ if (!allowed.has(caseType)) {
 }
 
 if (!Array.isArray(entities.vehicles)) entities.vehicles = [];
-if (extractedVehicle && entities.vehicles.length === 0) {
-  entities.vehicles = [{ raw: extractedVehicle, brand: brand === 'VW' ? 'Volkswagen' : brand, model: extractedVehicle.replace(new RegExp(`^${brand === 'VW' ? 'Volkswagen' : brand}\\s*`, 'i'), '').replace(/\s+(?:19\d{2}|20\d{2})$/, ''), year: yearMatch?.[1] || null }];
+if (extractedVehicle && !entities.vehicles.some(v => String(v?.raw || v || '').toLocaleLowerCase('tr-TR').includes(extractedVehicle.toLocaleLowerCase('tr-TR')))) {
+  entities.vehicles.unshift({ raw: extractedVehicle, brand: brand === 'VW' ? 'Volkswagen' : brand, model: extractedVehicle.replace(new RegExp(`^${brand === 'VW' ? 'Volkswagen' : brand}\\s*`, 'i'), '').replace(/\s+(?:19\d{2}|20\d{2})$/, ''), year: yearMatch?.[1] || null });
 }
 const vehicleStrings = entities.vehicles.map(v => {
   if (typeof v === 'string') return v.trim();
@@ -190,11 +190,23 @@ const vehicleStrings = entities.vehicles.map(v => {
 const vehicleBlob = `${plainText} ${vehicleStrings.join(' ')}`;
 const hasVin = /\b[A-HJ-NPR-Z0-9]{17}\b/i.test(vehicleBlob);
 const hasEngine = /\b\d[.,]\d\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZİN|DİZEL)?\b/i.test(vehicleBlob);
-const hasPower = /\b\d{2,3}\s*(?:hp|bg|beygir)\b/i.test(vehicleBlob);
-const vehicleComplete = hasVin || (hasEngine && hasPower);
+const hasPower = /\b\d{2,3}\s*(?:kw|hp|bg|beygir)\b/i.test(vehicleBlob);
+const hasModel = Boolean(brand && extractedVehicle.replace(new RegExp(`^${brand === 'VW' ? 'Volkswagen' : brand}\\s*`, 'i'), '').replace(/\s+(?:19\d{2}|20\d{2})$/, '').trim());
+const missingVehicleFields = [];
+if (!brand) missingVehicleFields.push('marka');
+if (!hasModel) missingVehicleFields.push('model');
+if (!yearMatch) missingVehicleFields.push('üretim yılı');
+if (!hasVin && !hasEngine) missingVehicleFields.push('motor hacmi (CC)');
+if (!hasVin && !hasPower) missingVehicleFields.push('motor gücü (kW/HP)');
+const vehicleComplete = hasVin || missingVehicleFields.length === 0;
 
-const codes = Array.isArray(entities.productCodes) ? entities.productCodes : [];
+let codes = Array.isArray(entities.productCodes) ? entities.productCodes : [];
+if (codes.length === 0 && Array.isArray(ctx.detectedCodes)) codes = ctx.detectedCodes.map(code => ({ code }));
 const normalizedCodes = codes.map(c => String(c?.code || c?.raw || c || '').trim()).filter(Boolean);
+if (normalizedCodes.length > 0 && ['other','unclear','partial_code','vehicle_based_search'].includes(caseType)) {
+  caseType = 'exact_code_price_stock';
+  intent = 'price_stock';
+}
 const invented = normalizedCodes.find(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));
 if (invented) {
   entities.productCodes = codes.filter(c => String(c?.code || c?.raw || c || '').trim() !== invented);
@@ -218,11 +230,13 @@ if (caseType === 'vehicle_based_search' || caseType === 'exact_code_compatibilit
   notifyAdmins = true;
   if (!vehicleComplete && action !== 'handoff') {
     askVehicleInfo = true;
-    reply = 'Araç uyumluluğunun kesin tespiti için lütfen aracınızın motor hacmini (örn: 1.6 TDI) ve beygir gücünü (veya şasi numarasını) belirtebilir misiniz?';
+    reply = `Doğru filtreyi belirleyebilmemiz için lütfen şu bilgileri paylaşın: ${missingVehicleFields.join(', ')}. Alternatif olarak şasi numarasını iletebilirsiniz.`;
+  } else if (action !== 'handoff') {
+    reply = 'Araç bilgileriniz tamamlandı. Uygun filtre kodu, güncel stok ve net fiyat kontrol edilerek paylaşılacaktır.';
   }
 } else if (caseType === 'exact_code_price_stock') {
   notifyAdmins = true;
-  reply = 'Talebiniz alındı. Stok ve net fiyat bilgisi en geç 5 dakika içinde paylaşılacaktır.';
+  reply = `Filtre kodu ${normalizedCodes.join(', ')} için güncel stok ve net fiyat kontrol edilerek paylaşılacaktır.`;
 } else if (caseType === 'cross_reference') {
   notifyAdmins = true;
   reply ||= 'Muadil parça talebiniz alındı. Üretici kataloğundan doğrulanarak stok ve fiyat bilgisi paylaşılacaktır.';

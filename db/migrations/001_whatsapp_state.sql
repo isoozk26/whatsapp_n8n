@@ -8,6 +8,12 @@ CREATE TABLE IF NOT EXISTS whatsapp_ai.settings (
     updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 
+UPDATE whatsapp_ai.settings
+SET value = chr(304) || 'smail ' || chr(214) || 'zkaracan',
+    updated_at = clock_timestamp()
+WHERE key = 'assignee_name'
+  AND value IN ('?smail ?zkaracan', 'Ä°smail Ã–zkaracan');
+
 CREATE TABLE IF NOT EXISTS whatsapp_ai.batches (
     sender_number text PRIMARY KEY,
     sender_name text NOT NULL,
@@ -195,8 +201,7 @@ WITH candidates AS (
       AND jsonb_array_length(b.pending_messages) > 0
       AND (b.next_ai_attempt_at IS NULL OR b.next_ai_attempt_at <= clock_timestamp())
       AND (
-          b.last_message_at <= clock_timestamp() - interval '10 seconds'
-          OR b.first_message_at <= clock_timestamp() - interval '30 seconds'
+          b.first_message_at <= clock_timestamp() - interval '120 seconds'
       )
     ORDER BY b.first_message_at
     FOR UPDATE SKIP LOCKED
