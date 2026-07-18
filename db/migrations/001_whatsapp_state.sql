@@ -201,7 +201,8 @@ WITH candidates AS (
       AND jsonb_array_length(b.pending_messages) > 0
       AND (b.next_ai_attempt_at IS NULL OR b.next_ai_attempt_at <= clock_timestamp())
       AND (
-          b.first_message_at <= clock_timestamp() - interval '120 seconds'
+          b.ai_attempt_count > 0
+          OR b.first_message_at <= clock_timestamp() - interval '120 seconds'
       )
     ORDER BY b.first_message_at
     FOR UPDATE SKIP LOCKED
@@ -392,7 +393,7 @@ BEGIN
             WHEN 1 THEN interval '30 seconds' ELSE interval '2 minutes' END,
         last_error_code = p_error_code,
         last_error = left(p_error, 2000),
-        first_message_at = clock_timestamp() - interval '30 seconds',
+        first_message_at = clock_timestamp(),
         updated_at = clock_timestamp()
     WHERE sender_number = p_sender_number AND processing_token = p_batch_token;
     RETURN 'retry';

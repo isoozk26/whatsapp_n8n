@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = json.loads((ROOT / "workflow.json").read_text(encoding="utf-8"))
-SQL = (ROOT / "db" / "migrations" / "001_whatsapp_state.sql").read_text(encoding="utf-8")
+SQL = "\n".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "db" / "migrations").glob("*.sql")))
 
 
 def node(name):
@@ -39,10 +39,13 @@ def main():
     assert targets("Valid Event?", 0) == ["Ingest Message"]
 
     assert targets("AI Agent", 0) == ["Parse AI Output"]
-    assert targets("AI Agent", 1) == ["Record AI Failure"]
+    assert targets("AI Agent", 1) == ["Prepare AI Failure"]
     assert targets("Parse AI Output") == ["AI Output Valid?"]
-    assert targets("AI Output Valid?", 0) == ["Complete AI Batch"]
-    assert targets("AI Output Valid?", 1) == ["Record AI Failure"]
+    assert targets("AI Output Valid?", 0) == ["Vehicle Catalog?"]
+    assert targets("AI Output Valid?", 1) == ["Prepare AI Failure"]
+    assert targets("Vehicle Catalog?", 0) == ["Prepare Catalog Lookup"]
+    assert targets("Vehicle Catalog?", 1) == ["Complete AI Batch"]
+    assert targets("Apply Catalog Decision") == ["Complete AI Batch"]
     parse = node("Parse AI Output")["parameters"]["jsCode"]
     for forbidden in ("$getWorkflowStaticData", "_deliveryLedger", "_batches", "_adminNotifications"):
         assert forbidden not in parse
@@ -55,7 +58,8 @@ def main():
     assert send["parameters"]["authentication"] == "predefinedCredentialType"
     assert send["credentials"]["httpHeaderAuth"]["name"] == "Evolution API"
 
-    for pg_name in ("Ingest Message", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Claim Deliveries", "Record Delivery Result", "Cleanup State"):
+    assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate"]
+    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Resolve Vehicle Catalog", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result"):
         pg = node(pg_name)
         assert pg["type"] == "n8n-nodes-base.postgres"
         assert pg["credentials"]["postgres"]["name"] == "WhatsApp State PostgreSQL"
@@ -72,6 +76,10 @@ def main():
     assert "AT TIME ZONE 'Europe/Istanbul'" in SQL
     assert "interval '120 seconds'" in SQL
     assert "interval '10 seconds'" not in SQL
+    assert "ai_attempt_count > 0" in SQL
+    assert "mann_vehicle_catalog" in SQL and "customer_vehicle_context" in SQL
+    assert "FILTER (WHERE source_id IS NOT NULL)" in SQL
+    assert "state IN ('closed', 'open', 'half_open')" in SQL
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)

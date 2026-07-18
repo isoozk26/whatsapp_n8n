@@ -1,0 +1,224 @@
+{
+  "name": "WhatsApp AI - Operations Schedules",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "c22a2e34-de3e-5c5a-a7df-5c23ebe752b0",
+      "name": "Queue Monitor Every Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        120,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.run_queue_monitor() AS result",
+        "options": {}
+      },
+      "id": "02abc362-8fdd-539c-a02e-02274c5f5936",
+      "name": "Run Queue Monitor",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        400,
+        120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "884b68ea-2150-5c5b-8710-415ecbb6a8d5",
+      "name": "Daily Report 0830",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        120,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.run_daily_report() AS result",
+        "options": {}
+      },
+      "id": "4ee3e530-1dfb-5a4d-aefd-d61836d030ed",
+      "name": "Run Daily Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        400,
+        320
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "10 4 * * *"
+            }
+          ]
+        }
+      },
+      "id": "e1edc5dc-2991-5582-8aa3-9656aee4c943",
+      "name": "Retention 0410",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        120,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.run_retention() AS result",
+        "options": {}
+      },
+      "id": "3aaeac28-3b38-50ff-be2d-a04c5276ab3d",
+      "name": "Run Retention",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        400,
+        520
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ad273f09-f939-5c2c-81a0-516b414bca91",
+      "name": "Rotation Reminder 0900",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        120,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.run_rotation_reminder() AS result",
+        "options": {}
+      },
+      "id": "b43ac942-e1a1-58c8-b4e6-aafb54b7840a",
+      "name": "Run Rotation Reminder",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        400,
+        720
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Queue Monitor Every Minute": {
+      "main": [
+        [
+          {
+            "node": "Run Queue Monitor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Report 0830": {
+      "main": [
+        [
+          {
+            "node": "Run Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retention 0410": {
+      "main": [
+        [
+          {
+            "node": "Run Retention",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotation Reminder 0900": {
+      "main": [
+        [
+          {
+            "node": "Run Rotation Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Istanbul",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "staticData": {},
+  "pinData": {},
+  "active": false
+}

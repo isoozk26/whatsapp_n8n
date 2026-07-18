@@ -14,6 +14,7 @@ WORKFLOW_ID = os.environ.get('N8N_WORKFLOW_ID', 'pW8YzDP44WpeJ6CJ')
 N8N_URL = 'https://n8n.filtreoto.online'
 
 def deploy(workflow_path='workflow.json'):
+    create_mode = WORKFLOW_ID == 'create'
     url = f'{N8N_URL}/api/v1/workflows/{WORKFLOW_ID}'
     # Use default SSL context (verification enabled)
     context = None  # Uses default SSL context with verification
@@ -30,17 +31,18 @@ def deploy(workflow_path='workflow.json'):
             if k in workflow['settings']:
                 settings[k] = workflow['settings'][k]
     
-    get_req = urllib.request.Request(url, method='GET')
-    get_req.add_header('X-N8N-API-KEY', TOKEN)
-    get_req.add_header('accept', 'application/json')
-    try:
-        with urllib.request.urlopen(get_req, context=context) as response:
-            live_workflow = json.loads(response.read().decode('utf-8'))
-    except Exception as exc:
-        print(f'  HATA: Canli workflow durumu okunamadi, deploy iptal: {exc}')
-        return False
-    
-    live_was_active = live_workflow.get('active') is True
+    live_was_active = True
+    if not create_mode:
+        get_req = urllib.request.Request(url, method='GET')
+        get_req.add_header('X-N8N-API-KEY', TOKEN)
+        get_req.add_header('accept', 'application/json')
+        try:
+            with urllib.request.urlopen(get_req, context=context) as response:
+                live_workflow = json.loads(response.read().decode('utf-8'))
+        except Exception as exc:
+            print(f'  HATA: Canli workflow durumu okunamadi, deploy iptal: {exc}')
+            return False
+        live_was_active = live_workflow.get('active') is True
     credentials_req = urllib.request.Request(f'{N8N_URL}/api/v1/credentials', method='GET')
     credentials_req.add_header('X-N8N-API-KEY', TOKEN)
     credentials_req.add_header('accept', 'application/json')
@@ -65,7 +67,8 @@ def deploy(workflow_path='workflow.json'):
     }
     
     req_data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(url, data=req_data, method='PUT')
+    target_url = f'{N8N_URL}/api/v1/workflows' if create_mode else url
+    req = urllib.request.Request(target_url, data=req_data, method='POST' if create_mode else 'PUT')
     req.add_header('X-N8N-API-KEY', TOKEN)
     req.add_header('Content-Type', 'application/json')
     req.add_header('accept', 'application/json')
@@ -78,6 +81,9 @@ def deploy(workflow_path='workflow.json'):
             res_json = json.loads(response.read().decode('utf-8'))
             print(f'  BASARILI')
             print(f'  Active: {res_json.get("active")}')
+            if create_mode:
+                url = f'{N8N_URL}/api/v1/workflows/{res_json["id"]}'
+                print(f'  Workflow ID: {res_json["id"]}')
         if live_was_active:
             for action in ('deactivate', 'activate'):
                 action_req = urllib.request.Request(f'{url}/{action}', data=b'{}', method='POST')

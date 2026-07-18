@@ -1,0 +1,37 @@
+name: ci
+on:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: whatsapp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "20"}
+      - run: python build_workflow.py
+      - run: python build_ops_workflow.py
+      - run: python tools/test_workflow_contract.py
+      - run: node tools/test_workflow_behavior.js
+      - run: python tools/test_outbound_guard.py
+      - run: python tools/wf_validate.py workflow.json
+      - run: python tools/wf_security.py
+      - run: psql -h localhost -U postgres -d whatsapp_test -f db/migrations/001_whatsapp_state.sql
+      - run: psql -h localhost -U postgres -d whatsapp_test -f db/migrations/002_catalog_resilience.sql
+      - run: psql -h localhost -U postgres -d whatsapp_test -f db/tests/catalog_resilience.sql

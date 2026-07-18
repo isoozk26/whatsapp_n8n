@@ -174,9 +174,31 @@ async function testDeliveryTags() {
   assert.strictEqual(err.json.errorMessage, "timeout");
 }
 
+async function testCatalogPolicy() {
+  const base = {
+    caseType: "vehicle_based_search", cevap: "old", bildirim: "admin", fingerprint: "vehicle",
+    notifyAdmins: true, pauseAutomation: false, expectsReply: false,
+  };
+  const missing = await execute(codeOf("Apply Catalog Decision"), {
+    policy: base, catalog: { status: "missing_required", missingRequired: ["motor"], optionalFields: [], vehicle: {} },
+  });
+  assert(missing.json.cevap.includes("motor"));
+  assert(missing.json.cevap.includes("şasi"));
+  assert.strictEqual(missing.json.notifyAdmins, false);
+  assert.strictEqual(missing.json.expectsReply, true);
+
+  const unique = await execute(codeOf("Apply Catalog Decision"), {
+    policy: base, catalog: { status: "unique", candidateCount: 1, vehicle: { brand: "Fiat", model: "Egea", engine: "1.6" } },
+  });
+  assert(unique.json.cevap.includes("katalogda doğrulandı"));
+  assert.strictEqual(unique.json.notifyAdmins, true);
+  assert(!unique.json.cevap.match(/\b[A-Z]\s?\d{3,}/));
+}
+
 (async () => {
   await testNormalize();
   await testPolicy();
   await testDeliveryTags();
+  await testCatalogPolicy();
   console.log("[PASS] normalize, policy, guardrail and delivery behaviors");
 })().catch((error) => { console.error("[FAIL]", error.stack || error); process.exit(1); });

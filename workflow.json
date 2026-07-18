@@ -195,6 +195,62 @@
     {
       "parameters": {
         "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.circuit_allows('openai') AS allowed",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "id": "2659097e-90a9-5f66-81ed-8e7465b7db6e",
+      "name": "OpenAI Circuit Gate",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        340,
+        620
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "db1e672a-6713-554e-8abd-f8c045334f83",
+              "leftValue": "={{ $json.allowed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d66a3139-765e-5437-8ad3-1d291a4ff33c",
+      "name": "OpenAI Circuit Open?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
         "query": "SELECT * FROM whatsapp_ai.claim_ready_batches(10)",
         "options": {
           "queryReplacement": "={{ [] }}"
@@ -205,8 +261,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        340,
-        660
+        780,
+        620
       ],
       "credentials": {
         "postgres": {
@@ -225,8 +281,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        560,
-        660
+        1000,
+        620
       ]
     },
     {
@@ -242,8 +298,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        780,
-        660
+        1220,
+        620
       ],
       "onError": "continueErrorOutput"
     },
@@ -266,8 +322,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
       "position": [
-        700,
-        880
+        1140,
+        840
       ],
       "credentials": {
         "openAiApi": {
@@ -286,8 +342,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1000,
-        600
+        1440,
+        560
       ]
     },
     {
@@ -319,14 +375,98 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1220,
-        600
+        1660,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2782c145-1e3c-5bc6-87d1-6d237f2437bc",
+              "leftValue": "={{ $json.caseType === 'vehicle_based_search' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f3829a5f-e58c-587b-9ac6-9c4aab1e1d13",
+      "name": "Vehicle Catalog?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1880,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const policy = $json || {};\nconst vehicles = Array.isArray(policy.entities?.vehicles) ? policy.entities.vehicles : [];\nconst vehicle = vehicles.find(v => v && typeof v === 'object') || {};\nconst text = String(policy.allMessagesText || '');\nconst intMatch = (pattern) => {\n  const match = text.match(pattern);\n  return match ? Number(match[1].replace(',', '.')) : null;\n};\nconst vin = (text.toUpperCase().match(/\\b[A-HJ-NPR-Z0-9]{17}\\b/) || [])[0] || null;\nconst engineText = String(vehicle.engine || vehicle.motor || '').trim()\n  || ((text.match(/\\b\\d[.,]\\d\\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZIN|DIZEL)?\\b/i) || [])[0] || '');\nreturn { json: {\n  policy,\n  senderNumber: policy.senderNumber,\n  brand: String(vehicle.brand || '').trim() || null,\n  model: String(vehicle.model || vehicle.modelSeries || '').trim() || null,\n  engine: engineText || null,\n  engineCode: String(vehicle.engineCode || '').trim() || null,\n  powerKw: Number(vehicle.powerKw || vehicle.kw) || intMatch(/\\b(\\d{2,3})\\s*kW\\b/i),\n  powerBhp: Number(vehicle.powerBhp || vehicle.bhp) || intMatch(/\\b(\\d{2,3})\\s*(?:BHP|HP|BG|beygir)\\b/i),\n  displacement: Number(vehicle.displacementCcm || vehicle.ccm) || intMatch(/\\b(\\d{3,4})\\s*(?:cc|ccm)\\b/i),\n  year: Number(vehicle.year) || intMatch(/\\b(19\\d{2}|20\\d{2})\\b/),\n  fuelType: String(vehicle.fuelType || '').trim() || null,\n  vin\n} };"
+      },
+      "id": "3c2875e2-995f-5fb2-9d86-ecc18602c5c3",
+      "name": "Prepare Catalog Lookup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        440
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.complete_ai_batch($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9) AS completed",
+        "query": "SELECT $1::jsonb AS policy, whatsapp_ai.resolve_vehicle_context($2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS catalog",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json.policy), $json.senderNumber, $json.brand, $json.model, $json.engine, $json.engineCode, $json.powerKw, $json.powerBhp, $json.displacement, $json.fuelType, $json.year, $json.vin ] }}"
+        }
+      },
+      "id": "6bf773b2-03a5-5759-b665-8befde081f3b",
+      "name": "Resolve Vehicle Catalog",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2320,
+        440
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const policy = typeof $json.policy === 'string' ? JSON.parse($json.policy) : ($json.policy || {});\nconst catalog = typeof $json.catalog === 'string' ? JSON.parse($json.catalog) : ($json.catalog || {});\nconst requiredLabels = { marka: 'marka', model: 'model serisi', motor: 'motor' };\nconst missing = (catalog.missingRequired || []).map(x => requiredLabels[x] || x);\nconst optional = (catalog.optionalFields || []).map(value => {\n  const raw = String(value);\n  if (/ccm/i.test(raw)) return 'hacim (ccm)';\n  if (/kw|bhp/i.test(raw)) return 'g\\u00fc\\u00e7 (kW veya BHP)';\n  if (/motor/i.test(raw)) return 'motor kodu';\n  return '\\u00fcretim y\\u0131l\\u0131';\n});\nlet reply = String(policy.cevap || '');\nlet notifyAdmins = Boolean(policy.notifyAdmins);\nlet pauseAutomation = Boolean(policy.pauseAutomation);\nlet expectsReply = Boolean(policy.expectsReply);\nif (catalog.status === 'missing_required') {\n  reply = `Do\\u011fru filtreyi belirleyebilmemiz i\\u00e7in l\\u00fctfen ${missing.join(', ')} bilgisini payla\\u015f\\u0131n. Varsa \\u015fasi numaras\\u0131n\\u0131 da iletebilirsiniz.`;\n  notifyAdmins = false; pauseAutomation = false; expectsReply = true;\n} else if (catalog.status === 'ambiguous') {\n  reply = `Ara\\u00e7 bilgilerini netle\\u015ftirmek i\\u00e7in l\\u00fctfen ${optional.join(', ')} bilgisini payla\\u015f\\u0131n. Varsa \\u015fasi numaras\\u0131n\\u0131 da iletebilirsiniz.`;\n  notifyAdmins = false; pauseAutomation = false; expectsReply = true;\n} else if (catalog.status === 'unique') {\n  reply = 'Ara\\u00e7 bilgileriniz katalogda do\\u011fruland\\u0131. Uygun par\\u00e7a, g\\u00fcncel stok ve net fiyat kontrol edilerek payla\\u015f\\u0131lacakt\\u0131r.';\n  notifyAdmins = true; pauseAutomation = false;\n} else if (catalog.status === 'no_match' && optional.length) {\n  reply = `Katalog e\\u015fle\\u015fmesini netle\\u015ftirmek i\\u00e7in l\\u00fctfen ${optional.join(', ')} bilgisini payla\\u015f\\u0131n. Varsa \\u015fasi numaras\\u0131n\\u0131 da iletebilirsiniz.`;\n  notifyAdmins = false; pauseAutomation = false; expectsReply = true;\n} else if (catalog.status === 'no_match') {\n  reply = 'Ara\\u00e7 bilgileri katalogda kesin e\\u015fle\\u015fmedi. \\u00dcr\\u00fcn uzman\\u0131m\\u0131z uygun par\\u00e7ay\\u0131 kontrol ederek bilgi verecektir.';\n  notifyAdmins = true;\n}\nconst vehicle = catalog.vehicle || {};\nconst adminCatalog = `\\n\\nKatalog Kontrol\\nDurum: ${catalog.status || 'bilinmiyor'}\\nAday: ${Number(catalog.candidateCount || 0)}\\nAra\\u00e7: ${[vehicle.brand, vehicle.model, vehicle.engine].filter(Boolean).join(' / ') || 'Belirtilmedi'}${vehicle.vin ? `\\n\\u015easi: ${vehicle.vin}` : ''}`;\nreturn { json: {\n  ...policy, cevap: reply, notifyAdmins, pauseAutomation, expectsReply,\n  bildirim: String(policy.bildirim || '') + adminCatalog,\n  fingerprint: `${policy.fingerprint || 'vehicle'}:catalog:${catalog.status || 'unknown'}`,\n  catalog\n} };"
+      },
+      "id": "f3a149c9-ff2a-5030-bbb8-0f484ca93c1e",
+      "name": "Apply Catalog Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2540,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.complete_ai_batch($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9) AS completed, whatsapp_ai.record_service_result('openai',true,NULL) AS circuit_state",
         "options": {
           "queryReplacement": "={{ [ $json.senderNumber, $json.batchToken, $json.cevap, $json.bildirim, $json.notifyAdmins, $json.replyCustomer, $json.pauseAutomation, $json.fingerprint, $json.caseType ] }}"
         }
@@ -336,8 +476,45 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1440,
-        560
+        2760,
+        520
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "let ctx = $json || {};\nif (!ctx.senderNumber || !ctx.batchToken) {\n  try { ctx = { ...$('Store Context').item.json, ...ctx }; } catch (_) {}\n}\nreturn { json: {\n  senderNumber: String(ctx.senderNumber || ''), batchToken: String(ctx.batchToken || ''),\n  errorCode: String(ctx.parseFailureCode || ctx.error?.code || 'ai_error'),\n  errorMessage: String(ctx.parseFailureMessage || ctx.error?.message || ctx.message || 'AI execution failed').slice(0, 2000)\n} };"
+      },
+      "id": "22cce35a-5ea5-5a3a-be60-044ec90eb4a3",
+      "name": "Prepare AI Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.record_ai_failure($1,$2::uuid,$3,$4) AS result, whatsapp_ai.record_service_result('openai',false,$3) AS circuit_state",
+        "options": {
+          "queryReplacement": "={{ [ $json.senderNumber, $json.batchToken, $json.errorCode, $json.errorMessage ] }}"
+        }
+      },
+      "id": "1d9badd2-28ad-5943-b52d-6711f04591b3",
+      "name": "Record AI Failure",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2100,
+        700
       ],
       "credentials": {
         "postgres": {
@@ -349,18 +526,18 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.record_ai_failure($1,$2::uuid,$3,$4) AS result",
+        "query": "SELECT whatsapp_ai.circuit_allows('evolution') AS allowed",
         "options": {
-          "queryReplacement": "={{ [ $('Store Context').item.json.senderNumber, $('Store Context').item.json.batchToken, ($json.parseFailureCode || $json.error?.code || 'ai_error'), ($json.parseFailureMessage || $json.error?.message || $json.message || 'AI execution failed') ] }}"
+          "queryReplacement": "={{ [] }}"
         }
       },
-      "id": "1d9badd2-28ad-5943-b52d-6711f04591b3",
-      "name": "Record AI Failure",
+      "id": "26e18e72-b9c5-5465-99c8-be1974eabe9b",
+      "name": "Evolution Circuit Gate",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1220,
-        740
+        340,
+        820
       ],
       "credentials": {
         "postgres": {
@@ -368,6 +545,39 @@
           "name": "WhatsApp State PostgreSQL"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a4cb0d0c-487c-546b-84eb-43e8e90ebcc2",
+              "leftValue": "={{ $json.allowed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cdd8dbd0-b996-5254-ba09-d3556d060bda",
+      "name": "Evolution Circuit Open?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        820
+      ]
     },
     {
       "parameters": {
@@ -382,7 +592,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        340,
+        780,
         820
       ],
       "credentials": {
@@ -467,7 +677,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.record_delivery_result($1::uuid,$2,$3,$4) AS result",
+        "query": "SELECT whatsapp_ai.record_delivery_result($1::uuid,$2,$3,$4) AS result, whatsapp_ai.record_service_result('evolution',$2,CASE WHEN $2 THEN NULL ELSE 'delivery_error' END) AS circuit_state",
         "options": {
           "queryReplacement": "={{ [ $json.deliveryId, $json.success, $json.providerId || null, $json.errorMessage || null ] }}"
         }
@@ -479,29 +689,6 @@
       "position": [
         1220,
         840
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "whatsapp-state-postgres",
-          "name": "WhatsApp State PostgreSQL"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.cleanup_expired_state() AS cleanup",
-        "options": {
-          "queryReplacement": "={{ [] }}"
-        }
-      },
-      "id": "a23231e4-a7dc-59ab-af99-500a4a9196c4",
-      "name": "Cleanup State",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        340,
-        980
       ],
       "credentials": {
         "postgres": {
@@ -585,21 +772,39 @@
       "main": [
         [
           {
-            "node": "Claim Ready Batches",
+            "node": "OpenAI Circuit Gate",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Claim Deliveries",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Cleanup State",
+            "node": "Evolution Circuit Gate",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "OpenAI Circuit Gate": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Circuit Open?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Circuit Open?": {
+      "main": [
+        [
+          {
+            "node": "Claim Ready Batches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Claim Ready Batches": {
@@ -635,7 +840,7 @@
         ],
         [
           {
-            "node": "Record AI Failure",
+            "node": "Prepare AI Failure",
             "type": "main",
             "index": 0
           }
@@ -657,11 +862,73 @@
       "main": [
         [
           {
-            "node": "Complete AI Batch",
+            "node": "Vehicle Catalog?",
             "type": "main",
             "index": 0
           }
         ],
+        [
+          {
+            "node": "Prepare AI Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vehicle Catalog?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Catalog Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Complete AI Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Catalog Lookup": {
+      "main": [
+        [
+          {
+            "node": "Resolve Vehicle Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Vehicle Catalog": {
+      "main": [
+        [
+          {
+            "node": "Apply Catalog Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Catalog Decision": {
+      "main": [
+        [
+          {
+            "node": "Complete AI Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Failure": {
+      "main": [
         [
           {
             "node": "Record AI Failure",
@@ -680,6 +947,29 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Evolution Circuit Gate": {
+      "main": [
+        [
+          {
+            "node": "Evolution Circuit Open?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evolution Circuit Open?": {
+      "main": [
+        [
+          {
+            "node": "Claim Deliveries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Claim Deliveries": {

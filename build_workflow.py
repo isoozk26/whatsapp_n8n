@@ -302,6 +302,91 @@ return { json: {
 """.strip()
 
 
+prepare_catalog_js = r"""
+const policy = $json || {};
+const vehicles = Array.isArray(policy.entities?.vehicles) ? policy.entities.vehicles : [];
+const vehicle = vehicles.find(v => v && typeof v === 'object') || {};
+const text = String(policy.allMessagesText || '');
+const intMatch = (pattern) => {
+  const match = text.match(pattern);
+  return match ? Number(match[1].replace(',', '.')) : null;
+};
+const vin = (text.toUpperCase().match(/\b[A-HJ-NPR-Z0-9]{17}\b/) || [])[0] || null;
+const engineText = String(vehicle.engine || vehicle.motor || '').trim()
+  || ((text.match(/\b\d[.,]\d\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZIN|DIZEL)?\b/i) || [])[0] || '');
+return { json: {
+  policy,
+  senderNumber: policy.senderNumber,
+  brand: String(vehicle.brand || '').trim() || null,
+  model: String(vehicle.model || vehicle.modelSeries || '').trim() || null,
+  engine: engineText || null,
+  engineCode: String(vehicle.engineCode || '').trim() || null,
+  powerKw: Number(vehicle.powerKw || vehicle.kw) || intMatch(/\b(\d{2,3})\s*kW\b/i),
+  powerBhp: Number(vehicle.powerBhp || vehicle.bhp) || intMatch(/\b(\d{2,3})\s*(?:BHP|HP|BG|beygir)\b/i),
+  displacement: Number(vehicle.displacementCcm || vehicle.ccm) || intMatch(/\b(\d{3,4})\s*(?:cc|ccm)\b/i),
+  year: Number(vehicle.year) || intMatch(/\b(19\d{2}|20\d{2})\b/),
+  fuelType: String(vehicle.fuelType || '').trim() || null,
+  vin
+} };
+""".strip()
+
+
+apply_catalog_js = r"""
+const policy = typeof $json.policy === 'string' ? JSON.parse($json.policy) : ($json.policy || {});
+const catalog = typeof $json.catalog === 'string' ? JSON.parse($json.catalog) : ($json.catalog || {});
+const requiredLabels = { marka: 'marka', model: 'model serisi', motor: 'motor' };
+const missing = (catalog.missingRequired || []).map(x => requiredLabels[x] || x);
+const optional = (catalog.optionalFields || []).map(value => {
+  const raw = String(value);
+  if (/ccm/i.test(raw)) return 'hacim (ccm)';
+  if (/kw|bhp/i.test(raw)) return 'g\u00fc\u00e7 (kW veya BHP)';
+  if (/motor/i.test(raw)) return 'motor kodu';
+  return '\u00fcretim y\u0131l\u0131';
+});
+let reply = String(policy.cevap || '');
+let notifyAdmins = Boolean(policy.notifyAdmins);
+let pauseAutomation = Boolean(policy.pauseAutomation);
+let expectsReply = Boolean(policy.expectsReply);
+if (catalog.status === 'missing_required') {
+  reply = `Do\u011fru filtreyi belirleyebilmemiz i\u00e7in l\u00fctfen ${missing.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
+  notifyAdmins = false; pauseAutomation = false; expectsReply = true;
+} else if (catalog.status === 'ambiguous') {
+  reply = `Ara\u00e7 bilgilerini netle\u015ftirmek i\u00e7in l\u00fctfen ${optional.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
+  notifyAdmins = false; pauseAutomation = false; expectsReply = true;
+} else if (catalog.status === 'unique') {
+  reply = 'Ara\u00e7 bilgileriniz katalogda do\u011fruland\u0131. Uygun par\u00e7a, g\u00fcncel stok ve net fiyat kontrol edilerek payla\u015f\u0131lacakt\u0131r.';
+  notifyAdmins = true; pauseAutomation = false;
+} else if (catalog.status === 'no_match' && optional.length) {
+  reply = `Katalog e\u015fle\u015fmesini netle\u015ftirmek i\u00e7in l\u00fctfen ${optional.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
+  notifyAdmins = false; pauseAutomation = false; expectsReply = true;
+} else if (catalog.status === 'no_match') {
+  reply = 'Ara\u00e7 bilgileri katalogda kesin e\u015fle\u015fmedi. \u00dcr\u00fcn uzman\u0131m\u0131z uygun par\u00e7ay\u0131 kontrol ederek bilgi verecektir.';
+  notifyAdmins = true;
+}
+const vehicle = catalog.vehicle || {};
+const adminCatalog = `\n\nKatalog Kontrol\nDurum: ${catalog.status || 'bilinmiyor'}\nAday: ${Number(catalog.candidateCount || 0)}\nAra\u00e7: ${[vehicle.brand, vehicle.model, vehicle.engine].filter(Boolean).join(' / ') || 'Belirtilmedi'}${vehicle.vin ? `\n\u015easi: ${vehicle.vin}` : ''}`;
+return { json: {
+  ...policy, cevap: reply, notifyAdmins, pauseAutomation, expectsReply,
+  bildirim: String(policy.bildirim || '') + adminCatalog,
+  fingerprint: `${policy.fingerprint || 'vehicle'}:catalog:${catalog.status || 'unknown'}`,
+  catalog
+} };
+""".strip()
+
+
+prepare_ai_failure_js = r"""
+let ctx = $json || {};
+if (!ctx.senderNumber || !ctx.batchToken) {
+  try { ctx = { ...$('Store Context').item.json, ...ctx }; } catch (_) {}
+}
+return { json: {
+  senderNumber: String(ctx.senderNumber || ''), batchToken: String(ctx.batchToken || ''),
+  errorCode: String(ctx.parseFailureCode || ctx.error?.code || 'ai_error'),
+  errorMessage: String(ctx.parseFailureMessage || ctx.error?.message || ctx.message || 'AI execution failed').slice(0, 2000)
+} };
+""".strip()
+
+
 prepare_delivery_js = r"""
 const row = $json || {};
 const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {});
@@ -359,33 +444,47 @@ nodes = [
         "parameters": {"rule": {"interval": [{"field": "seconds", "secondsInterval": 15}]}},
         "id": node_id("Schedule Trigger"), "name": "Schedule Trigger", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [120, 720],
     },
-    postgres_node("Claim Ready Batches", "SELECT * FROM whatsapp_ai.claim_ready_batches(10)", "={{ [] }}", [340, 660]),
-    code_node("Store Context", store_context_js, [560, 660]),
+    postgres_node("OpenAI Circuit Gate", "SELECT whatsapp_ai.circuit_allows('openai') AS allowed", "={{ [] }}", [340, 620]),
+    if_node("OpenAI Circuit Open?", "={{ $json.allowed === true }}", [560, 620]),
+    postgres_node("Claim Ready Batches", "SELECT * FROM whatsapp_ai.claim_ready_batches(10)", "={{ [] }}", [780, 620]),
+    code_node("Store Context", store_context_js, [1000, 620]),
     {
         "parameters": {"promptType": "define", "text": "={{ $json._prompt }}", "options": {"systemMessage": system_prompt}},
         "id": node_id("AI Agent"), "name": "AI Agent", "type": "@n8n/n8n-nodes-langchain.agent", "typeVersion": 3.1,
-        "position": [780, 660], "onError": "continueErrorOutput",
+        "position": [1220, 620], "onError": "continueErrorOutput",
     },
     {
         "parameters": {"model": {"__rl": True, "value": "gpt-4o-mini", "mode": "list", "cachedResultName": "gpt-4o-mini"}, "builtInTools": {}, "options": {"temperature": 0.1, "maxTokens": 700}},
         "id": node_id("OpenAI Chat Model1"), "name": "OpenAI Chat Model1", "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi", "typeVersion": 1.3,
-        "position": [700, 880], "credentials": {"openAiApi": {"id": OPENAI_ID, "name": OPENAI_NAME}},
+        "position": [1140, 840], "credentials": {"openAiApi": {"id": OPENAI_ID, "name": OPENAI_NAME}},
     },
-    code_node("Parse AI Output", parse_ai_js, [1000, 600]),
-    if_node("AI Output Valid?", "={{ $json.retryAi !== true }}", [1220, 600]),
+    code_node("Parse AI Output", parse_ai_js, [1440, 560]),
+    if_node("AI Output Valid?", "={{ $json.retryAi !== true }}", [1660, 560]),
+    if_node("Vehicle Catalog?", "={{ $json.caseType === 'vehicle_based_search' }}", [1880, 520]),
+    code_node("Prepare Catalog Lookup", prepare_catalog_js, [2100, 440]),
+    postgres_node(
+        "Resolve Vehicle Catalog",
+        "SELECT $1::jsonb AS policy, whatsapp_ai.resolve_vehicle_context($2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS catalog",
+        "={{ [ JSON.stringify($json.policy), $json.senderNumber, $json.brand, $json.model, $json.engine, $json.engineCode, $json.powerKw, $json.powerBhp, $json.displacement, $json.fuelType, $json.year, $json.vin ] }}",
+        [2320, 440],
+    ),
+    code_node("Apply Catalog Decision", apply_catalog_js, [2540, 440]),
     postgres_node(
         "Complete AI Batch",
-        "SELECT whatsapp_ai.complete_ai_batch($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9) AS completed",
+        "SELECT whatsapp_ai.complete_ai_batch($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9) AS completed, whatsapp_ai.record_service_result('openai',true,NULL) AS circuit_state",
         "={{ [ $json.senderNumber, $json.batchToken, $json.cevap, $json.bildirim, $json.notifyAdmins, $json.replyCustomer, $json.pauseAutomation, $json.fingerprint, $json.caseType ] }}",
-        [1440, 560],
+        [2760, 520],
     ),
+    code_node("Prepare AI Failure", prepare_ai_failure_js, [1880, 700]),
     postgres_node(
         "Record AI Failure",
-        "SELECT whatsapp_ai.record_ai_failure($1,$2::uuid,$3,$4) AS result",
-        "={{ [ $('Store Context').item.json.senderNumber, $('Store Context').item.json.batchToken, ($json.parseFailureCode || $json.error?.code || 'ai_error'), ($json.parseFailureMessage || $json.error?.message || $json.message || 'AI execution failed') ] }}",
-        [1220, 740],
+        "SELECT whatsapp_ai.record_ai_failure($1,$2::uuid,$3,$4) AS result, whatsapp_ai.record_service_result('openai',false,$3) AS circuit_state",
+        "={{ [ $json.senderNumber, $json.batchToken, $json.errorCode, $json.errorMessage ] }}",
+        [2100, 700],
     ),
-    postgres_node("Claim Deliveries", "SELECT * FROM whatsapp_ai.claim_deliveries(20)", "={{ [] }}", [340, 820]),
+    postgres_node("Evolution Circuit Gate", "SELECT whatsapp_ai.circuit_allows('evolution') AS allowed", "={{ [] }}", [340, 820]),
+    if_node("Evolution Circuit Open?", "={{ $json.allowed === true }}", [560, 820]),
+    postgres_node("Claim Deliveries", "SELECT * FROM whatsapp_ai.claim_deliveries(20)", "={{ [] }}", [780, 820]),
     code_node("Prepare Delivery", prepare_delivery_js, [560, 820]),
     {
         "parameters": {
@@ -402,11 +501,10 @@ nodes = [
     code_node("Tag Delivery Error", tag_error_js, [1000, 920]),
     postgres_node(
         "Record Delivery Result",
-        "SELECT whatsapp_ai.record_delivery_result($1::uuid,$2,$3,$4) AS result",
+        "SELECT whatsapp_ai.record_delivery_result($1::uuid,$2,$3,$4) AS result, whatsapp_ai.record_service_result('evolution',$2,CASE WHEN $2 THEN NULL ELSE 'delivery_error' END) AS circuit_state",
         "={{ [ $json.deliveryId, $json.success, $json.providerId || null, $json.errorMessage || null ] }}",
         [1220, 840],
     ),
-    postgres_node("Cleanup State", "SELECT whatsapp_ai.cleanup_expired_state() AS cleanup", "={{ [] }}", [340, 980]),
 ]
 
 
@@ -416,13 +514,22 @@ connections = {
     "Valid Event?": {"main": [[edge("Ingest Message")], [edge("Respond Ignored")]]},
     "Ingest Message": {"main": [[edge("Webhook Auth")]]},
     "Webhook Auth": {"main": [[edge("Respond Accepted")], [edge("Respond Unauthorized")]]},
-    "Schedule Trigger": {"main": [[edge("Claim Ready Batches"), edge("Claim Deliveries"), edge("Cleanup State")]]},
+    "Schedule Trigger": {"main": [[edge("OpenAI Circuit Gate"), edge("Evolution Circuit Gate")]]},
+    "OpenAI Circuit Gate": {"main": [[edge("OpenAI Circuit Open?")]]},
+    "OpenAI Circuit Open?": {"main": [[edge("Claim Ready Batches")], []]},
     "Claim Ready Batches": {"main": [[edge("Store Context")]]},
     "Store Context": {"main": [[edge("AI Agent")]]},
-    "AI Agent": {"main": [[edge("Parse AI Output")], [edge("Record AI Failure")]]},
+    "AI Agent": {"main": [[edge("Parse AI Output")], [edge("Prepare AI Failure")]]},
     "Parse AI Output": {"main": [[edge("AI Output Valid?")]]},
-    "AI Output Valid?": {"main": [[edge("Complete AI Batch")], [edge("Record AI Failure")]]},
+    "AI Output Valid?": {"main": [[edge("Vehicle Catalog?")], [edge("Prepare AI Failure")]]},
+    "Vehicle Catalog?": {"main": [[edge("Prepare Catalog Lookup")], [edge("Complete AI Batch")]]},
+    "Prepare Catalog Lookup": {"main": [[edge("Resolve Vehicle Catalog")]]},
+    "Resolve Vehicle Catalog": {"main": [[edge("Apply Catalog Decision")]]},
+    "Apply Catalog Decision": {"main": [[edge("Complete AI Batch")]]},
+    "Prepare AI Failure": {"main": [[edge("Record AI Failure")]]},
     "OpenAI Chat Model1": {"ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]},
+    "Evolution Circuit Gate": {"main": [[edge("Evolution Circuit Open?")]]},
+    "Evolution Circuit Open?": {"main": [[edge("Claim Deliveries")], []]},
     "Claim Deliveries": {"main": [[edge("Prepare Delivery")]]},
     "Prepare Delivery": {"main": [[edge("Send Delivery")]]},
     "Send Delivery": {"main": [[edge("Tag Delivery Success")], [edge("Tag Delivery Error")]]},
