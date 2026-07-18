@@ -10,7 +10,7 @@ TOKEN = os.environ.get('N8N_API_KEY')
 if not TOKEN:
     raise ValueError("N8N_API_KEY environment variable is required")
 
-WORKFLOW_ID = 'MbJkVXLDCOZ5umpp'
+WORKFLOW_ID = os.environ.get('N8N_WORKFLOW_ID', 'pW8YzDP44WpeJ6CJ')
 N8N_URL = 'https://n8n.filtreoto.online'
 
 def deploy(workflow_path='workflow.json'):
@@ -41,12 +41,27 @@ def deploy(workflow_path='workflow.json'):
         return False
     
     live_was_active = live_workflow.get('active') is True
+    credentials_req = urllib.request.Request(f'{N8N_URL}/api/v1/credentials', method='GET')
+    credentials_req.add_header('X-N8N-API-KEY', TOKEN)
+    credentials_req.add_header('accept', 'application/json')
+    with urllib.request.urlopen(credentials_req, context=context) as response:
+        credentials = json.loads(response.read().decode('utf-8')).get('data', [])
+    credential_ids = {item.get('name'): item.get('id') for item in credentials}
+    required = {'OpenAi account', 'WhatsApp State PostgreSQL', 'Evolution API'}
+    missing = sorted(required - set(credential_ids))
+    if missing:
+        print('  HATA: Eksik n8n credentials: ' + ', '.join(missing))
+        return False
+    for node in workflow.get('nodes', []):
+        for reference in (node.get('credentials') or {}).values():
+            if reference.get('name') in credential_ids:
+                reference['id'] = credential_ids[reference['name']]
     payload = {
         'name': workflow.get('name'),
         'nodes': workflow.get('nodes'),
         'connections': workflow.get('connections'),
         'settings': settings,
-        'staticData': live_workflow.get('staticData', workflow.get('staticData', {}))
+        'staticData': workflow.get('staticData', {})
     }
     
     req_data = json.dumps(payload).encode('utf-8')

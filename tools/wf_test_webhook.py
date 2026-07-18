@@ -1,163 +1,159 @@
 #!/usr/bin/env python3
-"""WhatsApp AI v12.5 - Webhook Test Betigi
-KESIN KURAL: Tek test numarasi = 905308931939 (Hasandurgun)
-Baska test numarasi kullanilamaz.
+"""Send explicitly confirmed test payloads to the live n8n webhook.
+
+This script can trigger real WhatsApp replies. It is blocked unless the target
+number is approved in both CLI args and CONFIRMED_TARGET_NUMBER.
 """
+
+from __future__ import annotations
+
+import argparse
 import json
 import os
-import urllib.request
-import ssl
 import time
+import urllib.error
+import urllib.request
 import uuid
 
-# ══════════════════════════════════════════════════════
-# KESIN KURAL: Tek test numarasi
-# ══════════════════════════════════════════════════════
-TEST_NUMBER = "905308931939"
-TEST_NAME = "Hasandurgun"
+from outbound_guard import (
+    add_outbound_confirmation_args,
+    mask_number,
+    require_outbound_confirmation,
+)
 
-DEFAULT_TOKEN = "F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS"
-WEBHOOK_URL = f"https://n8n.filtreoto.online/webhook/evolution-webhook?token={DEFAULT_TOKEN}"
-context = None
 
-def send_webhook(message_text, sender_number=TEST_NUMBER, sender_name=TEST_NAME, from_me=False, message_id=None):
-    if not message_id:
-        message_id = str(uuid.uuid4())
+WEBHOOK_BASE_URL = "https://n8n.filtreoto.online/webhook/evolution-webhook"
+DEFAULT_SENDER_NAME = "ApprovedTestCustomer"
 
-    payload = {
+SCENARIOS = {
+    "normal": [
+        ("Normal Musteri Mesaji", "Merhaba, Renault Clio 2018 icin yag filtresi ariyorum", False),
+    ],
+    "manual-on": [
+        ("Yonetici ++ Komutu", "++", True),
+    ],
+    "manual-off": [
+        ("Yonetici -- Komutu", "--", True),
+    ],
+    "customer-plus": [
+        ("Musteri ++ Yazar", "++", False),
+    ],
+    "batch": [
+        ("Batch 1", "Merhaba", False),
+        ("Batch 2", "Fiat Egea 2021", False),
+        ("Batch 3", "Yag filtresi ariyorum", False),
+    ],
+    "duplicate": [
+        ("Duplicate Ilk", "Test mesaji", False),
+        ("Duplicate Tekrar", "Ayni mesaj tekrar", False),
+    ],
+    "unclear": [
+        ("Belirsiz Mesaj", "?", False),
+    ],
+    "price": [
+        ("Fiyat Sorusu", "Fiat Egea 2021 icin yag filtresi fiyati ne kadar?", False),
+    ],
+    "vin": [
+        ("Sase Numarasi", "BMW 320d 2019 aracim var. Sase numaram WBAPL5105KA123456", False),
+    ],
+    "handoff": [
+        ("Sikayet", "Siparisim hasarli geldi, iade etmek istiyorum", False),
+    ],
+}
+
+
+def webhook_url() -> str:
+    token = os.environ.get("WEBHOOK_TOKEN")
+    if not token:
+        raise SystemExit("outbound blocked: WEBHOOK_TOKEN environment variable is required")
+    return f"{WEBHOOK_BASE_URL}?token={token}"
+
+
+def build_payload(message_text: str, sender_number: str, sender_name: str, from_me: bool, message_id: str) -> dict:
+    return {
         "data": {
             "key": {
                 "remoteJid": f"{sender_number}@s.whatsapp.net",
                 "fromMe": from_me,
-                "id": message_id
+                "id": message_id,
             },
-            "message": {
-                "conversation": message_text
-            },
-            "pushName": sender_name
+            "message": {"conversation": message_text},
+            "pushName": sender_name,
         }
     }
 
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(WEBHOOK_URL, data=data, method="POST")
-    req.add_header("Content-Type", "application/json")
+
+def send_webhook(
+    message_text: str,
+    sender_number: str,
+    sender_name: str,
+    from_me: bool = False,
+    message_id: str | None = None,
+) -> bool:
+    message_id = message_id or str(uuid.uuid4())
+    payload = build_payload(message_text, sender_number, sender_name, from_me, message_id)
+    request = urllib.request.Request(
+        webhook_url(),
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
 
     try:
-        with urllib.request.urlopen(req, context=context, timeout=10) as resp:
-            result = resp.read().decode("utf-8")
-            print(f"  [OK] {resp.status} - {result[:100]}")
+        with urllib.request.urlopen(request, context=None, timeout=10) as response:
+            result = response.read().decode("utf-8")
+            print(f"  [OK] {response.status} - {result[:100]}")
             return True
-    except urllib.error.HTTPError as e:
-        print(f"  [HATA] {e.code} - {e.read().decode()[:100]}")
+    except urllib.error.HTTPError as exc:
+        print(f"  [HATA] {exc.code} - {exc.read().decode('utf-8')[:100]}")
         return False
-    except Exception as e:
-        print(f"  [HATA] {e}")
+    except Exception as exc:
+        print(f"  [HATA] {exc}")
         return False
 
-def test_scenario(name, message, sender=TEST_NUMBER, sname=TEST_NAME, from_me=False):
-    print(f"\n{'='*50}")
-    print(f"TEST: {name}")
-    print(f"  Mesaj: {message}")
-    print(f"  Gonderen: {sname} ({sender})")
-    print(f"  fromMe: {from_me}")
-    print(f"{'='*50}")
-    send_webhook(message, sender, sname, from_me)
-    time.sleep(1)
 
-# ═══════════════════════════════════════════════════
-# TEST 1: Normal Musteri Mesaji
-# ═══════════════════════════════════════════════════
-test_scenario(
-    "1. Normal Musteri Mesaji",
-    "Merhaba, Renault Clio 2018 icin yag filtresi ariyorum"
-)
+def selected_steps(args: argparse.Namespace) -> list[tuple[str, str, bool, str]]:
+    if args.message:
+        return [("Custom Mesaj", args.message, args.from_me, str(uuid.uuid4()))]
 
-# ═══════════════════════════════════════════════════
-# TEST 2: Yonetici ++ Komutu
-# ═══════════════════════════════════════════════════
-test_scenario(
-    "2. Yonetici ++ Komutu (Manuel Mod)",
-    "++",
-    from_me=True
-)
+    scenario_names = list(SCENARIOS) if args.scenario == "all" else [args.scenario]
+    duplicate_id = str(uuid.uuid4())
+    steps: list[tuple[str, str, bool, str]] = []
+    for scenario_name in scenario_names:
+        for label, text, from_me in SCENARIOS[scenario_name]:
+            message_id = duplicate_id if scenario_name == "duplicate" else str(uuid.uuid4())
+            steps.append((label, text, from_me, message_id))
+    return steps
 
-# ═══════════════════════════════════════════════════
-# TEST 3: Yonetici -- Komutu
-# ═══════════════════════════════════════════════════
-test_scenario(
-    "3. Yonetici -- Komutu (Otomatik Mod)",
-    "--",
-    from_me=True
-)
 
-# ═══════════════════════════════════════════════════
-# TEST 4: Musteri ++ Yazar (Komut Degil)
-# ═══════════════════════════════════════════════════
-test_scenario(
-    "4. Musteri ++ Yazar (Komut Degil)",
-    "++",
-    from_me=False
-)
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    add_outbound_confirmation_args(parser)
+    parser.add_argument("--sender-name", default=DEFAULT_SENDER_NAME)
+    parser.add_argument("--message", help="Send one custom webhook message instead of a named scenario.")
+    parser.add_argument("--from-me", action="store_true", help="Mark custom message as fromMe=true.")
+    parser.add_argument(
+        "--scenario",
+        choices=["all", *SCENARIOS.keys()],
+        default="normal",
+        help="Named scenario to send. Defaults to one normal customer message.",
+    )
+    args = parser.parse_args()
 
-# ═══════════════════════════════════════════════════
-# TEST 5: Coklu Mesaj (Batch Test)
-# ═══════════════════════════════════════════════════
-print(f"\n{'='*50}")
-print("TEST: 5. Coklu Mesaj (Batch Test)")
-print("  3 mesaj 2 sn arayla gonderilecek")
-print(f"{'='*50}")
-for i, msg in enumerate(["Merhaba", "Fiat Egea 2021", "Yag filtresi ariyorum"], 1):
-    print(f"  [{i}/3] {msg}")
-    send_webhook(msg)
-    time.sleep(2)
+    target_number = require_outbound_confirmation(args)
+    steps = selected_steps(args)
 
-# ═══════════════════════════════════════════════════
-# TEST 6: Duplicate Webhook
-# ═══════════════════════════════════════════════════
-test_id = str(uuid.uuid4())
-print(f"\n{'='*50}")
-print("TEST: 6. Duplicate Webhook")
-print(f"  Ayni messageId: {test_id[:8]}...")
-print(f"{'='*50}")
-send_webhook("Test mesaji", message_id=test_id)
-time.sleep(1)
-send_webhook("Ayni mesaj tekrar", message_id=test_id)
+    print(f"Target: {mask_number(target_number)}")
+    print(f"Messages to send: {len(steps)}")
+    for index, (label, text, from_me, message_id) in enumerate(steps, 1):
+        print(f"\n[{index}/{len(steps)}] {label}")
+        print(f"  fromMe: {from_me}")
+        send_webhook(text, target_number, args.sender_name, from_me, message_id)
+        if index < len(steps):
+            time.sleep(2 if args.scenario == "batch" else 1)
 
-# ═══════════════════════════════════════════════════
-# TEST 7: Belirsiz Mesaj
-# ═══════════════════════════════════════════════════
-test_scenario(
-    "7. Belirsiz Mesaj (?)",
-    "?"
-)
+    return 0
 
-# ═══════════════════════════════════════════════════
-# TEST 8: Fiyat Sorusu
-# ═══════════════════════════════════════════════════
-test_scenario(
-    "8. Fiyat Sorusu",
-    "Fiat Egea 2021 icin yag filtresi fiyati ne kadar?"
-)
 
-# ═══════════════════════════════════════════════════
-# TEST 9: Sase Numarasi
-# ═══════════════════════════════════════════════════
-test_scenario(
-    "9. Sase Numarasi",
-    "BMW 320d 2019 aracim var. Sase numaram WBAPL5105KA123456"
-)
-
-# ═══════════════════════════════════════════════════
-# TEST 10: Sikayet (Handoff)
-# ═══════════════════════════════════════════════════
-test_scenario(
-    "10. Sikayet (Handoff Test)",
-    "Siparisim hasarli geldi, iade etmek istiyorum"
-)
-
-print(f"\n{'='*50}")
-print("TUM TESTLER GONDERILDI")
-print(f"  Test numarasi: {TEST_NUMBER} ({TEST_NAME})")
-print("  n8n Executions bolumunden sonuclari kontrol edin")
-print("  Phone A ve B'ye bildirim gelip gelmedigini kontrol edin")
-print(f"{'='*50}")
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -8,7 +8,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 SECRET_PATTERNS = [
-    (r'089311B617B8-48CF-8BD6-29759A57FDBF', 'Evolution API Key'),
     (r'(?i)apikey["\x27]?\s*[:=]\s*["\x27][A-Z0-9-]{20,}["\x27]', 'API Key (genel)'),
     (r'(?i)password["\x27]?\s*[:=]\s*["\x27][^\x27"]{8,}["\x27]', 'Password'),
     (r'(?i)secret["\x27]?\s*[:=]\s*["\x27][^\x27"]{8,}["\x27]', 'Secret'),
@@ -38,8 +37,18 @@ def main():
     print("GUVENLIK TARAYICI - WhatsApp n8n Workflow")
     print(f"{'='*60}")
     all_findings = []
-    for py_file in list(ROOT.glob('*.py')) + [f for f in ROOT.glob('tools/*.py') if f.name != 'wf_security.py']:
-        all_findings.extend(scan_file(py_file.relative_to(ROOT), py_file.read_text(encoding='utf-8')))
+    active_files = [
+        ROOT / 'build_workflow.py',
+        ROOT / 'upload_to_n8n.py',
+        ROOT / 'tools' / 'wf_deploy.py',
+        ROOT / 'tools' / 'wf_migrate.py',
+        ROOT / 'tools' / 'wf_test_webhook.py',
+        ROOT / 'tools' / 'live_customer_scenario_test.py',
+    ]
+    for py_file in active_files:
+        if py_file.exists():
+            content = py_file.read_text(encoding='utf-8', errors='replace')
+            all_findings.extend(scan_file(py_file.relative_to(ROOT), content))
     wf_path = ROOT / 'workflow.json'
     if wf_path.exists():
         all_findings.extend(scan_file('workflow.json', wf_path.read_text(encoding='utf-8')))

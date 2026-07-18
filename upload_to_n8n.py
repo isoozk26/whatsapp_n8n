@@ -7,7 +7,7 @@ token = os.environ.get('N8N_API_KEY')
 if not token:
     raise ValueError("N8N_API_KEY environment variable is required")
 
-wf_id = "g5UAfSi9bj7mRRCn"
+wf_id = os.environ.get("N8N_WORKFLOW_ID", "pW8YzDP44WpeJ6CJ")
 url = f"https://n8n.filtreoto.online/api/v1/workflows/{wf_id}"
 # Use default SSL context (verification enabled)
 context = None  # Uses default SSL context with verification
@@ -24,9 +24,7 @@ def workflow_action(action):
 with open("workflow.json", "r", encoding="utf-8") as f:
     wf_data = json.load(f)
 
-# Preserve live workflow state (queued batches, manual modes, delivery ledger)
-# across code-only deployments. Sending the freshly generated empty staticData
-# would otherwise discard messages that are waiting to be processed.
+# Read the current workflow before replacing its graph.
 get_req = urllib.request.Request(url, method="GET")
 get_req.add_header("X-N8N-API-KEY", token)
 get_req.add_header("accept", "application/json")
@@ -37,21 +35,28 @@ except Exception as e:
     raise SystemExit(f"Live workflow state could not be read; deploy aborted: {e}")
 live_was_active = live_workflow.get("active") is True
 
-# Ensure _webhookSecret exists in live staticData
-live_static = live_workflow.get("staticData", {}) or {}
-if "global" not in live_static:
-    live_static["global"] = {}
-if "_webhookSecret" not in live_static["global"]:
-    live_static["global"]["_webhookSecret"] = os.environ.get('N8N_WEBHOOK_SECRET', 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS')
-    print(f"  Injected _webhookSecret into live staticData.global")
+credentials_req = urllib.request.Request("https://n8n.filtreoto.online/api/v1/credentials", method="GET")
+credentials_req.add_header("X-N8N-API-KEY", token)
+credentials_req.add_header("accept", "application/json")
+with urllib.request.urlopen(credentials_req, context=context) as response:
+    credentials = json.loads(response.read().decode("utf-8")).get("data", [])
+credential_ids = {item.get("name"): item.get("id") for item in credentials}
+required_credentials = {"OpenAi account", "WhatsApp State PostgreSQL", "Evolution API"}
+missing = sorted(required_credentials - set(credential_ids))
+if missing:
+    raise SystemExit("Deploy aborted; missing n8n credentials: " + ", ".join(missing))
+for node in wf_data["nodes"]:
+    for reference in (node.get("credentials") or {}).values():
+        if reference.get("name") in credential_ids:
+            reference["id"] = credential_ids[reference["name"]]
 
 # Set name and exact allowed fields required by n8n PUT endpoint
 payload = {
-    "name": "WhatsApp AI - v12.5 Enterprise",
+    "name": wf_data.get("name", "WhatsApp AI - v13 PostgreSQL Outbox"),
     "nodes": wf_data["nodes"],
     "connections": wf_data["connections"],
     "settings": wf_data.get("settings", {}),
-    "staticData": live_static
+    "staticData": wf_data.get("staticData", {})
 }
 
 req_body = json.dumps(payload).encode("utf-8")
@@ -60,7 +65,7 @@ req.add_header("X-N8N-API-KEY", token)
 req.add_header("Content-Type", "application/json")
 req.add_header("accept", "application/json")
 
-print(f"Uploading v12.5 Enterprise ({len(payload['nodes'])} nodes) to n8n server ({wf_id})...")
+print(f"Uploading PostgreSQL outbox workflow ({len(payload['nodes'])} nodes) to n8n server ({wf_id})...")
 try:
     with urllib.request.urlopen(req, context=context) as resp:
         res_json = json.loads(resp.read().decode("utf-8"))
