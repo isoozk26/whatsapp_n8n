@@ -150,6 +150,17 @@ async function testPolicy() {
   assert.strictEqual(directCode.json.pauseAutomation, false);
   assert(directCode.json.cevap.includes("W 712/95"));
   assert(directCode.json.cevap.includes("güncel stok ve net fiyat"));
+
+  const noFalseCode = await runParse({
+    intent: "price_stock", caseType: "exact_code_price_stock",
+    entities: { productCodes: [{ code: "EGEA 2022 I" }, { code: "130 HP" }], vehicles: [] },
+    replyDraft: "", confidence: 0.3,
+  }, { ...context("1. [21:43] Fiat Egea 2022 için yakıt filtresi varmı\n2. [21:43] Mann filtre\n3. [21:44] 130 HP"), detectedCodes: [] });
+  assert.strictEqual(noFalseCode.json.caseType, "vehicle_based_search");
+  assert.strictEqual(noFalseCode.json.pauseAutomation, false);
+  assert.strictEqual(noFalseCode.json.entities.productCodes.length, 0);
+  assert(noFalseCode.json.cevap.includes("motor hacmi (CC)"));
+  assert(!noFalseCode.json.cevap.includes("Filtre kodu"));
 }
 
 async function testDeliveryTags() {

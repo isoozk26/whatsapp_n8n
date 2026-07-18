@@ -13,6 +13,7 @@ veritabanındaki izole `whatsapp_ai` schema'sında tutulur.
 - AI parse hatasının tanınabilir talepleri yanlışlıkla manuel moda alması düzeltildi.
 - Mesajlar 120 saniyelik havuzda birleştirilir; ürün kodu ve eksik araç bilgisi
   talepleri ayrı cevap politikalarıyla işlenir.
+- Araç modeli, üretim yılı ve HP/kW ifadeleri ürün kodu olarak sınıflandırılmaz.
 
 Ayrıntılı sürüm notları için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
 

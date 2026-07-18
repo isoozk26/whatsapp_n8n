@@ -10,6 +10,8 @@
   hale getirildi; eksik alanlar müşteriye açıkça soruluyor.
 - Düşük güvenli fakat deterministik araç taleplerinin manuel moda geçmesi engellendi.
 - Atanan kişi adındaki Türkçe karakter kodlama sorunu düzeltildi.
+- Araç modeli ve motor gücü ifadelerinin filtre kodu sanılması engellendi; araç
+  bağlamı ürün kodu sınıflandırmasından önce değerlendiriliyor.
 
 ### Mimari
 

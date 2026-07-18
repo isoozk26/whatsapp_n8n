@@ -106,7 +106,7 @@ store_context_js = r"""
 const row = $json || {};
 const messages = Array.isArray(row.messages) ? row.messages : [];
 const allMessagesText = String(row.all_messages_text || '');
-const detectedCodes = [...new Set((allMessagesText.toUpperCase().match(/\b(?:[A-Z]{1,5}[ -]?)?\d{2,}(?:[/. -][A-Z0-9]{1,8})+\b|\b[A-Z]{1,5}[ -]?\d{2,}\b/g) || [])
+const detectedCodes = [...new Set((allMessagesText.toUpperCase().match(/\b[A-Z]{1,3}[ -]\d{2,}(?:(?:[/. -])[A-Z0-9]{1,8}){0,3}\b/g) || [])
   .map(x => x.trim()).filter(x => /\d/.test(x)))].slice(0, 20);
 return { json: {
   senderNumber: String(row.sender_number || ''), senderName: String(row.sender_name || row.sender_number || ''),
@@ -202,10 +202,16 @@ const vehicleComplete = hasVin || missingVehicleFields.length === 0;
 
 let codes = Array.isArray(entities.productCodes) ? entities.productCodes : [];
 if (codes.length === 0 && Array.isArray(ctx.detectedCodes)) codes = ctx.detectedCodes.map(code => ({ code }));
-const normalizedCodes = codes.map(c => String(c?.code || c?.raw || c || '').trim()).filter(Boolean);
+const plausibleCode = /^[A-Z]{1,3}[ -]\d{2,}(?:(?:[/. -])[A-Z0-9]{1,8}){0,3}$/i;
+const normalizedCodes = codes.map(c => String(c?.code || c?.raw || c || '').trim())
+  .filter(code => plausibleCode.test(code));
+entities.productCodes = normalizedCodes.map(code => ({ code }));
 if (normalizedCodes.length > 0 && ['other','unclear','partial_code','vehicle_based_search'].includes(caseType)) {
   caseType = 'exact_code_price_stock';
   intent = 'price_stock';
+} else if (normalizedCodes.length === 0 && vehicleRequestDetected) {
+  caseType = 'vehicle_based_search';
+  intent = 'vehicle_search';
 }
 const invented = normalizedCodes.find(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));
 if (invented) {
