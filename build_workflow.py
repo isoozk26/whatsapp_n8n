@@ -280,10 +280,11 @@ if (caseType === 'vehicle_based_search') {
   title = '🔄 MUADİL / ÇAPRAZ REFERANS TALEBİ';
   requestedLines = ['✓ Üretici kataloğu doğrulaması', '✓ Muadil kod', '✓ Stok ve net fiyat'];
 } else if (caseType === 'exact_code_price_stock') {
-  title = '🔥 YÜKSEK NİYETLİ SATIŞ TALEBİ';
+  title = '🔥 SATIŞ GÖREVİ';
+  requestedLines = ['✓ Stok', '✓ Net fiyat', '✓ Uyumluluk', '✓ Bugün kargo'];
 } else if (caseType === 'non_product') {
-  title = '⚠️ ŞİKAYET / İADE / TEMSİLCİ TALEBİ';
-  requestedLines = ['✓ Talebi incele', '✓ Müşteriyle iletişime geç'];
+  title = '⚠️ MÜŞTERİ DESTEK GÖREVİ';
+  requestedLines = ['✓ Sipariş bilgisini kontrol et', '✓ Sorunu/yanlış ürünü doğrula', '✓ İade/değişim sürecini başlat', '✓ Müşteriyle iletişime geç'];
 } else if (handoffReason.includes('ürün kodu')) {
   title = '🔎 ÜRÜN UZMANI İNCELEMESİ';
 } else if (action === 'handoff') {
