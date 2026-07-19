@@ -108,8 +108,8 @@ return { json: {
 
 validate_webhook_secret_js = r"""
 const input = $json || {};
-const expected = String($vars.WEBHOOK_SECRET || '');
-const legacyEnabled = String($vars.WEBHOOK_LEGACY_QUERY_ENABLED || 'false').toLowerCase() === 'true';
+const expected = String($env.WEBHOOK_SECRET || '');
+const legacyEnabled = String($env.WEBHOOK_LEGACY_QUERY_ENABLED || 'false').toLowerCase() === 'true';
 const header = String(input.webhookToken || '');
 const query = String(input.queryToken || '');
 function constantTimeEqual(left, right) {
