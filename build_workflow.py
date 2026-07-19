@@ -232,6 +232,9 @@ entities.productCodes = normalizedCodes.map(code => ({ code }));
 if (normalizedCodes.length > 0 && ['other','unclear','partial_code','vehicle_based_search'].includes(caseType)) {
   caseType = 'exact_code_price_stock';
   intent = 'price_stock';
+  action = 'reply';
+  pauseAutomation = false;
+  handoffReason = '';
 } else if (normalizedCodes.length === 0 && vehicleRequestDetected) {
   caseType = 'vehicle_based_search';
   intent = 'vehicle_search';
@@ -271,7 +274,7 @@ if (caseType === 'vehicle_based_search' || caseType === 'exact_code_compatibilit
   }
 } else if (caseType === 'exact_code_price_stock') {
   notifyAdmins = true;
-  reply = `Filtre kodu ${normalizedCodes.join(', ')} için güncel stok ve net fiyat kontrol edilerek paylaşılacaktır.`;
+  reply = `📦 Filtre kodu ${normalizedCodes.join(', ')} için güncel stok ve net fiyat kontrol edilerek paylaşılacaktır. ✅`;
 } else if (caseType === 'cross_reference') {
   notifyAdmins = true;
   reply ||= 'Muadil parça talebiniz alındı. Üretici kataloğundan doğrulanarak stok ve fiyat bilgisi paylaşılacaktır.';
