@@ -7,6 +7,7 @@ import sys
 import urllib.request
 from pathlib import Path
 import uuid
+from urllib.error import HTTPError
 
 BASE = os.environ.get("N8N_BASE_URL", "https://n8n.filtreoto.online").rstrip("/")
 API_KEY = os.environ.get("N8N_API_KEY")
@@ -82,6 +83,7 @@ def main():
                 "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"migration/{webhook_id}/{index}")),
                 "name": name, "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
                 "position": [500 + (index % 4) * 260, 300 + (index // 4) * 180],
+                "alwaysOutputData": True,
                 "credentials": {"postgres": {"id": credential["id"], "name": credential["name"]}}}
         nodes.append(node)
         connections[previous] = {"main": [[{"node": name, "type": "main", "index": 0}]]}
@@ -98,8 +100,12 @@ def main():
         api(f"/api/v1/workflows/{workflow_id}/activate", "POST", {})
         request = urllib.request.Request(f"{BASE}/webhook/{webhook_path}", data=b"{}", method="POST")
         request.add_header("Content-Type", "application/json")
-        with urllib.request.urlopen(request, timeout=180) as response:
-            result = response.read().decode("utf-8")
+        try:
+            with urllib.request.urlopen(request, timeout=180) as response:
+                result = response.read().decode("utf-8")
+        except HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"migration webhook HTTP {error.code}: {detail[:2000]}") from error
         print(f"Applied: {', '.join(path.name for path in files)} ({len(statements)} SQL statements)")
         print(result[:500])
     finally:
