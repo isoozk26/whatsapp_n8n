@@ -294,6 +294,20 @@ if (unsafeClaim) {
   notifyAdmins = true;
 }
 if (!reply) reply = 'Talebiniz alındı. Yetkilimiz kontrol ederek size bilgi verecektir.';
+const emojiForCase = {
+  exact_code_price_stock: '📦',
+  exact_code_compatibility: '🛠️',
+  cross_reference: '🔄',
+  partial_code: '🔎',
+  vehicle_based_search: '🚗',
+  greeting: '👋',
+  non_product: '🤝',
+  unclear: '📝',
+  other: '📌'
+};
+const replyEmoji = emojiForCase[caseType] || '📌';
+if (!/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u.test(reply)) reply = `${replyEmoji} ${reply}`;
+if (!/[✅✔️]/u.test(reply) && ['exact_code_price_stock','exact_code_compatibility','cross_reference','vehicle_based_search'].includes(caseType)) reply = `${reply} ✅`;
 const escapedName = String(ctx.senderName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 if (escapedName) reply = reply.replace(new RegExp(`^(Merhaba|Selam)\\s+${escapedName}\\s*(?:bey|hanım)?[,!:.]*\\s*`, 'i'), '$1, ');
 reply = reply.replace(/\s+/g, ' ').trim();
@@ -424,6 +438,8 @@ let ctx = $json || {};
 if (!ctx.senderNumber || !ctx.batchToken) {
   try { ctx = { ...$('Store Context').item.json, ...ctx }; } catch (_) {}
 }
+const catalogEmoji = catalog.status === 'unique' ? '✅' : (catalog.status === 'missing_required' || catalog.status === 'ambiguous' || catalog.status === 'no_match' ? '🔎' : '📌');
+if (!/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u.test(reply)) reply = `${catalogEmoji} ${reply}`;
 return { json: {
   senderNumber: String(ctx.senderNumber || ''), batchToken: String(ctx.batchToken || ''),
   errorCode: String(ctx.parseFailureCode || ctx.error?.code || 'ai_error'),
