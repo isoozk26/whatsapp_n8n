@@ -106,6 +106,25 @@ return { json: {
 """.strip()
 
 
+validate_webhook_secret_js = r"""
+const input = $json || {};
+const expected = String($env.WEBHOOK_SECRET || '');
+const legacyEnabled = String($env.WEBHOOK_LEGACY_QUERY_ENABLED || 'false').toLowerCase() === 'true';
+const header = String(input.webhookToken || '');
+const query = String(input.queryToken || '');
+function constantTimeEqual(left, right) {
+  if (!left || !right || left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i += 1) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return diff === 0;
+}
+const headerValid = Boolean(expected) && constantTimeEqual(header, expected);
+const queryValid = legacyEnabled && Boolean(expected) && constantTimeEqual(query, expected);
+const authorized = headerValid || queryValid;
+return { json: { ...input, authorized, authSource: headerValid ? 'header' : (queryValid ? 'query' : 'unauthorized'), action: authorized ? null : 'unauthorized', authFailureReason: expected ? 'invalid_auth' : 'secret_not_configured' } };
+""".strip()
+
+
 store_context_js = r"""
 const row = $json || {};
 const messages = Array.isArray(row.messages) ? row.messages : [];
@@ -442,7 +461,8 @@ nodes = [
         "id": node_id("Webhook1"), "name": "Webhook1", "type": "n8n-nodes-base.webhook",
         "typeVersion": 2, "position": [120, 300], "webhookId": "d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f7a",
     },
-    if_node("Webhook Auth", "={{ $json.action !== 'unauthorized' }}", [1220, 240]),
+    code_node("Validate Webhook Secret", validate_webhook_secret_js, [560, 160]),
+    if_node("Webhook Auth", "={{ $json.authorized === true }}", [780, 160]),
     {
         "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: false, error: 'unauthorized' } }}", "options": {"responseCode": 401}},
         "id": node_id("Respond Unauthorized"), "name": "Respond Unauthorized", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [560, 440],
@@ -457,7 +477,7 @@ nodes = [
         "Ingest Message",
         "SELECT * FROM whatsapp_ai.ingest_message($1,$2,$3,$4::jsonb,$5,$6,$7)",
         "={{ [ $json.messageId, $json.senderNumber, $json.senderName, JSON.stringify($json.message), $json.command, $json.webhookToken, $json.authSource ] }}",
-        [780, 240],
+        [1000, 240],
     ),
     {
         "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, action: $json.action || 'queued' } }}", "options": {"responseCode": 202}},
@@ -533,10 +553,11 @@ nodes = [
 
 connections = {
     "Webhook1": {"main": [[edge("Normalize Payload")]]},
-    "Normalize Payload": {"main": [[edge("Valid Event?")]]},
+    "Normalize Payload": {"main": [[edge("Validate Webhook Secret")]]},
+    "Validate Webhook Secret": {"main": [[edge("Webhook Auth")]]},
+    "Webhook Auth": {"main": [[edge("Valid Event?")], [edge("Respond Unauthorized")]]},
     "Valid Event?": {"main": [[edge("Ingest Message")], [edge("Respond Ignored")]]},
-    "Ingest Message": {"main": [[edge("Webhook Auth")]]},
-    "Webhook Auth": {"main": [[edge("Respond Accepted")], [edge("Respond Unauthorized")]]},
+    "Ingest Message": {"main": [[edge("Respond Accepted")]]},
     "Schedule Trigger": {"main": [[edge("OpenAI Circuit Gate"), edge("Evolution Circuit Gate")]]},
     "OpenAI Circuit Gate": {"main": [[edge("OpenAI Circuit Open?")]]},
     "OpenAI Circuit Open?": {"main": [[edge("Claim Ready Batches")], []]},
@@ -567,8 +588,8 @@ workflow = {
     "connections": connections,
     "settings": {
         "executionOrder": "v1", "timezone": "Europe/Istanbul",
-        "saveDataErrorExecution": "all", "saveDataSuccessExecution": "none",
-        "saveExecutionProgress": False, "executionTimeout": 600,
+        "saveDataErrorExecution": "all", "saveDataSuccessExecution": "all",
+        "saveExecutionProgress": True, "executionTimeout": 600,
     },
     "staticData": {"node:Schedule Trigger": {"recurrenceRules": []}, "global": {}},
     "pinData": {}, "active": False,

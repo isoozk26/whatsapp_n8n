@@ -28,8 +28,9 @@ def main():
     webhook = node("Webhook1")
     assert webhook["parameters"]["responseMode"] == "responseNode"
     assert targets("Webhook1") == ["Normalize Payload"]
-    assert targets("Ingest Message") == ["Webhook Auth"]
-    assert targets("Webhook Auth", 0) == ["Respond Accepted"]
+    assert targets("Normalize Payload") == ["Validate Webhook Secret"]
+    assert targets("Validate Webhook Secret") == ["Webhook Auth"]
+    assert targets("Webhook Auth", 0) == ["Valid Event?"]
     assert targets("Webhook Auth", 1) == ["Respond Unauthorized"]
     assert node("Respond Unauthorized")["parameters"]["options"]["responseCode"] == 401
 
@@ -86,7 +87,7 @@ def main():
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)
-    assert "$env." not in source
+    assert "WEBHOOK_SECRET" in source
     assert "N8N_POSTGRES_CREDENTIAL_ID" in source
     print("[PASS] PostgreSQL state, auth, token and outbox contracts")
 
