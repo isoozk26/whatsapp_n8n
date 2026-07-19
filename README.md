@@ -39,6 +39,28 @@ Build bütün JavaScript Code node'larını sözdizimi açısından kontrol eder
 ve davranış testleri webhook auth, payload normalizasyonu, token-aware batch claim,
 AI hata sınırı ve kanal bazlı outbox sözleşmelerini doğrular.
 
+## Codex TypeScript tools and MCP
+
+`codex-tools/` exposes five read-only tools with one shared `Finding`/`ToolResult` contract:
+
+- `workflow_validate_json`
+- `workflow_validate_graph`
+- `workflow_check_code_nodes`
+- `workflow_check_expressions`
+- `release_gate`
+
+Install and verify locally:
+
+```powershell
+npm install
+npm run build:tools
+npm run test:tools
+npm run release:gate
+npm run test:mcp
+```
+
+For trusted repository sessions, `.codex/config.toml` registers the stdio MCP server automatically. These tools do not deploy, mutate production data, or send messages.
+
 ## PostgreSQL migration
 
 n8n'in mevcut PostgreSQL bağlantısını `WHATSAPP_POSTGRES_URL` olarak tanımlayın:

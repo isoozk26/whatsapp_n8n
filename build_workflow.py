@@ -417,6 +417,9 @@ if (policy.askVehicleInfo) {
   notifyAdmins = true;
 }
 
+const catalogEmoji = catalog.status === 'unique' ? '\u2705' : (catalog.status === 'missing_required' || catalog.status === 'ambiguous' || catalog.status === 'no_match' ? '\ud83d\udd0e' : '\ud83d\udccc');
+if (!/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u.test(reply)) reply = `${catalogEmoji} ${reply}`;
+
 let finalBildirim = String(policy.bildirim || '');
 if (reply !== policy.cevap && finalBildirim.includes(policy.cevap)) {
   finalBildirim = finalBildirim.replace(policy.cevap, reply);
@@ -438,8 +441,6 @@ let ctx = $json || {};
 if (!ctx.senderNumber || !ctx.batchToken) {
   try { ctx = { ...$('Store Context').item.json, ...ctx }; } catch (_) {}
 }
-const catalogEmoji = catalog.status === 'unique' ? '✅' : (catalog.status === 'missing_required' || catalog.status === 'ambiguous' || catalog.status === 'no_match' ? '🔎' : '📌');
-if (!/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u.test(reply)) reply = `${catalogEmoji} ${reply}`;
 return { json: {
   senderNumber: String(ctx.senderNumber || ''), batchToken: String(ctx.batchToken || ''),
   errorCode: String(ctx.parseFailureCode || ctx.error?.code || 'ai_error'),

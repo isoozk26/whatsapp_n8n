@@ -48,6 +48,10 @@ def main():
     assert targets("Vehicle Catalog?", 1) == ["Complete AI Batch"]
     assert targets("Apply Catalog Decision") == ["Complete AI Batch"]
     parse = node("Parse AI Output")["parameters"]["jsCode"]
+    ai_failure = node("Prepare AI Failure")["parameters"]["jsCode"]
+    catalog_decision = node("Apply Catalog Decision")["parameters"]["jsCode"]
+    assert "catalogEmoji" not in ai_failure
+    assert "catalogEmoji" in catalog_decision
     for forbidden in ("$getWorkflowStaticData", "_deliveryLedger", "_batches", "_adminNotifications"):
         assert forbidden not in parse
 

@@ -1,0 +1,27 @@
+{
+  "name": "whatsapp-ai-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "whatsapp-ai-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build:tools": "tsc -p tsconfig.json",
+    "test:tools": "tsx --test codex-tools/tests/*.test.ts",
+    "test:mcp": "npm run build:tools && tsx codex-tools/tests/mcp-smoke.ts",
+    "tool": "tsx codex-tools/src/cli.ts",
+    "audit:workflow": "tsx codex-tools/src/cli.ts workflow_validate_json",
+    "release:gate": "tsx codex-tools/src/cli.ts release_gate",
+    "mcp:start": "tsx codex-tools/src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

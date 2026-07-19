@@ -30,3 +30,13 @@ Evolution webhook → normalize → authenticate → validate event → PostgreS
 ## Change and release process
 
 Inspect first, patch narrowly, run syntax/contract/behavior/security/outbound checks, then report exact results. Before production deployment, verify credentials, webhook headers, migration status, active workflow and execution settings. Do not declare success without evidence.
+
+## Local deterministic tools
+
+The project MCP server is configured in `.codex/config.toml` and exposes read-only workflow checks. Before proposing a workflow deployment, run `release_gate`. A `BLOCKED` decision is a release blocker; do not bypass or weaken the failing check.
+
+```text
+npm install
+npm run release:gate
+npm run test:mcp
+```

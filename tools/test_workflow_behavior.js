@@ -207,6 +207,7 @@ async function testCatalogPolicy() {
   });
   assert(missing.json.cevap.includes("motor"));
   assert(missing.json.cevap.includes("şasi"));
+  assert(missing.json.cevap.includes("🔎"));
   assert.strictEqual(missing.json.notifyAdmins, false);
   assert.strictEqual(missing.json.expectsReply, true);
 
@@ -214,8 +215,21 @@ async function testCatalogPolicy() {
     policy: base, catalog: { status: "unique", candidateCount: 1, vehicle: { brand: "Fiat", model: "Egea", engine: "1.6" } },
   });
   assert(unique.json.cevap.includes("katalogda doğrulandı"));
+  assert(unique.json.cevap.includes("✅"));
   assert.strictEqual(unique.json.notifyAdmins, true);
   assert(!unique.json.cevap.match(/\b[A-Z]\s?\d{3,}/));
+}
+
+async function testAiFailurePreparation() {
+  const result = await execute(codeOf("Prepare AI Failure"), {
+    senderNumber: "905320000001",
+    batchToken: "00000000-0000-0000-0000-000000000001",
+    parseFailureCode: "ai_schema_invalid",
+    parseFailureMessage: "fixture failure",
+  });
+  assert.strictEqual(result.json.errorCode, "ai_schema_invalid");
+  assert.strictEqual(result.json.errorMessage, "fixture failure");
+  assert.strictEqual(result.json.senderNumber, "905320000001");
 }
 
 (async () => {
@@ -223,5 +237,6 @@ async function testCatalogPolicy() {
   await testPolicy();
   await testDeliveryTags();
   await testCatalogPolicy();
+  await testAiFailurePreparation();
   console.log("[PASS] normalize, policy, guardrail and delivery behaviors");
 })().catch((error) => { console.error("[FAIL]", error.stack || error); process.exit(1); });

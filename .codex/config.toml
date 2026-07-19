@@ -1,0 +1,15 @@
+[mcp_servers.whatsapp_ai]
+command = "node"
+args = ["node_modules/tsx/dist/cli.mjs", "codex-tools/src/index.ts"]
+cwd = ".."
+enabled = true
+required = false
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+enabled_tools = [
+  "workflow_validate_json",
+  "workflow_validate_graph",
+  "workflow_check_code_nodes",
+  "workflow_check_expressions",
+  "release_gate",
+]

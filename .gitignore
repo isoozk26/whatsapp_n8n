@@ -8,9 +8,14 @@
 !ops_workflow.json
 !build_workflow.py
 !build_ops_workflow.py
+!package.json
+!package-lock.json
+!tsconfig.json
 !implementation_plan.md
 !tools/
 !tools/*.py
+!tools/*.ts
+!tools/package.json
 !README.md
 
 # Ignore n8n backup files and system generated files
@@ -19,3 +24,5 @@
 .env_token
 __pycache__/
 !.checkpoint_status.json
+node_modules/
+dist/
