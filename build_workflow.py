@@ -348,7 +348,10 @@ let reply = String(policy.cevap || '');
 let notifyAdmins = Boolean(policy.notifyAdmins);
 let pauseAutomation = Boolean(policy.pauseAutomation);
 let expectsReply = Boolean(policy.expectsReply);
-if (catalog.status === 'missing_required') {
+if (policy.askVehicleInfo) {
+  // Do not overwrite AI's question about missing vehicle info
+  reply = policy.cevap;
+} else if (catalog.status === 'missing_required') {
   reply = `Do\u011fru filtreyi belirleyebilmemiz i\u00e7in l\u00fctfen ${missing.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
   notifyAdmins = false; pauseAutomation = false; expectsReply = true;
 } else if (catalog.status === 'ambiguous') {
@@ -364,11 +367,17 @@ if (catalog.status === 'missing_required') {
   reply = 'Ara\u00e7 bilgileri katalogda kesin e\u015fle\u015fmedi. \u00dcr\u00fcn uzman\u0131m\u0131z uygun par\u00e7ay\u0131 kontrol ederek bilgi verecektir.';
   notifyAdmins = true;
 }
+
+let finalBildirim = String(policy.bildirim || '');
+if (reply !== policy.cevap && finalBildirim.includes(policy.cevap)) {
+  finalBildirim = finalBildirim.replace(policy.cevap, reply);
+}
+
 const vehicle = catalog.vehicle || {};
 const adminCatalog = `\n\nKatalog Kontrol\nDurum: ${catalog.status || 'bilinmiyor'}\nAday: ${Number(catalog.candidateCount || 0)}\nAra\u00e7: ${[vehicle.brand, vehicle.model, vehicle.engine].filter(Boolean).join(' / ') || 'Belirtilmedi'}${vehicle.vin ? `\n\u015easi: ${vehicle.vin}` : ''}`;
 return { json: {
   ...policy, cevap: reply, notifyAdmins, pauseAutomation, expectsReply,
-  bildirim: String(policy.bildirim || '') + adminCatalog,
+  bildirim: finalBildirim + adminCatalog,
   fingerprint: `${policy.fingerprint || 'vehicle'}:catalog:${catalog.status || 'unknown'}`,
   catalog
 } };
