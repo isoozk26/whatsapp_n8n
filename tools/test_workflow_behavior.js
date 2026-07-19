@@ -174,6 +174,16 @@ async function testPolicy() {
   assert.strictEqual(noFalseCode.json.entities.productCodes.length, 0);
   assert(noFalseCode.json.cevap.includes("motor hacmi (CC)"));
   assert(!noFalseCode.json.cevap.includes("Filtre kodu"));
+
+  const missingCode = await runParse({
+    intent: "price_stock", caseType: "exact_code_price_stock",
+    entities: { productCodes: [], vehicles: [] }, replyDraft: "", confidence: 0.95,
+  }, { ...context("Mann c 35 050 filtre varmi"), detectedCodes: [] });
+  assert.strictEqual(missingCode.json.caseType, "partial_code");
+  assert(!missingCode.json.cevap.includes("güncel stok"));
+  assert(missingCode.json.cevap.includes("kodunun tamamını"));
+  assert(missingCode.json.bildirim.includes("ÜRÜN KODU / BİLGİ TAMAMLAMA"));
+  assert(!missingCode.json.bildirim.includes("SATIŞ GÖREVİ"));
 }
 
 async function testDeliveryTags() {

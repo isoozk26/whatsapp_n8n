@@ -216,6 +216,12 @@ if (normalizedCodes.length > 0 && ['other','unclear','partial_code','vehicle_bas
 } else if (normalizedCodes.length === 0 && vehicleRequestDetected) {
   caseType = 'vehicle_based_search';
   intent = 'vehicle_search';
+} else if (caseType === 'exact_code_price_stock' && normalizedCodes.length === 0) {
+  // Never promise a code-based stock/price lookup when no code was extracted.
+  caseType = 'partial_code';
+  intent = 'other';
+  reply = '';
+  notifyAdmins = false;
 }
 const invented = normalizedCodes.find(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));
 if (invented) {
@@ -289,6 +295,9 @@ if (caseType === 'vehicle_based_search') {
 } else if (caseType === 'non_product') {
   title = intent === 'return_complaint' ? 'ŞİKAYET / İADE' : '⚠️ MÜŞTERİ DESTEK GÖREVİ';
   requestedLines = ['✓ Sipariş bilgisini kontrol et', '✓ Sorunu/yanlış ürünü doğrula', '✓ İade/değişim sürecini başlat', '✓ Müşteriyle iletişime geç'];
+} else if (caseType === 'partial_code') {
+  title = 'ÜRÜN KODU / BİLGİ TAMAMLAMA';
+  requestedLines = ['✓ Tam ürün kodu', '✓ Araç marka/model', '✓ Üretim yılı ve motor'];
 } else if (handoffReason.includes('ürün kodu')) {
   title = '🔎 ÜRÜN UZMANI İNCELEMESİ';
 } else if (action === 'handoff') {
