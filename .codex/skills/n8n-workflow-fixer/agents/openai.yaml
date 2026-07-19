@@ -1,0 +1,4 @@
+interface:
+  display_name: "n8n Workflow Fixer"
+  short_description: "Safely fix n8n workflows and generated artifacts."
+  default_prompt: "Use $n8n-workflow-fixer to diagnose and fix this workflow issue."

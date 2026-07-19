@@ -1,0 +1,4 @@
+interface:
+  display_name: "WhatsApp AI Reviewer"
+  short_description: "Audit WhatsApp AI workflows and production risks."
+  default_prompt: "Use $whatsapp-ai-reviewer to audit this WhatsApp AI project end to end."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Production Release Gate"
+  short_description: "Verify and release WhatsApp AI changes safely."
+  default_prompt: "Use $production-release-gate to verify and release this change safely."

@@ -4,7 +4,13 @@ This repository contains the FiltreOto WhatsApp AI system: n8n, PostgreSQL, Evol
 
 ## Session startup
 
-At the beginning of every repository task, read this file and `.codex/skills/whatsapp-ai-reviewer/SKILL.md`. Use the skill for audits, incident analysis, workflow changes and release checks. Re-read relevant migrations and the workflow builder before changing behavior.
+At the beginning of every repository task, read this file, then load the matching project skill:
+
+- Audits and incident analysis: `.codex/skills/whatsapp-ai-reviewer/SKILL.md`
+- Workflow, SQL or message-policy fixes: `.codex/skills/n8n-workflow-fixer/SKILL.md`
+- Migration, deploy, production verification or two-remote push: `.codex/skills/production-release-gate/SKILL.md`
+
+Use the smallest matching skill set. Re-read relevant migrations and the workflow builder before changing behavior.
 
 ## Critical flow
 
