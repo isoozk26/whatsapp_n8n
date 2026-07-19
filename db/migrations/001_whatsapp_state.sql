@@ -316,17 +316,8 @@ BEGIN
         ON CONFLICT (batch_token, channel) DO NOTHING;
     END IF;
 
-    IF p_pause_automation THEN
-        INSERT INTO whatsapp_ai.manual_modes(sender_number, enabled)
-        VALUES (p_sender_number, true)
-        ON CONFLICT (sender_number) DO UPDATE
-        SET enabled = true, updated_at = clock_timestamp();
-    END IF;
-
     UPDATE whatsapp_ai.batches
-    SET status = CASE WHEN p_pause_automation THEN 'manual'
-                      WHEN jsonb_array_length(v_pending) > 0 THEN 'pending'
-                      ELSE 'pending' END,
+    SET status = 'pending',
         processing_messages = '[]'::jsonb,
         processing_token = NULL,
         processing_started_at = NULL,
@@ -366,13 +357,11 @@ BEGIN
 
     IF v_attempt >= 3 THEN
         UPDATE whatsapp_ai.batches
-        SET status = 'manual', ai_attempt_count = v_attempt,
+        SET status = 'pending', pending_messages = v_messages || pending_messages,
+            ai_attempt_count = 0, first_message_at = NULL,
             last_error_code = p_error_code, last_error = left(p_error, 2000),
             processing_token = NULL, processing_started_at = NULL, updated_at = clock_timestamp()
         WHERE sender_number = p_sender_number AND processing_token = p_batch_token;
-        INSERT INTO whatsapp_ai.manual_modes(sender_number, enabled)
-        VALUES (p_sender_number, true)
-        ON CONFLICT (sender_number) DO UPDATE SET enabled = true, updated_at = clock_timestamp();
         IF p_admin_phone_a <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), p_batch_token, p_sender_number, 'phone_a', p_admin_phone_a,
