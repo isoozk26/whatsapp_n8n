@@ -4,6 +4,9 @@ import json
 import sys
 import re
 import hashlib
+import subprocess
+import tempfile
+from pathlib import Path
 
 def validate(path="workflow.json"):
     errors = []
@@ -57,13 +60,18 @@ def validate(path="workflow.json"):
                     errors.append(
                         f"'{name}' runOnceForEachItem modunda öğe dizisi döndürüyor"
                     )
-            opens = js.count("{") + js.count("(") + js.count("[")
-            closes = js.count("}") + js.count(")") + js.count("]")
-            if opens != closes:
-                warnings.append(f"'{name}' parantez dengesiz: open={opens} close={closes}")
             backticks = js.count("`")
             if backticks % 2 != 0:
                 warnings.append(f"'{name}' tek backtick: {backticks}")
+            with tempfile.NamedTemporaryFile("w", suffix=".js", encoding="utf-8", delete=False) as handle:
+                handle.write(js)
+                js_path = handle.name
+            try:
+                checked = subprocess.run(["node", "--check", js_path], capture_output=True, text=True)
+                if checked.returncode:
+                    errors.append(f"'{name}' JavaScript syntax hatası: {checked.stderr.strip()}")
+            finally:
+                Path(js_path).unlink(missing_ok=True)
             js_checksums[name] = hashlib.md5(js.encode()).hexdigest()[:8]
 
     # Baglanti hatalari

@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS whatsapp_ai.settings (
     updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 
+INSERT INTO whatsapp_ai.settings(key, value)
+VALUES ('webhook_legacy_query_enabled', 'true')
+ON CONFLICT (key) DO NOTHING;
+
 UPDATE whatsapp_ai.settings
 SET value = chr(304) || 'smail ' || chr(214) || 'zkaracan',
     updated_at = clock_timestamp()
@@ -99,7 +103,8 @@ CREATE OR REPLACE FUNCTION whatsapp_ai.ingest_message(
     p_sender_name text,
     p_message jsonb,
     p_command text DEFAULT NULL,
-    p_webhook_token text DEFAULT NULL
+    p_webhook_token text DEFAULT NULL,
+    p_auth_source text DEFAULT 'query'
 ) RETURNS TABLE(action text, pending_count integer, reason text)
 LANGUAGE plpgsql
 AS $$
@@ -109,7 +114,11 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM whatsapp_ai.settings
         WHERE key = 'webhook_token' AND value <> '' AND value = COALESCE(p_webhook_token, '')
+          AND (p_auth_source = 'header' OR COALESCE((SELECT value FROM whatsapp_ai.settings
+              WHERE key = 'webhook_legacy_query_enabled'), 'false') = 'true')
     ) THEN
+        INSERT INTO whatsapp_ai.system_events(event_type, details)
+        VALUES ('webhook_auth_failure', jsonb_build_object('authSource', COALESCE(p_auth_source, 'unknown')));
         RETURN QUERY SELECT 'unauthorized'::text, 0, 'invalid_token'::text;
         RETURN;
     END IF;
@@ -471,10 +480,52 @@ BEGIN
     DELETE FROM whatsapp_ai.unclear_counts WHERE expires_at < clock_timestamp();
     DELETE FROM whatsapp_ai.system_events WHERE created_at < clock_timestamp() - interval '30 days';
     GET DIAGNOSTICS v_events = ROW_COUNT;
-    UPDATE whatsapp_ai.deliveries
-    SET status = 'failed', next_attempt_at = clock_timestamp(), updated_at = clock_timestamp()
-    WHERE status = 'sending' AND claimed_at < clock_timestamp() - interval '10 minutes';
-    RETURN jsonb_build_object('messages', v_messages, 'events', v_events);
+    RETURN jsonb_build_object('messages', v_messages, 'events', v_events,
+                              'staleDeliveries', whatsapp_ai.recover_stale_deliveries());
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION whatsapp_ai.recover_stale_deliveries(
+    p_age interval DEFAULT interval '2 minutes'
+) RETURNS jsonb
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_recovered integer := 0;
+    v_dead integer := 0;
+BEGIN
+    WITH stale AS (
+        SELECT id, batch_token, sender_number, channel, attempt_count
+        FROM whatsapp_ai.deliveries
+        WHERE status = 'sending'
+          AND claimed_at IS NOT NULL
+          AND claimed_at < clock_timestamp() - p_age
+        FOR UPDATE SKIP LOCKED
+    ), moved AS (
+        UPDATE whatsapp_ai.deliveries d
+        SET status = CASE WHEN d.attempt_count >= 3 THEN 'dead' ELSE 'failed' END,
+            next_attempt_at = clock_timestamp(),
+            claimed_at = NULL,
+            last_error = CASE WHEN d.attempt_count >= 3
+                              THEN 'stale_delivery_dead_lettered'
+                              ELSE 'stale_delivery_recovered' END,
+            updated_at = clock_timestamp()
+        FROM stale s
+        WHERE d.id = s.id
+        RETURNING d.*
+    )
+    SELECT count(*) FILTER (WHERE status = 'failed'),
+           count(*) FILTER (WHERE status = 'dead')
+    INTO v_recovered, v_dead
+    FROM moved;
+
+    IF v_recovered + v_dead > 0 THEN
+        INSERT INTO whatsapp_ai.system_events(event_type, details)
+        VALUES ('stale_delivery_recovery', jsonb_build_object(
+            'recovered', v_recovered, 'dead', v_dead, 'ageSeconds', extract(epoch FROM p_age)
+        ));
+    END IF;
+    RETURN jsonb_build_object('recovered', v_recovered, 'dead', v_dead);
 END;
 $$;
 

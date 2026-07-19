@@ -27,6 +27,7 @@ jobs:
         with: {node-version: "20"}
       - run: python build_workflow.py
       - run: python build_ops_workflow.py
+      - run: python tools/check_workflow_drift.py
       - run: python tools/test_workflow_contract.py
       - run: node tools/test_workflow_behavior.js
       - run: python tools/test_outbound_guard.py
@@ -34,4 +35,5 @@ jobs:
       - run: python tools/wf_security.py
       - run: psql -h localhost -U postgres -d whatsapp_test -f db/migrations/001_whatsapp_state.sql
       - run: psql -h localhost -U postgres -d whatsapp_test -f db/migrations/002_catalog_resilience.sql
+      - run: psql -h localhost -U postgres -d whatsapp_test -f db/migrations/003_delivery_metrics.sql
       - run: psql -h localhost -U postgres -d whatsapp_test -f db/tests/catalog_resilience.sql

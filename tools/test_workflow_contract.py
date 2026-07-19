@@ -66,8 +66,11 @@ def main():
 
     for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events"):
         assert f"whatsapp_ai.{table}" in SQL
-    for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state"):
+    for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report"):
         assert f"FUNCTION whatsapp_ai.{function}" in SQL
+    assert "x-webhook-secret" in normalize
+    assert "webhook_legacy_query_enabled" in SQL
+    assert "first_attempt_at" in SQL and "latency_ms" in SQL
     assert "FOR UPDATE SKIP LOCKED" in SQL
     assert SQL.count("processing_token = p_batch_token") >= 4
     assert "UNIQUE (batch_token, channel)" in SQL

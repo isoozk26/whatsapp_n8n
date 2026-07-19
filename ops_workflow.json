@@ -12,6 +12,47 @@
           ]
         }
       },
+      "id": "9ba4a219-fdf4-5e2e-8431-0131640ee7e9",
+      "name": "Delivery Recovery Every Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        120,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.recover_stale_deliveries() AS result",
+        "options": {}
+      },
+      "id": "93c853d1-26d3-580f-a214-6f24ba848979",
+      "name": "Recover Stale Deliveries",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        400,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
       "id": "c22a2e34-de3e-5c5a-a7df-5c23ebe752b0",
       "name": "Queue Monitor Every Minute",
       "type": "n8n-nodes-base.scheduleTrigger",
@@ -167,6 +208,17 @@
     }
   ],
   "connections": {
+    "Delivery Recovery Every Minute": {
+      "main": [
+        [
+          {
+            "node": "Recover Stale Deliveries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Queue Monitor Every Minute": {
       "main": [
         [

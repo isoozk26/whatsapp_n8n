@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-OUTPUT = ROOT / "workflow.json"
+OUTPUT = Path(os.environ.get("N8N_WORKFLOW_OUTPUT", str(ROOT / "workflow.json")))
 POSTGRES_ID = os.environ.get("N8N_POSTGRES_CREDENTIAL_ID", "whatsapp-state-postgres")
 POSTGRES_NAME = os.environ.get("N8N_POSTGRES_CREDENTIAL_NAME", "WhatsApp State PostgreSQL")
 EVOLUTION_ID = os.environ.get("N8N_EVOLUTION_CREDENTIAL_ID", "evolution-api")
@@ -73,7 +73,10 @@ def if_node(name, expression, position):
 normalize_js = r"""
 const root = $json || {};
 const payload = root.body?.body?.data || root.body?.data || null;
+const headers = root.headers || {};
+const headerSecret = String(headers['x-webhook-secret'] || headers['x-evolution-webhook-secret'] || '');
 const queryToken = String(root.query?.token || '');
+const webhookToken = headerSecret || queryToken;
 const rawJid = String(payload?.key?.remoteJid || '');
 const senderNumber = rawJid.replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/g, '');
 const text = String(payload?.message?.conversation
@@ -94,7 +97,8 @@ const message = {
   mimetype: payload?.message?.imageMessage?.mimetype || null
 };
 return { json: {
-  valid, queryToken, senderNumber, senderName: String(payload?.pushName || senderNumber),
+  valid, queryToken, webhookToken, authSource: headerSecret ? 'header' : 'query',
+  senderNumber, senderName: String(payload?.pushName || senderNumber),
   messageId, fromMe, command, rawJid, message,
   commandMessageId: messageId, commandRemoteJid: rawJid,
   commandParticipant: String(payload?.key?.participant || '')
@@ -283,7 +287,7 @@ if (caseType === 'vehicle_based_search') {
   title = '🔥 SATIŞ GÖREVİ';
   requestedLines = ['✓ Stok', '✓ Net fiyat', '✓ Uyumluluk', '✓ Bugün kargo'];
 } else if (caseType === 'non_product') {
-  title = '⚠️ MÜŞTERİ DESTEK GÖREVİ';
+  title = intent === 'return_complaint' ? 'ŞİKAYET / İADE' : '⚠️ MÜŞTERİ DESTEK GÖREVİ';
   requestedLines = ['✓ Sipariş bilgisini kontrol et', '✓ Sorunu/yanlış ürünü doğrula', '✓ İade/değişim sürecini başlat', '✓ Müşteriyle iletişime geç'];
 } else if (handoffReason.includes('ürün kodu')) {
   title = '🔎 ÜRÜN UZMANI İNCELEMESİ';
@@ -442,8 +446,8 @@ nodes = [
     },
     postgres_node(
         "Ingest Message",
-        "SELECT * FROM whatsapp_ai.ingest_message($1,$2,$3,$4::jsonb,$5,$6)",
-        "={{ [ $json.messageId, $json.senderNumber, $json.senderName, JSON.stringify($json.message), $json.command, $json.queryToken ] }}",
+        "SELECT * FROM whatsapp_ai.ingest_message($1,$2,$3,$4::jsonb,$5,$6,$7)",
+        "={{ [ $json.messageId, $json.senderNumber, $json.senderName, JSON.stringify($json.message), $json.command, $json.webhookToken, $json.authSource ] }}",
         [780, 240],
     ),
     {

@@ -34,4 +34,24 @@ BEGIN
   PERFORM whatsapp_ai.record_service_result('openai',true,NULL);
 END $$;
 
+DO $$
+DECLARE v_id uuid; v_result jsonb;
+BEGIN
+  v_id := gen_random_uuid();
+  INSERT INTO whatsapp_ai.deliveries(
+    id, batch_token, sender_number, channel, destination, payload,
+    status, attempt_count, claimed_at)
+  VALUES (
+    v_id, gen_random_uuid(), '905000000099', 'customer', '905000000099',
+    jsonb_build_object('number','905000000099','text','fixture'),
+    'sending', 1, clock_timestamp() - interval '5 minutes');
+  v_result := whatsapp_ai.recover_stale_deliveries(interval '2 minutes');
+  IF (v_result->>'recovered')::integer <> 1 THEN
+    RAISE EXCEPTION 'stale delivery recovery failed: %', v_result;
+  END IF;
+  IF (SELECT status FROM whatsapp_ai.deliveries WHERE id = v_id) <> 'failed' THEN
+    RAISE EXCEPTION 'stale delivery status was not failed';
+  END IF;
+END $$;
+
 SELECT 'catalog_resilience: PASS';

@@ -9,6 +9,8 @@ Canli veya test numarasina mesaj gonderen hicbir E2E kontrol, acik kullanici ona
 | Is | Zaman | Davranis |
 |---|---|---|
 | Queue monitor | Her dakika | 7 dk bekleyen batch, 5 dk processing, dead delivery ve AI manual sayar; 30 dk cooldown ile yonetici outbox alarmi olusturur. |
+| Delivery recovery | Her dakika | 2 dk'dan uzun `sending` teslimatları `failed`/`dead` durumuna alır ve `stale_delivery_recovery` event'i yazar. |
+| Delivery metrics | Günlük | `latency_ms`, queue age, p95 delivery latency, stale recovery ve webhook auth failure ölçülür. |
 | Gunluk rapor | Her gun 08:30 Europe/Istanbul | Son 24 saat mesaj, teslimat ve AI manual ozetini yonetici outbox'a yazar. |
 | Retention | Her gun 04:10 | 24 saatlik arac baglamini siler, 7 gunluk sent payload'i maskeler, 30 gunluk dead/event kaydini siler. |
 | Credential reminder | Her gun 09:00 kontrol | Son rotation 90 gunu astiysa manuel rotation hatirlatir. |

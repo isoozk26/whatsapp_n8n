@@ -27,6 +27,8 @@ def postgres(name, query, position):
 
 
 jobs = [
+    ("Delivery Recovery Every Minute", {"field": "minutes", "minutesInterval": 1},
+     "Recover Stale Deliveries", "SELECT whatsapp_ai.recover_stale_deliveries() AS result", 40),
     ("Queue Monitor Every Minute", {"field": "minutes", "minutesInterval": 1},
      "Run Queue Monitor", "SELECT whatsapp_ai.run_queue_monitor() AS result", 120),
     ("Daily Report 0830", {"field": "cronExpression", "expression": "30 8 * * *"},

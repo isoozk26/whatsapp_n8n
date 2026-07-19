@@ -25,6 +25,14 @@ function webhook(data, nested = false) {
   };
 }
 
+function headerWebhook(data) {
+  return {
+    headers: { "x-webhook-secret": "header-token" },
+    query: {},
+    body: { data },
+  };
+}
+
 async function testNormalize() {
   const data = {
     key: { remoteJid: "905320000001@s.whatsapp.net", fromMe: false, id: "msg-1" },
@@ -40,6 +48,9 @@ async function testNormalize() {
   assert.strictEqual(typeof nestedTimestamp, "number");
   assert.strictEqual(normal.json.valid, true);
   assert.strictEqual(normal.json.senderNumber, "905320000001");
+  const header = await execute(codeOf("Normalize Payload"), headerWebhook(data), () => ({}), {});
+  assert.strictEqual(header.json.webhookToken, "header-token");
+  assert.strictEqual(header.json.authSource, "header");
 
   const group = structuredClone(data);
   group.key.remoteJid = "120000@g.us";
@@ -83,6 +94,8 @@ async function testPolicy() {
 
   const complaint = await runParse({ ...base, intent: "return_complaint", caseType: "non_product", entities: {}, replyDraft: "Aktarıyorum" }, context("Yanlış ürün geldi, iade istiyorum"));
   assert(complaint.json.bildirim.includes("ŞİKAYET / İADE"));
+  assert.strictEqual(complaint.json.pauseAutomation, true);
+  assert.strictEqual(complaint.json.notifyAdmins, true);
   assert(!complaint.json.bildirim.includes("Bugün kargo"));
 
   const name = await runParse({
