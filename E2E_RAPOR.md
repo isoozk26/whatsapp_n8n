@@ -153,7 +153,7 @@ Schedule Trigger (15sn)
 
 | # | Bulgu | Durum | Çözüm |
 |---|-------|-------|-------|
-| 1 | Evolution API key 6 noktada hardcoded (`089311B617B8-48CF-8BD6-29759A57FDBF`) | ✅ **DÜZELTİLDİ** | `$env.EVOLUTION_API_KEY` |
+| 1 | Evolution API key 6 noktada hardcoded (`[REDACTED]`) | ✅ **DÜZELTİLDİ** | `$env.EVOLUTION_API_KEY` |
 | 2 | n8n API JWT token `upload_to_n8n.py:5` hardcoded | ✅ **DÜZELTİLDİ** | `os.environ.get('N8N_API_KEY')` |
 | 3 | Admin telefon numaraları 4 tekrar hardcoded | ✅ **DÜZELTİLDİ** | `process.env.ADMIN_PHONE_NUMBERS` |
 | 4 | Dead Letter Admin telefon hardcoded | ✅ **DÜZELTİLDİ** | `$env.DEAD_LETTER_ADMIN_PHONE` |

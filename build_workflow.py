@@ -14,7 +14,7 @@ POSTGRES_ID = os.environ.get("N8N_POSTGRES_CREDENTIAL_ID", "whatsapp-state-postg
 POSTGRES_NAME = os.environ.get("N8N_POSTGRES_CREDENTIAL_NAME", "WhatsApp State PostgreSQL")
 EVOLUTION_ID = os.environ.get("N8N_EVOLUTION_CREDENTIAL_ID", "evolution-api")
 EVOLUTION_NAME = os.environ.get("N8N_EVOLUTION_CREDENTIAL_NAME", "Evolution API")
-OPENAI_ID = os.environ.get("N8N_OPENAI_CREDENTIAL_ID", "3M52tD49lJ35vXdO")
+OPENAI_ID = os.environ.get("N8N_OPENAI_CREDENTIAL_ID") or ""
 OPENAI_NAME = os.environ.get("N8N_OPENAI_CREDENTIAL_NAME", "OpenAi account")
 
 
@@ -551,7 +551,7 @@ nodes = [
     code_node("Prepare Delivery", prepare_delivery_js, [560, 820]),
     {
         "parameters": {
-            "method": "POST", "url": "https://evo.filtreoto.online/message/sendText/filtr",
+            "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', '')}/message/sendText/filtr",
             "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
             "body": "={{ JSON.stringify($json.body) }}", "options": {"timeout": 15000},

@@ -133,7 +133,7 @@ T+139s   Batch kapatılır
 
 ### 3.1 KRİTİK — Hardcoded API Anahtarı (6 Tekrar)
 
-**Bulgu:** Evolution API anahtarı `089311B617B8-48CF-8BD6-29759A57FDBF` kaynak kodda düz metin olarak 6 kez tekrar ediyor.
+**Bulgu:** Evolution API anahtarı `[REDACTED]` kaynak kodda düz metin olarak 6 kez tekrar ediyor.
 
 | Konum | Satır | Node |
 |-------|:-----:|------|
@@ -602,7 +602,7 @@ python tools/live_customer_scenario_test.py --confirm-live
 | Konum | Satır | Sorun |
 |-------|------|-------|
 | `build_workflow.py` | 1121, 1203, 1243, 1283, 1323 | Hardcoded Evolution API key |
-| `build_workflow.py` | 1121 | `os.environ.get('EVOLUTION_API_KEY', '089311B617B8...')` fallback hardcoded |
+| `build_workflow.py` | 1121 | `os.environ.get('EVOLUTION_API_KEY', '[REDACTED]...')` fallback hardcoded |
 | `upload_to_n8n.py` | 6 | `os.environ.get('N8N_API_KEY')` — env zorunlu ama token hala repoda olabilir |
 | `tools/wf_test_webhook.py` | 10 | `ssl._create_unverified_context()` |
 | `tools/wf_deploy.py` | 39 | `ssl._create_unverified_context()` |

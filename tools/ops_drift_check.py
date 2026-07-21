@@ -14,12 +14,14 @@ def request_json(url, headers=None):
 
 
 def main():
-    base = os.environ.get("N8N_BASE_URL", "https://n8n.filtreoto.online").rstrip("/")
+    base = os.environ.get("N8N_BASE_URL", "").rstrip("/")
     api_key = os.environ.get("N8N_API_KEY", "")
-    workflow_id = os.environ.get("N8N_WORKFLOW_ID", "pW8YzDP44WpeJ6CJ")
+    workflow_id = os.environ.get("N8N_WORKFLOW_ID", "")
     expected_name = os.environ.get("N8N_EXPECTED_WORKFLOW_NAME", "WhatsApp AI - v13 PostgreSQL Outbox")
     if not api_key:
         raise SystemExit("N8N_API_KEY is required")
+    if not workflow_id:
+        raise SystemExit("N8N_WORKFLOW_ID is required")
     findings = []
     try:
         status, workflow = request_json(

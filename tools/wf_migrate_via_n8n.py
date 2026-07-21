@@ -9,7 +9,7 @@ from pathlib import Path
 import uuid
 from urllib.error import HTTPError
 
-BASE = os.environ.get("N8N_BASE_URL", "https://n8n.filtreoto.online").rstrip("/")
+BASE = os.environ.get("N8N_BASE_URL", "").rstrip("/")
 API_KEY = os.environ.get("N8N_API_KEY")
 ROOT = Path(__file__).resolve().parents[1]
 

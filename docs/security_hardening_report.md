@@ -36,7 +36,7 @@ This report documents the security hardening implementation for the WhatsApp n8n
 - Updated Phone B Send node (line 1259)
 - Updated Reply to Customer node (line 1275)
 - Updated Dead Letter Admin node (line 1291)
-- All changed from `os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')` to `"={{ $env.EVOLUTION_API_KEY }}"`
+- All changed from `os.environ.get('EVOLUTION_API_KEY', '[REDACTED]')` to `"={{ $env.EVOLUTION_API_KEY }}"`
 
 ### Task 2: Implement Webhook Authentication
 - Added webhook authentication parameters to Webhook1 node

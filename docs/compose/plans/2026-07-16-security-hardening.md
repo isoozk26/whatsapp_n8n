@@ -42,7 +42,7 @@
 
 In `build_workflow.py`, find the Delete Command Message node parameters (around line 1161) and change:
 ```python
-{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
+{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '[REDACTED]')},
 ```
 to:
 ```python
@@ -53,7 +53,7 @@ to:
 
 In `build_workflow.py`, find the Phone A Send node parameters (around line 1243) and change:
 ```python
-{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
+{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '[REDACTED]')},
 ```
 to:
 ```python
@@ -64,7 +64,7 @@ to:
 
 In `build_workflow.py`, find the Phone B Send node parameters (around line 1259) and change:
 ```python
-{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
+{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '[REDACTED]')},
 ```
 to:
 ```python
@@ -75,7 +75,7 @@ to:
 
 In `build_workflow.py`, find the Reply to Customer node parameters (around line 1275) and change:
 ```python
-{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
+{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '[REDACTED]')},
 ```
 to:
 ```python
@@ -86,7 +86,7 @@ to:
 
 In `build_workflow.py`, find the Dead Letter Admin node parameters (around line 1291) and change:
 ```python
-{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '089311B617B8-48CF-8BD6-29759A57FDBF')},
+{"name": "apikey", "value": os.environ.get('EVOLUTION_API_KEY', '[REDACTED]')},
 ```
 to:
 ```python
@@ -279,7 +279,7 @@ wf["staticData"] = {
     "node:Schedule Trigger": {"recurrenceRules": []},
     "global": {
         "_batches": {},
-        "_webhookSecret": os.environ.get('N8N_WEBHOOK_SECRET', 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS')
+        "_webhookSecret": os.environ.get('N8N_WEBHOOK_SECRET', '[REDACTED]')
     }
 }
 ```

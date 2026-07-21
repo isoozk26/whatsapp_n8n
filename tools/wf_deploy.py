@@ -10,8 +10,12 @@ TOKEN = os.environ.get('N8N_API_KEY')
 if not TOKEN:
     raise ValueError("N8N_API_KEY environment variable is required")
 
-WORKFLOW_ID = os.environ.get('N8N_WORKFLOW_ID', 'pW8YzDP44WpeJ6CJ')
-N8N_URL = 'https://n8n.filtreoto.online'
+WORKFLOW_ID = os.environ.get('N8N_WORKFLOW_ID', '')
+N8N_URL = os.environ.get('N8N_BASE_URL', '')
+if not WORKFLOW_ID:
+    raise ValueError("N8N_WORKFLOW_ID environment variable is required")
+if not N8N_URL:
+    raise ValueError("N8N_BASE_URL environment variable is required")
 
 def deploy(workflow_path='workflow.json'):
     create_mode = WORKFLOW_ID == 'create'

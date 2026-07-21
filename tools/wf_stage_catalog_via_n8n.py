@@ -11,7 +11,7 @@ from pathlib import Path
 
 import import_mann_catalog as catalog
 
-BASE = os.environ.get("N8N_BASE_URL", "https://n8n.filtreoto.online").rstrip("/")
+BASE = os.environ.get("N8N_BASE_URL", "").rstrip("/")
 API_KEY = os.environ.get("N8N_API_KEY")
 
 

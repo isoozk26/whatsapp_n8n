@@ -22,7 +22,7 @@ from outbound_guard import (
 )
 
 
-WEBHOOK_BASE_URL = "https://n8n.filtreoto.online/webhook/evolution-webhook"
+WEBHOOK_BASE_URL = os.environ.get("N8N_WEBHOOK_URL", "") or ""
 DEFAULT_SENDER_NAME = "ApprovedTestCustomer"
 
 SCENARIOS = {
@@ -63,6 +63,8 @@ SCENARIOS = {
 
 
 def webhook_url() -> str:
+    if not WEBHOOK_BASE_URL:
+        raise SystemExit("outbound blocked: N8N_WEBHOOK_URL environment variable is required")
     token = os.environ.get("WEBHOOK_TOKEN")
     if not token:
         raise SystemExit("outbound blocked: WEBHOOK_TOKEN environment variable is required")
