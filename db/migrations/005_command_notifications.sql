@@ -59,13 +59,13 @@ BEGIN
         IF v_admin_phone_a <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_a', v_admin_phone_a,
-                    jsonb_build_object('number', v_admin_phone_a, 'text', 'SİSTEM MANUEL\nMüşteri: ' || p_sender_name || ' (' || p_sender_number || ')\nManuel mod aktif edildi. Otomatik yanıtlar durduruldu.', 'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_a, 'text', '🔒 SİSTEM MANUEL MODA GEÇTİ\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n⚡ Otomatik yanıtlar durduruldu\n💬 Manuel yanıt bekleniyor', 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
         IF v_admin_phone_b <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b,
-                    jsonb_build_object('number', v_admin_phone_b, 'text', 'SİSTEM MANUEL\nMüşteri: ' || p_sender_name || ' (' || p_sender_number || ')\nManuel mod aktif edildi. Otomatik yanıtlar durduruldu.', 'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_b, 'text', '🔒 SİSTEM MANUEL MODA GEÇTİ\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n⚡ Otomatik yanıtlar durduruldu\n💬 Manuel yanıt bekleniyor', 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
 
@@ -85,13 +85,13 @@ BEGIN
         IF v_admin_phone_a <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_a', v_admin_phone_a,
-                    jsonb_build_object('number', v_admin_phone_a, 'text', 'SİSTEM OTOMATİK\nMüşteri: ' || p_sender_name || ' (' || p_sender_number || ')\nOtomatik mod aktif edildi. AI yanıtları yeniden başladı.', 'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_a, 'text', '🔓 SİSTEM OTOMATİK MODA GEÇTİ\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n⚡ AI yanıtları yeniden başladı\n🤖 Otomatik mod aktif', 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
         IF v_admin_phone_b <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b,
-                    jsonb_build_object('number', v_admin_phone_b, 'text', 'SİSTEM OTOMATİK\nMüşteri: ' || p_sender_name || ' (' || p_sender_number || ')\nOtomatik mod aktif edildi. AI yanıtları yeniden başladı.', 'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_b, 'text', '🔓 SİSTEM OTOMATİK MODA GEÇTİ\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n⚡ AI yanıtları yeniden başladı\n🤖 Otomatik mod aktif', 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
 
@@ -107,7 +107,7 @@ BEGIN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_a', v_admin_phone_a,
                     jsonb_build_object('number', v_admin_phone_a, 'text',
-                        CASE WHEN v_mode_status THEN 'SİSTEM DURUMU: MANUEL\nMüşteri: ' || p_sender_name || ' (' || p_sender_number || ')\nOtomatik yanıtlar DURDURULDU.' ELSE 'SİSTEM DURUMU: OTOMATİK\nMüşteri: ' || p_sender_name || ' (' || p_sender_number || ')\nOtomatik yanıtlar AKTİF.' END,
+                        CASE WHEN v_mode_status THEN '📊 SİSTEM DURUMU\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n🤖 Mod: MANUEL\n⚡ Durum: Manuel mod aktif' ELSE '📊 SİSTEM DURUMU\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n🤖 Mod: OTOMATİK\n⚡ Durum: Aktif' END,
                     'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
@@ -115,7 +115,7 @@ BEGIN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b,
                     jsonb_build_object('number', v_admin_phone_b, 'text',
-                        CASE WHEN v_mode_status THEN 'SİSTEM DURUMU: MANUEL\nMüşteri: ' || p_sender_name || ' (' || p_sender_number || ')\nOtomatik yanıtlar DURDURULDU.' ELSE 'SİSTEM DURUMU: OTOMATİK\nMüşteri: ' || p_sender_name || ' (' || p_sender_number || ')\nOtomatik yanıtlar AKTİF.' END,
+                        CASE WHEN v_mode_status THEN '📊 SİSTEM DURUMU\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n🤖 Mod: MANUEL\n⚡ Durum: Manuel mod aktif' ELSE '📊 SİSTEM DURUMU\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n🤖 Mod: OTOMATİK\n⚡ Durum: Aktif' END,
                     'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
