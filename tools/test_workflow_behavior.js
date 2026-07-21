@@ -82,7 +82,7 @@ async function testPolicy() {
   const result = await runParse(base);
   assert.strictEqual(result.json.notifyAdmins, true);
   assert.strictEqual(result.json.replyCustomer, true);
-  assert(result.json.bildirim.includes("✓ Stok\n✓ Net fiyat"));
+  assert(result.json.bildirim.includes("Yanıt Gönderildi"));
 
   const unsafe = await runParse({ ...base, replyDraft: "Stokta var, fiyatı 350 TL." });
   assert(!unsafe.json.cevap.includes("350"));
@@ -124,10 +124,8 @@ async function testPolicy() {
   assert.strictEqual(hasan.json.askVehicleInfo, true);
   assert(hasan.json.cevap.includes("motor hacmi (CC)"));
   assert(hasan.json.cevap.includes("motor gücü (kW/HP)"));
-  assert(hasan.json.bildirim.includes("🚗 ARAÇ BAZLI PARÇA ARAMA"));
-  assert(hasan.json.bildirim.includes("• Fiat Egea 2022"));
-  assert(hasan.json.bildirim.includes("📦 Ürün/Kod\nBelirtilmedi"));
-  assert(hasan.json.bildirim.includes("👨 Atanan\nİsmail Özkaracan"));
+  assert(hasan.json.bildirim.includes("ARAÇ BAZLI ARAMA"));
+  assert(hasan.json.bildirim.includes("Fiat Egea 2022"));
   assert(!hasan.json.bildirim.includes("Düşük AI güven skoru"));
 
   const invalid = await execute(codeOf("Parse AI Output"), { output: "not-json" }, () => ({ item: { json: context() } }));
@@ -182,8 +180,8 @@ async function testPolicy() {
   assert.strictEqual(missingCode.json.caseType, "partial_code");
   assert(!missingCode.json.cevap.includes("güncel stok"));
   assert(missingCode.json.cevap.includes("kodunun tamamını"));
-  assert(missingCode.json.bildirim.includes("ÜRÜN KODU / BİLGİ TAMAMLAMA"));
-  assert(!missingCode.json.bildirim.includes("SATIŞ GÖREVİ"));
+  assert(missingCode.json.bildirim.includes("EKSİK BİLGİ"));
+  assert(!missingCode.json.bildirim.includes("STOK/FİYAT SORGUSU"));
 }
 
 async function testDeliveryTags() {

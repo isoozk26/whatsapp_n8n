@@ -313,32 +313,29 @@ reply = reply.replace(/\s+/g, ' ').trim();
 
 const codeText = normalizedCodes.length ? normalizedCodes.map(code => `• ${code}`).join('\n') : 'Belirtilmedi';
 const vehicleText = vehicleStrings.length ? vehicleStrings.map(vehicle => `• ${vehicle}`).join('\n') : (extractedVehicle ? `• ${extractedVehicle}` : 'Belirtilmedi');
-let title = '📢 MÜŞTERİ TALEBİ / BİLDİRİM';
-let requestedLines = ['✓ Stok', '✓ Net fiyat', '✓ Bugün kargo'];
+let title = '📩 YENİ TALEP';
+let extraInfo = '';
 if (caseType === 'vehicle_based_search') {
-  title = '🚗 ARAÇ BAZLI PARÇA ARAMA';
-  requestedLines = ['✓ Doğru parça tespiti', '✓ Araç uyumluluğu', '✓ Stok ve net fiyat', '✓ Bugün kargo'];
+  title = '📩 ARAÇ BAZLI ARAMA';
+  extraInfo = vehicleStrings.length ? `🚗 ${vehicleStrings[0]}` : '';
 } else if (caseType === 'exact_code_compatibility') {
-  title = '🛠️ UYUMLULUK VE PARÇA KONTROLÜ';
-  requestedLines = ['✓ Araç/parça uyumluluğu', '✓ Stok ve net fiyat'];
+  title = '📩 UYUMLULUK SORGUSU';
 } else if (caseType === 'cross_reference') {
-  title = '🔄 MUADİL / ÇAPRAZ REFERANS TALEBİ';
-  requestedLines = ['✓ Üretici kataloğu doğrulaması', '✓ Muadil kod', '✓ Stok ve net fiyat'];
+  title = '📩 MUADİL ARAMA';
 } else if (caseType === 'exact_code_price_stock') {
-  title = '🔥 SATIŞ GÖREVİ';
-  requestedLines = ['✓ Stok', '✓ Net fiyat', '✓ Uyumluluk', '✓ Bugün kargo'];
+  title = '📩 STOK/FİYAT SORGUSU';
 } else if (caseType === 'non_product') {
-  title = intent === 'return_complaint' ? 'ŞİKAYET / İADE' : '⚠️ MÜŞTERİ DESTEK GÖREVİ';
-  requestedLines = ['✓ Sipariş bilgisini kontrol et', '✓ Sorunu/yanlış ürünü doğrula', '✓ İade/değişim sürecini başlat', '✓ Müşteriyle iletişime geç'];
+  title = intent === 'return_complaint' ? '📩 ŞİKAYET / İADE' : '📩 DESTEK TALEBİ';
 } else if (caseType === 'partial_code') {
-  title = 'ÜRÜN KODU / BİLGİ TAMAMLAMA';
-  requestedLines = ['✓ Tam ürün kodu', '✓ Araç marka/model', '✓ Üretim yılı ve motor'];
+  title = '📩 EKSİK BİLGİ';
+  extraInfo = '🤖 Müşteriden bilgi istendi';
 } else if (handoffReason.includes('ürün kodu')) {
-  title = '🔎 ÜRÜN UZMANI İNCELEMESİ';
+  title = '📩 UZMANA AKTARIM';
 } else if (action === 'handoff') {
-  title = '⚠️ AI DOĞRULAMA GEREKLİ';
+  title = '📩 UZMANA AKTARIM';
+  extraInfo = handoffReason ? `⚠️ ${handoffReason}` : '';
 }
-const adminMessage = `${title}\n⏱️ SLA: 5 dk\n\n👤 ${ctx.senderName}\n📞 ${ctx.senderNumber}\n\n📦 Ürün/Kod\n${codeText}\n\n🚗 Araç\n${vehicleText}\n\n🎯 İstenen\n${requestedLines.join('\n')}\n\n👨 Atanan\n${ctx.assigneeName || 'İsmail Özkaracan'}\n\n──────────────\n\n💬 Müşteri\n"${originalText}"\n\n🤖 AI müşteriye gönderdi\n"${reply}"${handoffReason ? `\n\n📌 Handoff Nedeni: ${handoffReason}` : ''}`;
+const adminMessage = `${title}\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\n${extraInfo}` : ''}\n\n💬 Müşteri\n"${originalText}"\n\n🤖 Yanıt Gönderildi\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
 return { json: {
   ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,
   notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,
