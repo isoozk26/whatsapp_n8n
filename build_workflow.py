@@ -87,8 +87,8 @@ const fromMe = payload?.key?.fromMe === true;
 const messageId = String(payload?.key?.id || '');
 const isGroup = rawJid.endsWith('@g.us');
 const isBroadcast = rawJid.endsWith('@broadcast');
-const authorizedCommand = fromMe && ['++', '--'].includes(text);
-const command = authorizedCommand ? (text === '++' ? 'pause' : 'resume') : null;
+const authorizedCommand = fromMe && ['++', '--', '??'].includes(text);
+const command = authorizedCommand ? (text === '++' ? 'pause' : text === '--' ? 'resume' : 'check_mode') : null;
 const valid = Boolean(payload && messageId && senderNumber && !isGroup && !isBroadcast && (!fromMe || command));
 const message = {
   id: messageId, text: text || '[Medya]',
@@ -170,7 +170,7 @@ let entities = parsed.entities && typeof parsed.entities === 'object' ? parsed.e
 let confidence = typeof parsed.confidence === 'number' ? parsed.confidence : Number(parsed.confidence?.caseType || 0);
 let reply = String(parsed.replyDraft || '').trim();
 let pauseAutomation = false;
-let notifyAdmins = false;
+let notifyAdmins = true;
 let action = 'reply';
 let handoffReason = '';
 let askVehicleInfo = false;
@@ -243,7 +243,6 @@ if (normalizedCodes.length > 0 && ['other','unclear','partial_code','vehicle_bas
   caseType = 'partial_code';
   intent = 'other';
   reply = '';
-  notifyAdmins = false;
 }
 const invented = normalizedCodes.find(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));
 if (invented) {
@@ -394,7 +393,7 @@ const optional = (catalog.optionalFields || []).map(value => {
   return '\u00fcretim y\u0131l\u0131';
 });
 let reply = String(policy.cevap || '');
-let notifyAdmins = Boolean(policy.notifyAdmins);
+let notifyAdmins = true;
 let pauseAutomation = Boolean(policy.pauseAutomation);
 let expectsReply = Boolean(policy.expectsReply);
 if (policy.askVehicleInfo) {
@@ -402,16 +401,16 @@ if (policy.askVehicleInfo) {
   reply = policy.cevap;
 } else if (catalog.status === 'missing_required') {
   reply = `Do\u011fru filtreyi belirleyebilmemiz i\u00e7in l\u00fctfen ${missing.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
-  notifyAdmins = false; pauseAutomation = false; expectsReply = true;
+  pauseAutomation = false; expectsReply = true;
 } else if (catalog.status === 'ambiguous') {
   reply = `Ara\u00e7 bilgilerini netle\u015ftirmek i\u00e7in l\u00fctfen ${optional.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
-  notifyAdmins = false; pauseAutomation = false; expectsReply = true;
+  pauseAutomation = false; expectsReply = true;
 } else if (catalog.status === 'unique') {
   reply = 'Ara\u00e7 bilgileriniz katalogda do\u011fruland\u0131. Uygun par\u00e7a, g\u00fcncel stok ve net fiyat kontrol edilerek payla\u015f\u0131lacakt\u0131r.';
   notifyAdmins = true; pauseAutomation = false;
 } else if (catalog.status === 'no_match' && optional.length) {
   reply = `Katalog e\u015fle\u015fmesini netle\u015ftirmek i\u00e7in l\u00fctfen ${optional.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
-  notifyAdmins = false; pauseAutomation = false; expectsReply = true;
+  pauseAutomation = false; expectsReply = true;
 } else if (catalog.status === 'no_match') {
   reply = 'Ara\u00e7 bilgileri katalogda kesin e\u015fle\u015fmedi. \u00dcr\u00fcn uzman\u0131m\u0131z uygun par\u00e7ay\u0131 kontrol ederek bilgi verecektir.';
   notifyAdmins = true;

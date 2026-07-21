@@ -208,7 +208,7 @@ async function testCatalogPolicy() {
   assert(missing.json.cevap.includes("motor"));
   assert(missing.json.cevap.includes("şasi"));
   assert(missing.json.cevap.includes("🔎"));
-  assert.strictEqual(missing.json.notifyAdmins, false);
+  assert.strictEqual(missing.json.notifyAdmins, true);
   assert.strictEqual(missing.json.expectsReply, true);
 
   const unique = await execute(codeOf("Apply Catalog Decision"), {
