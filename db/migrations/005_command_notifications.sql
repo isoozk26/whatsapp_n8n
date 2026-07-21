@@ -1,4 +1,4 @@
--- Migration 005: Command notifications for ++/--/??
+﻿-- Migration 005: Command notifications for ++/--/??
 -- ++ → "SİSTEM MANUEL" bildirimi
 -- -- → "SİSTEM OTOMATİK" bildirimi
 -- ?? → Mevcut modu kontrol edip bildirim
@@ -20,6 +20,7 @@ DECLARE
     v_admin_phone_b text := COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '');
     v_mode_status boolean;
     v_fingerprint text;
+    v_msg_text text;
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM whatsapp_ai.settings
@@ -54,18 +55,18 @@ BEGIN
         UPDATE whatsapp_ai.batches SET status = 'manual', updated_at = clock_timestamp()
         WHERE sender_number = p_sender_number;
 
-        -- Yöneticilere "SİSTEM MANUEL" bildirimi gönder
         v_fingerprint := 'cmd:pause:' || p_sender_number || ':' || extract(epoch from clock_timestamp())::text;
+        v_msg_text := E'\U0001f512 SİSTEM MANUEL MODA GEÇTİ\n\U0001f464 ' || p_sender_name || ' (' || p_sender_number || E')\n\u26a1 Otomatik yanıtlar durduruldu\n\U0001f4ac Manuel yanıt bekleniyor';
         IF v_admin_phone_a <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_a', v_admin_phone_a,
-                    jsonb_build_object('number', v_admin_phone_a, 'text', '🔒 SİSTEM MANUEL MODA GEÇTİ\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n⚡ Otomatik yanıtlar durduruldu\n💬 Manuel yanıt bekleniyor', 'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_a, 'text', v_msg_text, 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
         IF v_admin_phone_b <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b,
-                    jsonb_build_object('number', v_admin_phone_b, 'text', '🔒 SİSTEM MANUEL MODA GEÇTİ\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n⚡ Otomatik yanıtlar durduruldu\n💬 Manuel yanıt bekleniyor', 'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_b, 'text', v_msg_text, 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
 
@@ -80,18 +81,18 @@ BEGIN
             updated_at = clock_timestamp()
         WHERE sender_number = p_sender_number AND status = 'manual';
 
-        -- Yöneticilere "SİSTEM OTOMATİK" bildirimi gönder
         v_fingerprint := 'cmd:resume:' || p_sender_number || ':' || extract(epoch from clock_timestamp())::text;
+        v_msg_text := E'\U0001f513 SİSTEM OTOMATİK MODA GEÇTİ\n\U0001f464 ' || p_sender_name || ' (' || p_sender_number || E')\n\u26a1 AI yanıtları yeniden başladı\n\U0001f916 Otomatik mod aktif';
         IF v_admin_phone_a <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_a', v_admin_phone_a,
-                    jsonb_build_object('number', v_admin_phone_a, 'text', '🔓 SİSTEM OTOMATİK MODA GEÇTİ\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n⚡ AI yanıtları yeniden başladı\n🤖 Otomatik mod aktif', 'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_a, 'text', v_msg_text, 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
         IF v_admin_phone_b <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b,
-                    jsonb_build_object('number', v_admin_phone_b, 'text', '🔓 SİSTEM OTOMATİK MODA GEÇTİ\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n⚡ AI yanıtları yeniden başladı\n🤖 Otomatik mod aktif', 'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_b, 'text', v_msg_text, 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
 
@@ -103,20 +104,21 @@ BEGIN
         SELECT EXISTS(SELECT 1 FROM whatsapp_ai.manual_modes WHERE sender_number = p_sender_number AND enabled) INTO v_mode_status;
 
         v_fingerprint := 'cmd:check:' || p_sender_number || ':' || extract(epoch from clock_timestamp())::text;
+        IF v_mode_status THEN
+            v_msg_text := E'\U0001f4ca SİSTEM DURUMU\n\U0001f464 ' || p_sender_name || ' (' || p_sender_number || E')\n\U0001f916 Mod: MANUEL\n\u26a1 Durum: Manuel mod aktif';
+        ELSE
+            v_msg_text := E'\U0001f4ca SİSTEM DURUMU\n\U0001f464 ' || p_sender_name || ' (' || p_sender_number || E')\n\U0001f916 Mod: OTOMATİK\n\u26a1 Durum: Aktif';
+        END IF;
         IF v_admin_phone_a <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_a', v_admin_phone_a,
-                    jsonb_build_object('number', v_admin_phone_a, 'text',
-                        CASE WHEN v_mode_status THEN '📊 SİSTEM DURUMU\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n🤖 Mod: MANUEL\n⚡ Durum: Manuel mod aktif' ELSE '📊 SİSTEM DURUMU\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n🤖 Mod: OTOMATİK\n⚡ Durum: Aktif' END,
-                    'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_a, 'text', v_msg_text, 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
         IF v_admin_phone_b <> '' THEN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b,
-                    jsonb_build_object('number', v_admin_phone_b, 'text',
-                        CASE WHEN v_mode_status THEN '📊 SİSTEM DURUMU\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n🤖 Mod: MANUEL\n⚡ Durum: Manuel mod aktif' ELSE '📊 SİSTEM DURUMU\n👤 ' || p_sender_name || ' (' || p_sender_number || ')\n🤖 Mod: OTOMATİK\n⚡ Durum: Aktif' END,
-                    'fingerprint', v_fingerprint))
+                    jsonb_build_object('number', v_admin_phone_b, 'text', v_msg_text, 'fingerprint', v_fingerprint))
             ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
 
