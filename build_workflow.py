@@ -114,7 +114,7 @@ const isInternalIp = /^10\./.test(forwardedFor) || /^172\.(1[6-9]|2\d|3[01])\./.
 const queryToken = String(input.queryToken || '');
 const headerToken = String(input.webhookToken || '');
 const suppliedToken = headerToken || queryToken;
-const webhookSecret = 'whatsapp_webhook_2026';
+const webhookSecret = 'AAo9MC_-DVYkYplxZuu__wJf_zs0K3wW38eJsgeyoVA';
 const tokenValid = suppliedToken.length > 0 && suppliedToken === webhookSecret;
 const authorized = isInternalIp && tokenValid;
 return { json: Object.assign({}, input, { authorized, webhookToken: suppliedToken, authSource: authorized ? 'ip+token' : (isInternalIp ? 'invalid_token' : 'external_ip'), action: authorized ? null : 'unauthorized', authFailureReason: authorized ? null : (isInternalIp ? 'invalid_token' : 'external_request_blocked') }) };
