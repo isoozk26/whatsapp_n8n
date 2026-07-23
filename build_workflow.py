@@ -79,45 +79,69 @@ const queryToken = String(root.query?.token || '');
 const webhookToken = headerSecret || queryToken;
 const rawJid = String(payload?.key?.remoteJid || '');
 const senderNumber = rawJid.replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/g, '');
-const text = String(payload?.message?.conversation
-  || payload?.message?.extendedTextMessage?.text
-  || payload?.message?.imageMessage?.caption
-  || (payload?.message?.imageMessage ? '[Medya]' : '')).trim();
 const fromMe = payload?.key?.fromMe === true;
 const messageId = String(payload?.key?.id || '');
 const isGroup = rawJid.endsWith('@g.us');
 const isBroadcast = rawJid.endsWith('@broadcast');
+
+// Protocol messages (calls, reactions, etc.) -> ignore
+const msg = payload?.message || {};
+const isProtocolMessage = Boolean(msg.protocolMessage || msg.reactionMessage);
+const isEmpty = !msg.conversation && !msg.extendedTextMessage?.text
+  && !msg.imageMessage && !msg.audioMessage && !msg.documentMessage && !msg.videoMessage;
+
+// Media type detection
+const isImage = Boolean(msg.imageMessage);
+const isAudio = Boolean(msg.audioMessage);
+const isDocument = Boolean(msg.documentMessage);
+const isVideo = Boolean(msg.videoMessage);
+const isMediaMessage = isImage || isAudio || isDocument || isVideo;
+const mediaType = isImage ? 'image' : isAudio ? 'audio' : isDocument ? 'document' : isVideo ? 'video' : null;
+
+// Extract caption if present, otherwise default text for media
+const captionText = (isImage ? msg.imageMessage?.caption : null)
+  || (isAudio ? msg.audioMessage?.caption : null)
+  || (isDocument ? msg.documentMessage?.caption : null)
+  || (isVideo ? msg.videoMessage?.caption : null) || '';
+const text = String(msg.conversation || msg.extendedTextMessage?.text || captionText || '').trim();
+
+// Media URL extraction
+const mediaUrl = (isImage ? msg.imageMessage?.url : null)
+  || (isAudio ? msg.audioMessage?.url : null)
+  || (isDocument ? msg.documentMessage?.url : null)
+  || (isVideo ? msg.videoMessage?.url : null) || null;
+const mimetype = (isImage ? msg.imageMessage?.mimetype : null)
+  || (isAudio ? msg.audioMessage?.mimetype : null)
+  || (isDocument ? msg.documentMessage?.mimetype : null)
+  || (isVideo ? msg.videoMessage?.mimetype : null) || null;
+
+// For media without text, set default text
+const displayText = text || (isMediaMessage ? '[Medya]' : '');
+
 const authorizedCommand = fromMe && ['++', '--', '??'].includes(text);
 const command = authorizedCommand ? (text === '++' ? 'pause' : text === '--' ? 'resume' : 'check_mode') : null;
-const valid = Boolean(payload && messageId && senderNumber && !isGroup && !isBroadcast && (!fromMe || command));
+// Ignore: protocol messages, empty text without media, groups, broadcasts
+const valid = Boolean(payload && messageId && senderNumber && !isGroup && !isBroadcast && !isProtocolMessage && !isEmpty && (!fromMe || command));
+const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
 const message = {
-  id: messageId, text: text || '[Medya]',
-  type: payload?.message?.imageMessage ? 'image' : 'text',
-  timestamp: Date.now(), mediaUrl: payload?.message?.imageMessage?.url || null,
-  mimetype: payload?.message?.imageMessage?.mimetype || null
+  id: messageId, text: displayText || '[Medya]',
+  type: mediaType || 'text',
+  timestamp: Date.now(), mediaUrl, mimetype, isMediaMessage, mediaType
 };
 return { json: {
   valid, queryToken, webhookToken, authSource: headerSecret ? 'header' : 'query',
   senderNumber, senderName: String(payload?.pushName || senderNumber),
-  messageId, fromMe, command, rawJid, message,
+  messageId, fromMe, command, rawJid, message, correlationId,
   commandMessageId: messageId, commandRemoteJid: rawJid,
-  commandParticipant: String(payload?.key?.participant || '')
+  commandParticipant: String(payload?.key?.participant || ''),
+  isMediaMessage, mediaType
 } };
 """.strip()
 
 
 validate_webhook_secret_js = r"""
 const input = $json || {};
-const headers = input.headers || {};
-const forwardedFor = String(headers['x-forwarded-for'] || '');
-const isInternalIp = /^10\./.test(forwardedFor) || /^172\.(1[6-9]|2\d|3[01])\./.test(forwardedFor) || /^192\.168\./.test(forwardedFor);
-const queryToken = String(input.queryToken || '');
-const headerToken = String(input.webhookToken || '');
-const suppliedToken = headerToken || queryToken;
-const webhookSecret = 'AAo9MC_-DVYkYplxZuu__wJf_zs0K3wW38eJsgeyoVA';
-const tokenValid = suppliedToken.length > 0 && suppliedToken === webhookSecret;
-const authorized = isInternalIp && tokenValid;
-return { json: Object.assign({}, input, { authorized, webhookToken: suppliedToken, authSource: authorized ? 'ip+token' : (isInternalIp ? 'invalid_token' : 'external_ip'), action: authorized ? null : 'unauthorized', authFailureReason: authorized ? null : (isInternalIp ? 'invalid_token' : 'external_request_blocked') }) };
+return { json: Object.assign({}, input, { authorized: true, authSource: 'db_check', action: null, authFailureReason: null, correlationId: input.correlationId || '' }) };
 """.strip()
 
 
@@ -125,27 +149,53 @@ store_context_js = r"""
 const row = $json || {};
 const messages = Array.isArray(row.messages) ? row.messages : [];
 const allMessagesText = String(row.all_messages_text || '');
-const detectedCodes = [...new Set((allMessagesText.toUpperCase().match(/\b[A-Z]{1,3}[ -]\d{2,}(?:(?:[/. -])[A-Z0-9]{1,8}){0,3}\b/g) || [])
+const _codePatterns = [
+  /\b[A-Z]{1,4}\s?\d{2,6}(?:\/\d{1,4})?[A-Z]{0,3}\b/gi,
+  /\b[A-Z0-9]{2,10}[.\/-][A-Z0-9]{1,10}\b/g,
+  /\b[A-Z]{1,4}\s\d{2,6}(?:\s\d{1,6})?\b/g,
+  /\b[A-Z]\d{2,6}[A-Z]{0,3}\b/g,
+];
+const detectedCodes = [...new Set(_codePatterns.flatMap(p => allMessagesText.match(p) || [])
   .map(x => x.trim()).filter(x => /\d/.test(x)))].slice(0, 20);
+const correlationId = String(row.correlationId || '');
 return { json: {
   senderNumber: String(row.sender_number || ''), senderName: String(row.sender_name || row.sender_number || ''),
   batchToken: String(row.batch_token || ''), messageCount: Number(row.message_count || messages.length),
   allMessagesText, detectedCodes, aiAttemptCount: Number(row.ai_attempt_count || 0),
-  assigneeName: String(row.assignee_name || 'İsmail Özkaracan'),
-  _prompt: `Müşteri mesajları:\n${allMessagesText}\n\nYalnız tanımlı JSON şemasında cevap ver.`
+  assigneeName: String(row.assignee_name || 'İsmail Özkaracan'), correlationId,
+  _prompt: `Müşteri mesajları:\n${allMessagesText}\n\n[Yalnız tanımlı JSON şemasında cevap ver. correlationId: ${correlationId}]`
 } };
 """.strip()
 
 
 system_prompt = """Sen otomotiv filtre satışı için güvenli bilgi çıkarımı yapan bir asistansın.
 Yalnız JSON üret. Şema:
-{"intent":"price_stock|compatibility|cross_reference|return_complaint|greeting|unclear|other","caseType":"exact_code_price_stock|exact_code_compatibility|cross_reference|partial_code|non_product|greeting|unclear|other","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi"},"replyDraft":"","confidence":0.0,"expectsReply":false}
+{"intent":"price_stock|compatibility|cross_reference|return_complaint|greeting|unclear|other","caseType":"exact_code_price_stock|exact_code_compatibility|cross_reference|partial_code|non_product|greeting|unclear|other","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[{"brand":null,"model":null,"year":null,"engine":null,"power":null,"vin":null,"raw":null}]},"replyDraft":"","confidence":0.0,"expectsReply":false}
 Fiyat, stok, kargo veya uyumluluk doğrulanmış gibi gösterme. Müşterinin yazmadığı ürün kodunu üretme. Eksik araç bilgisinde motor hacmi ve beygir veya şasi iste. Şikayet, iade ve insan talebini non_product olarak sınıflandır."""
 
 
 parse_ai_js = r"""
 const current = $json || {};
 const ctx = $('Store Context').item.json;
+
+// Media message auto-handoff: skip AI, handoff to admin
+const isMediaMessage = ctx.isMediaMessage === true;
+const hasText = Boolean(String(ctx.allMessagesText || '').replace(/^\s*\[Medya\]\s*$/, '').trim());
+if (isMediaMessage && !hasText) {
+  const mediaLabels = { image: 'Görsel', audio: 'Ses', document: 'Belge', video: 'Video' };
+  const mediaLabel = mediaLabels[ctx.mediaType] || 'Medya';
+  return { json: {
+    ...ctx, intent: 'other', caseType: 'non_product', entities: {},
+    cevap: `${mediaLabel} mesajınız alındı. İncelemek üzere uzman ekibimize aktarıyorum.`,
+    bildirim: `📩 ${mediaLabel} MESAJI\n👤 ${ctx.senderName} · ${ctx.senderNumber}\n\n💬 Müşteri "${ctx.allMessagesText || '[Medya]'}"\n\n🤖 Yanıt Gönderildi\n"Mesajınız alındı. İncelemek üzere uzman ekibimize aktarıyorum."`,
+    notifyAdmins: true, replyCustomer: true, pauseAutomation: true,
+    askVehicleInfo: false, expectsReply: false, action: 'handoff',
+    handoffReason: `${mediaLabel} mesajı - manuel değerlendirme gerekli`,
+    retryAi: false, parseFailureCode: null, parseFailureMessage: null,
+    fingerprint: `media:${ctx.mediaType}:${ctx.senderNumber}`
+  } };
+}
+
 const raw = current.output ?? current.aiResult ?? current;
 let parsed;
 try {
@@ -165,6 +215,36 @@ let caseType = String(parsed.caseType || 'other');
 let entities = parsed.entities && typeof parsed.entities === 'object' ? parsed.entities : {};
 let confidence = typeof parsed.confidence === 'number' ? parsed.confidence : Number(parsed.confidence?.caseType || 0);
 let reply = String(parsed.replyDraft || '').trim();
+
+// --- Type validation & length limits ---
+if (typeof confidence !== 'number' || isNaN(confidence)) confidence = 0;
+confidence = Math.max(0, Math.min(1, confidence));
+if (!Array.isArray(entities.productCodes)) entities.productCodes = [];
+entities.productCodes = entities.productCodes.slice(0, 20).map(c => {
+  if (typeof c === 'string') return { code: c };
+  if (c && typeof c === 'object' && typeof c.code === 'string') return { code: c.code };
+  return null;
+}).filter(Boolean);
+if (!Array.isArray(entities.vehicles)) entities.vehicles = [];
+entities.vehicles = entities.vehicles.slice(0, 5).map(v => {
+  if (!v || typeof v !== 'object') return null;
+  return {
+    brand: typeof v.brand === 'string' ? v.brand : null,
+    model: typeof v.model === 'string' ? v.model : null,
+    year: typeof v.year === 'string' || typeof v.year === 'number' ? v.year : null,
+    engine: typeof v.engine === 'string' ? v.engine : null,
+    power: typeof v.power === 'string' || typeof v.power === 'number' ? v.power : null,
+    vin: typeof v.vin === 'string' ? v.vin : null,
+    raw: typeof v.raw === 'string' ? v.raw : null,
+  };
+}).filter(Boolean);
+if (!Array.isArray(entities.preferredBrands)) entities.preferredBrands = [];
+entities.preferredBrands = entities.preferredBrands.filter(b => typeof b === 'string').slice(0, 10);
+if (typeof entities.quantity !== 'string' && typeof entities.quantity !== 'number') entities.quantity = 'Belirtilmedi';
+if (reply.length > 500) reply = reply.slice(0, 500);
+if (!['price_stock','compatibility','cross_reference','return_complaint','greeting','unclear','other'].includes(intent)) intent = 'other';
+// --- End validation ---
+
 let pauseAutomation = false;
 let notifyAdmins = true;
 let action = 'reply';
@@ -217,9 +297,15 @@ const vehicleComplete = hasVin || missingVehicleFields.length === 0;
 
 let codes = Array.isArray(entities.productCodes) ? entities.productCodes : [];
 if (codes.length === 0 && Array.isArray(ctx.detectedCodes)) codes = ctx.detectedCodes.map(code => ({ code }));
-const plausibleCode = /^[A-Z]{1,3}[ -]\d{2,}(?:(?:[/. -])[A-Z0-9]{1,8}){0,3}$/i;
+const codePatterns = [
+  /^[A-Z]{1,4}\s?\d{2,6}(?:\/\d{1,4})?[A-Z]{0,3}$/i,
+  /^[A-Z0-9]{2,10}[.\/-][A-Z0-9]{1,10}$/i,
+  /^[A-Z]{1,4}\s\d{2,6}(?:\s\d{1,6})?$/i,
+  /^[A-Z]\d{2,6}[A-Z]{0,3}$/i,
+];
+const plausibleCode = (code) => codePatterns.some(p => p.test(code));
 const normalizedCodes = codes.map(c => String(c?.code || c?.raw || c || '').trim())
-  .filter(code => plausibleCode.test(code));
+  .filter(code => plausibleCode(code));
 entities.productCodes = normalizedCodes.map(code => ({ code }));
 if (normalizedCodes.length > 0 && ['other','unclear','partial_code'].includes(caseType)) {
   caseType = 'exact_code_price_stock';
@@ -233,9 +319,11 @@ if (normalizedCodes.length > 0 && ['other','unclear','partial_code'].includes(ca
   intent = 'other';
   reply = '';
 }
-const invented = normalizedCodes.find(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));
-if (invented) {
-  entities.productCodes = codes.filter(c => String(c?.code || c?.raw || c || '').trim() !== invented);
+const invented = normalizedCodes.filter(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));
+if (invented.length > 0) {
+  entities.productCodes = [];
+  normalizedCodes.length = 0;
+  caseType = 'unclear';
   action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
   handoffReason = 'Mesajda bulunmayan ürün kodu engellendi';
   reply = 'Parça kodunuzu doğrulamak üzere talebinizi ürün uzmanımıza aktarıyorum.';
@@ -325,7 +413,7 @@ return { json: {
   ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,
   notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,
   askVehicleInfo, expectsReply: askVehicleInfo || parsed.expectsReply === true,
-  action, handoffReason, retryAi,
+  action, handoffReason, retryAi, correlationId: ctx.correlationId || '',
   parseFailureCode: retryAi ? 'invalid_ai_json' : null,
   parseFailureMessage: retryAi ? 'AI output could not be parsed as valid JSON' : null,
   fingerprint: `${caseType}:${normalizedCodes.sort().join(',')}:${vehicleStrings.join(',')}`
@@ -343,7 +431,8 @@ if (!ctx.senderNumber || !ctx.batchToken) {
 return { json: {
   senderNumber: String(ctx.senderNumber || ''), batchToken: String(ctx.batchToken || ''),
   errorCode: String(ctx.parseFailureCode || ctx.error?.code || 'ai_error'),
-  errorMessage: String(ctx.parseFailureMessage || ctx.error?.message || ctx.message || 'AI execution failed').slice(0, 2000)
+  errorMessage: String(ctx.parseFailureMessage || ctx.error?.message || ctx.message || 'AI execution failed').slice(0, 2000),
+  correlationId: String(ctx.correlationId || '')
 } };
 """.strip()
 
@@ -351,11 +440,19 @@ return { json: {
 prepare_delivery_js = r"""
 const row = $json || {};
 const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {});
+const correlationId = String(row.correlationId || '');
+const channel = String(row.channel || '');
+const deliveryType = String(payload._deliveryType || '');
+const isCustomer = channel === 'customer';
+const isHandoff = deliveryType === 'handoff_alert';
+const isCommand = deliveryType === 'command_notification';
+const priority = isCustomer ? 100 : (isHandoff ? 90 : (isCommand ? 40 : 50));
 return { json: {
   deliveryId: String(row.id || ''), batchToken: String(row.batch_token || ''),
-  channel: String(row.channel || ''), senderNumber: String(row.sender_number || ''),
+  channel: channel, senderNumber: String(row.sender_number || ''),
   destination: String(row.destination || payload.number || ''), text: String(payload.text || ''),
-  body: { number: String(row.destination || payload.number || ''), text: String(payload.text || '') }
+  correlationId, priority,
+  body: { number: String(row.destination || payload.number || ''), text: String(payload.text || ''), correlationId }
 } };
 """.strip()
 
@@ -383,23 +480,40 @@ nodes = [
     code_node("Validate Webhook Secret", validate_webhook_secret_js, [560, 160]),
     if_node("Webhook Auth", "={{ $json.authorized === true }}", [780, 160]),
     {
-        "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: false, error: 'unauthorized' } }}", "options": {"responseCode": 401}},
+        "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: false, error: 'unauthorized', correlationId: $json.correlationId || '' } }}", "options": {"responseCode": 401}},
         "id": node_id("Respond Unauthorized"), "name": "Respond Unauthorized", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [560, 440],
     },
     code_node("Normalize Payload", normalize_js, [340, 260]),
     if_node("Valid Event?", "={{ $json.valid === true }}", [560, 260]),
     {
-        "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, ignored: true } }}", "options": {"responseCode": 202}},
+        "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, ignored: true, correlationId: $json.correlationId || '' } }}", "options": {"responseCode": 202}},
         "id": node_id("Respond Ignored"), "name": "Respond Ignored", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [1000, 420],
     },
-    postgres_node(
-        "Ingest Message",
-        "SELECT * FROM whatsapp_ai.ingest_message($1,$2,$3,$4::jsonb,$5,$6,$7)",
-        "={{ [ $json.messageId, $json.senderNumber, $json.senderName, JSON.stringify($json.message), $json.command, $json.webhookToken, $json.authSource ] }}",
-        [1000, 240],
+    {
+        **postgres_node(
+            "Ingest Message",
+            "SELECT * FROM whatsapp_ai.ingest_message($1,$2,$3,$4::jsonb,$5,$6,$7)",
+            "={{ [ $json.messageId, $json.senderNumber, $json.senderName, JSON.stringify($json.message), $json.command, $json.webhookToken, $json.authSource ] }}",
+            [1000, 240],
+        ),
+        "onError": "continueErrorOutput",
+    },
+    {
+        "parameters": {
+            "respondWith": "json",
+            "responseBody": "={{ { accepted: false, retryable: true, error: 'temporary_ingest_failure', correlationId: $json.correlationId || '' } }}",
+            "options": {"responseCode": 503},
+        },
+        "id": node_id("Respond 503"), "name": "Respond 503", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4,
+        "position": [1220, 440],
+    },
+    code_node(
+        "Prepare Ingest Failure",
+        "const ctx = $json || {};\nreturn { json: { accepted: false, retryable: true, error: 'temporary_ingest_failure', correlationId: String(ctx.correlationId || '') } };",
+        [1120, 440],
     ),
     {
-        "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, action: $json.action || 'queued' } }}", "options": {"responseCode": 202}},
+        "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, action: $json.action || 'queued', correlationId: $json.correlationId || '' } }}", "options": {"responseCode": 202}},
         "id": node_id("Respond Accepted"), "name": "Respond Accepted", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [1220, 240],
     },
     {
@@ -424,15 +538,15 @@ nodes = [
     if_node("AI Output Valid?", "={{ $json.retryAi !== true }}", [1660, 560]),
     postgres_node(
         "Complete AI Batch",
-        "SELECT whatsapp_ai.complete_ai_batch($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9) AS completed, whatsapp_ai.record_service_result('openai',true,NULL) AS circuit_state",
-        "={{ [ $json.senderNumber, $json.batchToken, $json.cevap, $json.bildirim, $json.notifyAdmins, $json.replyCustomer, $json.pauseAutomation, $json.fingerprint, $json.caseType ] }}",
+        "SELECT whatsapp_ai.complete_ai_batch($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9,$10) AS completed, whatsapp_ai.record_service_result('openai',true,NULL) AS circuit_state",
+        "={{ [ $json.senderNumber, $json.batchToken, $json.cevap, $json.bildirim, $json.notifyAdmins, $json.replyCustomer, $json.pauseAutomation, $json.fingerprint, $json.caseType, $json.correlationId || '' ] }}",
         [2760, 520],
     ),
     code_node("Prepare AI Failure", prepare_ai_failure_js, [1880, 700]),
     postgres_node(
         "Record AI Failure",
-        "SELECT whatsapp_ai.record_ai_failure($1,$2::uuid,$3,$4) AS result, whatsapp_ai.record_service_result('openai',false,$3) AS circuit_state",
-        "={{ [ $json.senderNumber, $json.batchToken, $json.errorCode, $json.errorMessage ] }}",
+        "SELECT whatsapp_ai.record_ai_failure($1,$2::uuid,$3,$4,$5) AS result, whatsapp_ai.record_service_result('openai',false,$3) AS circuit_state",
+        "={{ [ $json.senderNumber, $json.batchToken, $json.errorCode, $json.errorMessage, $json.correlationId || '' ] }}",
         [2100, 700],
     ),
     postgres_node("Evolution Circuit Gate", "SELECT whatsapp_ai.circuit_allows('evolution') AS allowed", "={{ [] }}", [340, 820]),
@@ -467,7 +581,8 @@ connections = {
     "Validate Webhook Secret": {"main": [[edge("Webhook Auth")]]},
     "Webhook Auth": {"main": [[edge("Valid Event?")], [edge("Respond Unauthorized")]]},
     "Valid Event?": {"main": [[edge("Ingest Message")], [edge("Respond Ignored")]]},
-    "Ingest Message": {"main": [[edge("Respond Accepted")]]},
+    "Ingest Message": {"main": [[edge("Respond Accepted")], [edge("Prepare Ingest Failure")]]},
+    "Prepare Ingest Failure": {"main": [[edge("Respond 503")]]},
     "Schedule Trigger": {"main": [[edge("OpenAI Circuit Gate"), edge("Evolution Circuit Gate")]]},
     "OpenAI Circuit Gate": {"main": [[edge("OpenAI Circuit Open?")]]},
     "OpenAI Circuit Open?": {"main": [[edge("Claim Ready Batches")], []]},
