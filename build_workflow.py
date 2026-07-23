@@ -143,7 +143,7 @@ return { json: {
 
 system_prompt = """Sen otomotiv filtre satışı için güvenli bilgi çıkarımı yapan bir asistansın.
 Yalnız JSON üret. Şema:
-{"intent":"price_stock|compatibility|cross_reference|vehicle_search|return_complaint|greeting|unclear|other","caseType":"exact_code_price_stock|exact_code_compatibility|cross_reference|partial_code|vehicle_based_search|non_product|greeting|unclear|other","entities":{"productCodes":[],"vehicles":[],"preferredBrands":[],"quantity":"Belirtilmedi"},"replyDraft":"","confidence":0.0,"expectsReply":false}
+{"intent":"price_stock|compatibility|cross_reference|return_complaint|greeting|unclear|other","caseType":"exact_code_price_stock|exact_code_compatibility|cross_reference|partial_code|non_product|greeting|unclear|other","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi"},"replyDraft":"","confidence":0.0,"expectsReply":false}
 Fiyat, stok, kargo veya uyumluluk doğrulanmış gibi gösterme. Müşterinin yazmadığı ürün kodunu üretme. Eksik araç bilgisinde motor hacmi ve beygir veya şasi iste. Şikayet, iade ve insan talebini non_product olarak sınıflandır."""
 
 
@@ -160,7 +160,7 @@ try {
   parsed = { intent: 'unclear', caseType: 'unclear', entities: {}, confidence: 0, _parseError: true };
 }
 
-const allowed = new Set(['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','vehicle_based_search','non_product','greeting','unclear','other']);
+const allowed = new Set(['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','non_product','greeting','unclear','other']);
 const originalText = String(ctx.allMessagesText || '');
 const plainText = originalText.replace(/^\s*\d+\.\s*(?:\[[^\]]+\]\s*)?/, '').trim();
 const textUpper = plainText.toLocaleUpperCase('tr-TR');
@@ -190,12 +190,8 @@ if (brand) {
 }
 
 const vehicleRequestDetected = filterRequest && Boolean(brand || yearMatch);
-if (vehicleRequestDetected && ['other','unclear','vehicle_based_search'].includes(caseType)) {
-  caseType = 'vehicle_based_search';
-  intent = 'vehicle_search';
-}
 const deterministicCase = vehicleRequestDetected || (Array.isArray(ctx.detectedCodes) && ctx.detectedCodes.length > 0)
-  || ['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','vehicle_based_search','greeting','non_product'].includes(caseType);
+  || ['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','greeting','non_product'].includes(caseType);
 
 if (!allowed.has(caseType)) {
   caseType = 'unclear'; action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
@@ -229,15 +225,12 @@ const plausibleCode = /^[A-Z]{1,3}[ -]\d{2,}(?:(?:[/. -])[A-Z0-9]{1,8}){0,3}$/i;
 const normalizedCodes = codes.map(c => String(c?.code || c?.raw || c || '').trim())
   .filter(code => plausibleCode.test(code));
 entities.productCodes = normalizedCodes.map(code => ({ code }));
-if (normalizedCodes.length > 0 && ['other','unclear','partial_code','vehicle_based_search'].includes(caseType)) {
+if (normalizedCodes.length > 0 && ['other','unclear','partial_code'].includes(caseType)) {
   caseType = 'exact_code_price_stock';
   intent = 'price_stock';
   action = 'reply';
   pauseAutomation = false;
   handoffReason = '';
-} else if (normalizedCodes.length === 0 && vehicleRequestDetected) {
-  caseType = 'vehicle_based_search';
-  intent = 'vehicle_search';
 } else if (caseType === 'exact_code_price_stock' && normalizedCodes.length === 0) {
   // Never promise a code-based stock/price lookup when no code was extracted.
   caseType = 'partial_code';
@@ -263,7 +256,7 @@ if (parsed._parseError) {
   handoffReason ||= 'Düşük AI güven skoru';
 }
 
-if (caseType === 'vehicle_based_search' || caseType === 'exact_code_compatibility') {
+if (caseType === 'exact_code_compatibility') {
   notifyAdmins = true;
   if (!vehicleComplete && action !== 'handoff') {
     askVehicleInfo = true;
@@ -298,7 +291,6 @@ const emojiForCase = {
   exact_code_compatibility: '🛠️',
   cross_reference: '🔄',
   partial_code: '🔎',
-  vehicle_based_search: '🚗',
   greeting: '👋',
   non_product: '🤝',
   unclear: '📝',
@@ -306,7 +298,7 @@ const emojiForCase = {
 };
 const replyEmoji = emojiForCase[caseType] || '📌';
 if (!/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u.test(reply)) reply = `${replyEmoji} ${reply}`;
-if (!/[✅✔️]/u.test(reply) && ['exact_code_price_stock','exact_code_compatibility','cross_reference','vehicle_based_search'].includes(caseType)) reply = `${reply} ✅`;
+if (!/[✅✔️]/u.test(reply) && ['exact_code_price_stock','exact_code_compatibility','cross_reference'].includes(caseType)) reply = `${reply} ✅`;
 const escapedName = String(ctx.senderName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 if (escapedName) reply = reply.replace(new RegExp(`^(Merhaba|Selam)\\s+${escapedName}\\s*(?:bey|hanım)?[,!:.]*\\s*`, 'i'), '$1, ');
 reply = reply.replace(/\s+/g, ' ').trim();
@@ -315,10 +307,7 @@ const codeText = normalizedCodes.length ? normalizedCodes.map(code => `• ${cod
 const vehicleText = vehicleStrings.length ? vehicleStrings.map(vehicle => `• ${vehicle}`).join('\n') : (extractedVehicle ? `• ${extractedVehicle}` : 'Belirtilmedi');
 let title = '📩 YENİ TALEP';
 let extraInfo = '';
-if (caseType === 'vehicle_based_search') {
-  title = '📩 ARAÇ BAZLI ARAMA';
-  extraInfo = vehicleStrings.length ? `🚗 ${vehicleStrings[0]}` : '';
-} else if (caseType === 'exact_code_compatibility') {
+if (caseType === 'exact_code_compatibility') {
   title = '📩 UYUMLULUK SORGUSU';
 } else if (caseType === 'cross_reference') {
   title = '📩 MUADİL ARAMA';
@@ -348,88 +337,6 @@ return { json: {
 """.strip()
 
 
-prepare_catalog_js = r"""
-const policy = $json || {};
-const vehicles = Array.isArray(policy.entities?.vehicles) ? policy.entities.vehicles : [];
-const vehicle = vehicles.find(v => v && typeof v === 'object') || {};
-const text = String(policy.allMessagesText || '');
-const intMatch = (pattern) => {
-  const match = text.match(pattern);
-  return match ? Number(match[1].replace(',', '.')) : null;
-};
-const vin = (text.toUpperCase().match(/\b[A-HJ-NPR-Z0-9]{17}\b/) || [])[0] || null;
-const engineText = String(vehicle.engine || vehicle.motor || '').trim()
-  || ((text.match(/\b\d[.,]\d\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZIN|DIZEL)?\b/i) || [])[0] || '');
-return { json: {
-  policy,
-  senderNumber: policy.senderNumber,
-  brand: String(vehicle.brand || '').trim() || null,
-  model: String(vehicle.model || vehicle.modelSeries || '').trim() || null,
-  engine: engineText || null,
-  engineCode: String(vehicle.engineCode || '').trim() || null,
-  powerKw: Number(vehicle.powerKw || vehicle.kw) || intMatch(/\b(\d{2,3})\s*kW\b/i),
-  powerBhp: Number(vehicle.powerBhp || vehicle.bhp) || intMatch(/\b(\d{2,3})\s*(?:BHP|HP|BG|beygir)\b/i),
-  displacement: Number(vehicle.displacementCcm || vehicle.ccm) || intMatch(/\b(\d{3,4})\s*(?:cc|ccm)\b/i),
-  year: Number(vehicle.year) || intMatch(/\b(19\d{2}|20\d{2})\b/),
-  fuelType: String(vehicle.fuelType || '').trim() || null,
-  vin
-} };
-""".strip()
-
-
-apply_catalog_js = r"""
-const policy = typeof $json.policy === 'string' ? JSON.parse($json.policy) : ($json.policy || {});
-const catalog = typeof $json.catalog === 'string' ? JSON.parse($json.catalog) : ($json.catalog || {});
-const requiredLabels = { marka: 'marka', model: 'model serisi', motor: 'motor' };
-const missing = (catalog.missingRequired || []).map(x => requiredLabels[x] || x);
-const optional = (catalog.optionalFields || []).map(value => {
-  const raw = String(value);
-  if (/ccm/i.test(raw)) return 'hacim (ccm)';
-  if (/kw|bhp/i.test(raw)) return 'g\u00fc\u00e7 (kW veya BHP)';
-  if (/motor/i.test(raw)) return 'motor kodu';
-  return '\u00fcretim y\u0131l\u0131';
-});
-let reply = String(policy.cevap || '');
-let notifyAdmins = true;
-let pauseAutomation = Boolean(policy.pauseAutomation);
-let expectsReply = Boolean(policy.expectsReply);
-if (policy.askVehicleInfo) {
-  // Do not overwrite AI's question about missing vehicle info
-  reply = policy.cevap;
-} else if (catalog.status === 'missing_required') {
-  reply = `Do\u011fru filtreyi belirleyebilmemiz i\u00e7in l\u00fctfen ${missing.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
-  pauseAutomation = false; expectsReply = true;
-} else if (catalog.status === 'ambiguous') {
-  reply = `Ara\u00e7 bilgilerini netle\u015ftirmek i\u00e7in l\u00fctfen ${optional.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
-  pauseAutomation = false; expectsReply = true;
-} else if (catalog.status === 'unique') {
-  reply = 'Ara\u00e7 bilgileriniz katalogda do\u011fruland\u0131. Uygun par\u00e7a, g\u00fcncel stok ve net fiyat kontrol edilerek payla\u015f\u0131lacakt\u0131r.';
-  notifyAdmins = true; pauseAutomation = false;
-} else if (catalog.status === 'no_match' && optional.length) {
-  reply = `Katalog e\u015fle\u015fmesini netle\u015ftirmek i\u00e7in l\u00fctfen ${optional.join(', ')} bilgisini payla\u015f\u0131n. Varsa \u015fasi numaras\u0131n\u0131 da iletebilirsiniz.`;
-  pauseAutomation = false; expectsReply = true;
-} else if (catalog.status === 'no_match') {
-  reply = 'Ara\u00e7 bilgileri katalogda kesin e\u015fle\u015fmedi. \u00dcr\u00fcn uzman\u0131m\u0131z uygun par\u00e7ay\u0131 kontrol ederek bilgi verecektir.';
-  notifyAdmins = true;
-}
-
-const catalogEmoji = catalog.status === 'unique' ? '\u2705' : (catalog.status === 'missing_required' || catalog.status === 'ambiguous' || catalog.status === 'no_match' ? '\ud83d\udd0e' : '\ud83d\udccc');
-if (!/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u.test(reply)) reply = `${catalogEmoji} ${reply}`;
-
-let finalBildirim = String(policy.bildirim || '');
-if (reply !== policy.cevap && finalBildirim.includes(policy.cevap)) {
-  finalBildirim = finalBildirim.replace(policy.cevap, reply);
-}
-
-const vehicle = catalog.vehicle || {};
-const adminCatalog = `\n\nKatalog Kontrol\nDurum: ${catalog.status || 'bilinmiyor'}\nAday: ${Number(catalog.candidateCount || 0)}\nAra\u00e7: ${[vehicle.brand, vehicle.model, vehicle.engine].filter(Boolean).join(' / ') || 'Belirtilmedi'}${vehicle.vin ? `\n\u015easi: ${vehicle.vin}` : ''}`;
-return { json: {
-  ...policy, cevap: reply, notifyAdmins, pauseAutomation, expectsReply,
-  bildirim: finalBildirim + adminCatalog,
-  fingerprint: `${policy.fingerprint || 'vehicle'}:catalog:${catalog.status || 'unknown'}`,
-  catalog
-} };
-""".strip()
 
 
 prepare_ai_failure_js = r"""
@@ -519,15 +426,6 @@ nodes = [
     },
     code_node("Parse AI Output", parse_ai_js, [1440, 560]),
     if_node("AI Output Valid?", "={{ $json.retryAi !== true }}", [1660, 560]),
-    if_node("Vehicle Catalog?", "={{ $json.caseType === 'vehicle_based_search' }}", [1880, 520]),
-    code_node("Prepare Catalog Lookup", prepare_catalog_js, [2100, 440]),
-    postgres_node(
-        "Resolve Vehicle Catalog",
-        "SELECT $1::jsonb AS policy, whatsapp_ai.resolve_vehicle_context($2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS catalog",
-        "={{ [ JSON.stringify($json.policy), $json.senderNumber, $json.brand, $json.model, $json.engine, $json.engineCode, $json.powerKw, $json.powerBhp, $json.displacement, $json.fuelType, $json.year, $json.vin ] }}",
-        [2320, 440],
-    ),
-    code_node("Apply Catalog Decision", apply_catalog_js, [2540, 440]),
     postgres_node(
         "Complete AI Batch",
         "SELECT whatsapp_ai.complete_ai_batch($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9) AS completed, whatsapp_ai.record_service_result('openai',true,NULL) AS circuit_state",
@@ -581,11 +479,7 @@ connections = {
     "Store Context": {"main": [[edge("AI Agent")]]},
     "AI Agent": {"main": [[edge("Parse AI Output")], [edge("Prepare AI Failure")]]},
     "Parse AI Output": {"main": [[edge("AI Output Valid?")]]},
-    "AI Output Valid?": {"main": [[edge("Vehicle Catalog?")], [edge("Prepare AI Failure")]]},
-    "Vehicle Catalog?": {"main": [[edge("Prepare Catalog Lookup")], [edge("Complete AI Batch")]]},
-    "Prepare Catalog Lookup": {"main": [[edge("Resolve Vehicle Catalog")]]},
-    "Resolve Vehicle Catalog": {"main": [[edge("Apply Catalog Decision")]]},
-    "Apply Catalog Decision": {"main": [[edge("Complete AI Batch")]]},
+    "AI Output Valid?": {"main": [[edge("Complete AI Batch")], [edge("Prepare AI Failure")]]},
     "Prepare AI Failure": {"main": [[edge("Record AI Failure")]]},
     "OpenAI Chat Model1": {"ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]},
     "Evolution Circuit Gate": {"main": [[edge("Evolution Circuit Open?")]]},

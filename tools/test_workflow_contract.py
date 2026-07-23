@@ -22,7 +22,8 @@ def targets(source, output=0):
 def main():
     names = [item["name"] for item in WORKFLOW["nodes"]]
     assert len(names) == len(set(names))
-    for removed in ("Should Process?", "Finalize Batch", "Batch Collector", "Stale Batch Check", "Simple Memory"):
+    for removed in ("Should Process?", "Finalize Batch", "Batch Collector", "Stale Batch Check", "Simple Memory",
+                     "Vehicle Catalog?", "Prepare Catalog Lookup", "Resolve Vehicle Catalog", "Apply Catalog Decision"):
         assert removed not in names, f"legacy node remains: {removed}"
 
     webhook = node("Webhook1")
@@ -42,16 +43,11 @@ def main():
     assert targets("AI Agent", 0) == ["Parse AI Output"]
     assert targets("AI Agent", 1) == ["Prepare AI Failure"]
     assert targets("Parse AI Output") == ["AI Output Valid?"]
-    assert targets("AI Output Valid?", 0) == ["Vehicle Catalog?"]
+    assert targets("AI Output Valid?", 0) == ["Complete AI Batch"]
     assert targets("AI Output Valid?", 1) == ["Prepare AI Failure"]
-    assert targets("Vehicle Catalog?", 0) == ["Prepare Catalog Lookup"]
-    assert targets("Vehicle Catalog?", 1) == ["Complete AI Batch"]
-    assert targets("Apply Catalog Decision") == ["Complete AI Batch"]
     parse = node("Parse AI Output")["parameters"]["jsCode"]
-    ai_failure = node("Prepare AI Failure")["parameters"]["jsCode"]
-    catalog_decision = node("Apply Catalog Decision")["parameters"]["jsCode"]
-    assert "catalogEmoji" not in ai_failure
-    assert "catalogEmoji" in catalog_decision
+    assert "vehicle_based_search" not in parse
+    assert "catalogEmoji" not in parse
     for forbidden in ("$getWorkflowStaticData", "_deliveryLedger", "_batches", "_adminNotifications"):
         assert forbidden not in parse
 
@@ -64,7 +60,7 @@ def main():
     assert send["credentials"]["httpHeaderAuth"]["name"] == "Evolution API"
 
     assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate"]
-    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Resolve Vehicle Catalog", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result"):
+    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result"):
         pg = node(pg_name)
         assert pg["type"] == "n8n-nodes-base.postgres"
         assert pg["credentials"]["postgres"]["name"] == "WhatsApp State PostgreSQL"
@@ -85,14 +81,18 @@ def main():
     assert "interval '120 seconds'" in SQL
     assert "interval '10 seconds'" not in SQL
     assert "ai_attempt_count > 0" in SQL
-    assert "mann_vehicle_catalog" in SQL and "customer_vehicle_context" in SQL
-    assert "FILTER (WHERE source_id IS NOT NULL)" in SQL
+    assert "DROP TABLE IF EXISTS whatsapp_ai.mann_vehicle_catalog" in SQL
+    assert "DROP TABLE IF EXISTS whatsapp_ai.catalog_imports" in SQL
+    assert "DROP TABLE IF EXISTS whatsapp_ai.customer_vehicle_context" in SQL
     assert "state IN ('closed', 'open', 'half_open')" in SQL
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)
     assert "WEBHOOK_SECRET" in source
     assert "N8N_POSTGRES_CREDENTIAL_ID" in source
+    assert "vehicle_based_search" not in source
+    assert "prepare_catalog_js" not in source
+    assert "apply_catalog_js" not in source
     print("[PASS] PostgreSQL state, auth, token and outbox contracts")
 
 

@@ -4,10 +4,8 @@
 
 ## 2026-07-18 Makro Degisiklik Ozeti
 
-- Ana workflow PostgreSQL katalog eslestirme, 24 saatlik arac baglami ve OpenAI/Evolution circuit breaker ile guncellendi.
-- Zorunlu arac alanlari marka, model serisi ve motordur. Yil, motor kodu, kW/BHP, ccm ve varsa sasi yalniz katalog sonucunu ayirmak gerektiginde istenir.
+- Ana workflow PostgreSQL state management, OpenAI/Evolution circuit breaker ile guncellendi.
 - `ops_workflow.json` kuyruk alarmi, gunluk rapor, retention ve credential reminder cronlarini ayri workflow olarak tanimlar.
-- `tools/import_mann_catalog.py` staging + checksum onayi olmadan katalog aktivasyonu yapmaz ve filtre kodu kolonlarini yuklemez.
 - Canli/test numaralarina acik kullanici onayi olmadan test mesaji gonderilmez.
 Batch, dedupe, manuel mod ve kanal teslimatları n8n'in mevcut PostgreSQL
 veritabanındaki izole `whatsapp_ai` schema'sında tutulur.

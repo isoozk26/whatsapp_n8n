@@ -26,19 +26,6 @@ WHERE elem->>'brand' IS NOT NULL OR elem->>'model' IS NOT NULL
 GROUP BY elem->>'brand', elem->>'model', elem->>'year', elem->>'engine'
 ORDER BY total_requests DESC;
 
-CREATE OR REPLACE VIEW whatsapp_ai.v_missed_catalog_requests AS
-SELECT 
-    sender_number,
-    sender_name,
-    case_type,
-    entities,
-    cevap AS ai_reply,
-    bildirim AS admin_notification,
-    completed_at
-FROM whatsapp_ai.ai_audit_ledger
-WHERE bildirim LIKE '%no_match%' OR case_type = 'non_product' OR handoff_reason IS NOT NULL
-ORDER BY completed_at DESC;
-
 CREATE OR REPLACE VIEW whatsapp_ai.v_customer_activity_summary AS
 SELECT 
     b.sender_number,

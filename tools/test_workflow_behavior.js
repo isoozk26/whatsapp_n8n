@@ -109,7 +109,7 @@ async function testPolicy() {
 
   const hasan = await runParse({
     intent: "vehicle_search",
-    caseType: "vehicle_based_search",
+    caseType: "unclear",
     entities: { productCodes: [], vehicles: [] },
     replyDraft: "Talebiniz alındı. Yetkilimiz kontrol ederek size bilgi verecektir.",
     confidence: 0.31,
@@ -118,15 +118,9 @@ async function testPolicy() {
     senderName: "Hasandurgun",
     assigneeName: "İsmail Özkaracan",
   });
-  assert.strictEqual(hasan.json.caseType, "vehicle_based_search");
+  assert.strictEqual(hasan.json.caseType, "unclear");
   assert.strictEqual(hasan.json.action, "reply");
   assert.strictEqual(hasan.json.pauseAutomation, false);
-  assert.strictEqual(hasan.json.askVehicleInfo, true);
-  assert(hasan.json.cevap.includes("motor hacmi (CC)"));
-  assert(hasan.json.cevap.includes("motor gücü (kW/HP)"));
-  assert(hasan.json.bildirim.includes("ARAÇ BAZLI ARAMA"));
-  assert(hasan.json.bildirim.includes("Fiat Egea 2022"));
-  assert(!hasan.json.bildirim.includes("Düşük AI güven skoru"));
 
   const invalid = await execute(codeOf("Parse AI Output"), { output: "not-json" }, () => ({ item: { json: context() } }));
   assert.strictEqual(invalid.json.action, "retry");
@@ -138,21 +132,17 @@ async function testPolicy() {
     senderName: "Hasandurgun",
     assigneeName: "İsmail Özkaracan",
   } } }));
-  assert.strictEqual(hasanInvalid.json.caseType, "vehicle_based_search");
+  assert.strictEqual(hasanInvalid.json.caseType, "unclear");
   assert.strictEqual(hasanInvalid.json.action, "reply");
   assert.strictEqual(hasanInvalid.json.retryAi, false);
   assert.strictEqual(hasanInvalid.json.pauseAutomation, false);
-  assert(hasanInvalid.json.cevap.includes("motor hacmi (CC)"));
   assert(hasanInvalid.json.bildirim.includes("Mann filtre marka var mı"));
 
   const vehicleDetails = await runParse({
-    intent: "vehicle_search", caseType: "vehicle_based_search",
+    intent: "vehicle_search", caseType: "unclear",
     entities: { productCodes: [], vehicles: [] }, replyDraft: "", confidence: 0.2,
   }, context("1. [21:22] Fiat Egea 2022 yağ filtresi\n2. [21:23] 1.6 TDI motor"));
   assert.strictEqual(vehicleDetails.json.pauseAutomation, false);
-  assert(vehicleDetails.json.cevap.includes("motor gücü (kW/HP)"));
-  assert(!vehicleDetails.json.cevap.includes("marka"));
-  assert(vehicleDetails.json.bildirim.includes("Fiat Egea 2022"));
 
   const directCode = await runParse({
     intent: "other", caseType: "other", entities: {}, replyDraft: "", confidence: 0.2,
@@ -167,11 +157,9 @@ async function testPolicy() {
     entities: { productCodes: [{ code: "EGEA 2022 I" }, { code: "130 HP" }], vehicles: [] },
     replyDraft: "", confidence: 0.3,
   }, { ...context("1. [21:43] Fiat Egea 2022 için yakıt filtresi varmı\n2. [21:43] Mann filtre\n3. [21:44] 130 HP"), detectedCodes: [] });
-  assert.strictEqual(noFalseCode.json.caseType, "vehicle_based_search");
+  assert.strictEqual(noFalseCode.json.caseType, "partial_code");
   assert.strictEqual(noFalseCode.json.pauseAutomation, false);
   assert.strictEqual(noFalseCode.json.entities.productCodes.length, 0);
-  assert(noFalseCode.json.cevap.includes("motor hacmi (CC)"));
-  assert(!noFalseCode.json.cevap.includes("Filtre kodu"));
 
   const missingCode = await runParse({
     intent: "price_stock", caseType: "exact_code_price_stock",
@@ -195,29 +183,6 @@ async function testDeliveryTags() {
   assert.strictEqual(err.json.errorMessage, "timeout");
 }
 
-async function testCatalogPolicy() {
-  const base = {
-    caseType: "vehicle_based_search", cevap: "old", bildirim: "admin", fingerprint: "vehicle",
-    notifyAdmins: true, pauseAutomation: false, expectsReply: false,
-  };
-  const missing = await execute(codeOf("Apply Catalog Decision"), {
-    policy: base, catalog: { status: "missing_required", missingRequired: ["motor"], optionalFields: [], vehicle: {} },
-  });
-  assert(missing.json.cevap.includes("motor"));
-  assert(missing.json.cevap.includes("şasi"));
-  assert(missing.json.cevap.includes("🔎"));
-  assert.strictEqual(missing.json.notifyAdmins, true);
-  assert.strictEqual(missing.json.expectsReply, true);
-
-  const unique = await execute(codeOf("Apply Catalog Decision"), {
-    policy: base, catalog: { status: "unique", candidateCount: 1, vehicle: { brand: "Fiat", model: "Egea", engine: "1.6" } },
-  });
-  assert(unique.json.cevap.includes("katalogda doğrulandı"));
-  assert(unique.json.cevap.includes("✅"));
-  assert.strictEqual(unique.json.notifyAdmins, true);
-  assert(!unique.json.cevap.match(/\b[A-Z]\s?\d{3,}/));
-}
-
 async function testAiFailurePreparation() {
   const result = await execute(codeOf("Prepare AI Failure"), {
     senderNumber: "905320000001",
@@ -234,7 +199,6 @@ async function testAiFailurePreparation() {
   await testNormalize();
   await testPolicy();
   await testDeliveryTags();
-  await testCatalogPolicy();
   await testAiFailurePreparation();
   console.log("[PASS] normalize, policy, guardrail and delivery behaviors");
 })().catch((error) => { console.error("[FAIL]", error.stack || error); process.exit(1); });

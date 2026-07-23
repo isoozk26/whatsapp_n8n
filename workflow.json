@@ -304,7 +304,7 @@
         "promptType": "define",
         "text": "={{ $json._prompt }}",
         "options": {
-          "systemMessage": "Sen otomotiv filtre satışı için güvenli bilgi çıkarımı yapan bir asistansın.\nYalnız JSON üret. Şema:\n{\"intent\":\"price_stock|compatibility|cross_reference|vehicle_search|return_complaint|greeting|unclear|other\",\"caseType\":\"exact_code_price_stock|exact_code_compatibility|cross_reference|partial_code|vehicle_based_search|non_product|greeting|unclear|other\",\"entities\":{\"productCodes\":[],\"vehicles\":[],\"preferredBrands\":[],\"quantity\":\"Belirtilmedi\"},\"replyDraft\":\"\",\"confidence\":0.0,\"expectsReply\":false}\nFiyat, stok, kargo veya uyumluluk doğrulanmış gibi gösterme. Müşterinin yazmadığı ürün kodunu üretme. Eksik araç bilgisinde motor hacmi ve beygir veya şasi iste. Şikayet, iade ve insan talebini non_product olarak sınıflandır."
+          "systemMessage": "Sen otomotiv filtre satışı için güvenli bilgi çıkarımı yapan bir asistansın.\nYalnız JSON üret. Şema:\n{\"intent\":\"price_stock|compatibility|cross_reference|return_complaint|greeting|unclear|other\",\"caseType\":\"exact_code_price_stock|exact_code_compatibility|cross_reference|partial_code|non_product|greeting|unclear|other\",\"entities\":{\"productCodes\":[],\"preferredBrands\":[],\"quantity\":\"Belirtilmedi\"},\"replyDraft\":\"\",\"confidence\":0.0,\"expectsReply\":false}\nFiyat, stok, kargo veya uyumluluk doğrulanmış gibi gösterme. Müşterinin yazmadığı ürün kodunu üretme. Eksik araç bilgisinde motor hacmi ve beygir veya şasi iste. Şikayet, iade ve insan talebini non_product olarak sınıflandır."
         }
       },
       "id": "dbd134d8-ea6a-5e35-a4e8-1ca08c6cad4e",
@@ -349,7 +349,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const current = $json || {};\nconst ctx = $('Store Context').item.json;\nconst raw = current.output ?? current.aiResult ?? current;\nlet parsed;\ntry {\n  parsed = typeof raw === 'object'\n    ? raw\n    : JSON.parse(String(raw).replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/i, '').trim());\n} catch (error) {\n  parsed = { intent: 'unclear', caseType: 'unclear', entities: {}, confidence: 0, _parseError: true };\n}\n\nconst allowed = new Set(['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','vehicle_based_search','non_product','greeting','unclear','other']);\nconst originalText = String(ctx.allMessagesText || '');\nconst plainText = originalText.replace(/^\\s*\\d+\\.\\s*(?:\\[[^\\]]+\\]\\s*)?/, '').trim();\nconst textUpper = plainText.toLocaleUpperCase('tr-TR');\nlet intent = String(parsed.intent || 'other');\nlet caseType = String(parsed.caseType || 'other');\nlet entities = parsed.entities && typeof parsed.entities === 'object' ? parsed.entities : {};\nlet confidence = typeof parsed.confidence === 'number' ? parsed.confidence : Number(parsed.confidence?.caseType || 0);\nlet reply = String(parsed.replyDraft || '').trim();\nlet pauseAutomation = false;\nlet notifyAdmins = true;\nlet action = 'reply';\nlet handoffReason = '';\nlet askVehicleInfo = false;\nlet retryAi = false;\n\nconst filterRequest = /\\b(yağ|yag|hava|yakıt|yakit|polen|kabin|şanzıman|sanziman)\\s+filtresi?\\b|\\bfiltre\\b/i.test(plainText);\nconst yearMatch = plainText.match(/\\b(19\\d{2}|20\\d{2})\\b/);\nconst brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan'];\nconst brand = brands.find(item => new RegExp(`\\\\b${item}\\\\b`, 'i').test(plainText));\nlet extractedVehicle = '';\nif (brand) {\n  const afterBrand = plainText.slice(plainText.toLocaleLowerCase('tr-TR').indexOf(brand.toLocaleLowerCase('tr-TR')) + brand.length);\n  const modelPart = afterBrand.split(/\\b(?:19\\d{2}|20\\d{2})\\b/)[0]\n    .replace(/\\b(?:yağ|yag|hava|yakıt|yakit|polen|kabin|filtre|filtresi|arıyorum|ariyorum|için|icin)\\b/gi, ' ')\n    .replace(/[^\\p{L}\\p{N}.-]+/gu, ' ').trim().split(/\\s+/).slice(0, 3).join(' ');\n  extractedVehicle = [brand === 'VW' ? 'Volkswagen' : brand, modelPart, yearMatch?.[1] || ''].filter(Boolean).join(' ').trim();\n}\n\nconst vehicleRequestDetected = filterRequest && Boolean(brand || yearMatch);\nif (vehicleRequestDetected && ['other','unclear','vehicle_based_search'].includes(caseType)) {\n  caseType = 'vehicle_based_search';\n  intent = 'vehicle_search';\n}\nconst deterministicCase = vehicleRequestDetected || (Array.isArray(ctx.detectedCodes) && ctx.detectedCodes.length > 0)\n  || ['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','vehicle_based_search','greeting','non_product'].includes(caseType);\n\nif (!allowed.has(caseType)) {\n  caseType = 'unclear'; action = 'handoff'; pauseAutomation = true; notifyAdmins = true;\n  handoffReason = 'AI şema doğrulaması başarısız';\n}\n\nif (!Array.isArray(entities.vehicles)) entities.vehicles = [];\nif (extractedVehicle && !entities.vehicles.some(v => String(v?.raw || v || '').toLocaleLowerCase('tr-TR').includes(extractedVehicle.toLocaleLowerCase('tr-TR')))) {\n  entities.vehicles.unshift({ raw: extractedVehicle, brand: brand === 'VW' ? 'Volkswagen' : brand, model: extractedVehicle.replace(new RegExp(`^${brand === 'VW' ? 'Volkswagen' : brand}\\\\s*`, 'i'), '').replace(/\\s+(?:19\\d{2}|20\\d{2})$/, ''), year: yearMatch?.[1] || null });\n}\nconst vehicleStrings = entities.vehicles.map(v => {\n  if (typeof v === 'string') return v.trim();\n  return String(v?.raw || [v?.brand, v?.model, v?.year, v?.engine].filter(Boolean).join(' ')).trim();\n}).filter(Boolean);\nconst vehicleBlob = `${plainText} ${vehicleStrings.join(' ')}`;\nconst hasVin = /\\b[A-HJ-NPR-Z0-9]{17}\\b/i.test(vehicleBlob);\nconst hasEngine = /\\b\\d[.,]\\d\\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZİN|DİZEL)?\\b/i.test(vehicleBlob);\nconst hasPower = /\\b\\d{2,3}\\s*(?:kw|hp|bg|beygir)\\b/i.test(vehicleBlob);\nconst hasModel = Boolean(brand && extractedVehicle.replace(new RegExp(`^${brand === 'VW' ? 'Volkswagen' : brand}\\\\s*`, 'i'), '').replace(/\\s+(?:19\\d{2}|20\\d{2})$/, '').trim());\nconst missingVehicleFields = [];\nif (!brand) missingVehicleFields.push('marka');\nif (!hasModel) missingVehicleFields.push('model');\nif (!yearMatch) missingVehicleFields.push('üretim yılı');\nif (!hasVin && !hasEngine) missingVehicleFields.push('motor hacmi (CC)');\nif (!hasVin && !hasPower) missingVehicleFields.push('motor gücü (kW/HP)');\nconst vehicleComplete = hasVin || missingVehicleFields.length === 0;\n\nlet codes = Array.isArray(entities.productCodes) ? entities.productCodes : [];\nif (codes.length === 0 && Array.isArray(ctx.detectedCodes)) codes = ctx.detectedCodes.map(code => ({ code }));\nconst plausibleCode = /^[A-Z]{1,3}[ -]\\d{2,}(?:(?:[/. -])[A-Z0-9]{1,8}){0,3}$/i;\nconst normalizedCodes = codes.map(c => String(c?.code || c?.raw || c || '').trim())\n  .filter(code => plausibleCode.test(code));\nentities.productCodes = normalizedCodes.map(code => ({ code }));\nif (normalizedCodes.length > 0 && ['other','unclear','partial_code','vehicle_based_search'].includes(caseType)) {\n  caseType = 'exact_code_price_stock';\n  intent = 'price_stock';\n  action = 'reply';\n  pauseAutomation = false;\n  handoffReason = '';\n} else if (normalizedCodes.length === 0 && vehicleRequestDetected) {\n  caseType = 'vehicle_based_search';\n  intent = 'vehicle_search';\n} else if (caseType === 'exact_code_price_stock' && normalizedCodes.length === 0) {\n  // Never promise a code-based stock/price lookup when no code was extracted.\n  caseType = 'partial_code';\n  intent = 'other';\n  reply = '';\n}\nconst invented = normalizedCodes.find(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));\nif (invented) {\n  entities.productCodes = codes.filter(c => String(c?.code || c?.raw || c || '').trim() !== invented);\n  action = 'handoff'; pauseAutomation = true; notifyAdmins = true;\n  handoffReason = 'Mesajda bulunmayan ürün kodu engellendi';\n  reply = 'Parça kodunuzu doğrulamak üzere talebinizi ürün uzmanımıza aktarıyorum.';\n}\n\nif (parsed._parseError) {\n  if (deterministicCase) {\n    reply = '';\n  } else {\n    action = 'retry'; retryAi = true;\n  }\n} else if (confidence < 0.55 && !deterministicCase && !['greeting','unclear'].includes(intent)) {\n  action = 'handoff'; pauseAutomation = true; notifyAdmins = true;\n  handoffReason ||= 'Düşük AI güven skoru';\n}\n\nif (caseType === 'vehicle_based_search' || caseType === 'exact_code_compatibility') {\n  notifyAdmins = true;\n  if (!vehicleComplete && action !== 'handoff') {\n    askVehicleInfo = true;\n    reply = `Doğru filtreyi belirleyebilmemiz için lütfen şu bilgileri paylaşın: ${missingVehicleFields.join(', ')}. Alternatif olarak şasi numarasını iletebilirsiniz.`;\n  } else if (action !== 'handoff') {\n    reply = 'Araç bilgileriniz tamamlandı. Uygun filtre kodu, güncel stok ve net fiyat kontrol edilerek paylaşılacaktır.';\n  }\n} else if (caseType === 'exact_code_price_stock') {\n  notifyAdmins = true;\n  reply = `📦 Filtre kodu ${normalizedCodes.join(', ')} için güncel stok ve net fiyat kontrol edilerek paylaşılacaktır. ✅`;\n} else if (caseType === 'cross_reference') {\n  notifyAdmins = true;\n  reply ||= 'Muadil parça talebiniz alındı. Üretici kataloğundan doğrulanarak stok ve fiyat bilgisi paylaşılacaktır.';\n} else if (caseType === 'partial_code') {\n  reply ||= 'Filtre kodunun tamamını veya aracınızın marka, model, yıl ve motor bilgisini paylaşabilir misiniz?';\n} else if (caseType === 'greeting') {\n  reply ||= 'Merhaba! Size nasıl yardımcı olabilirim?';\n} else if (caseType === 'non_product' || intent === 'return_complaint') {\n  action = 'handoff'; pauseAutomation = true; notifyAdmins = true;\n  handoffReason ||= 'Şikayet, iade veya temsilci talebi';\n  reply ||= 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';\n}\n\nconst unsafeClaim = /\\b\\d+(?:[.,]\\d+)?\\s*(?:tl|₺)\\b|\\bstokta\\b|kesin\\s+uyar|bugün\\s+kargo/i.test(reply);\nif (unsafeClaim) {\n  reply = 'Talebiniz alındı. Güncel stok, net fiyat ve uyumluluk bilgisi kontrol edilerek paylaşılacaktır.';\n  notifyAdmins = true;\n}\nif (!reply) reply = 'Talebiniz alındı. Yetkilimiz kontrol ederek size bilgi verecektir.';\nconst emojiForCase = {\n  exact_code_price_stock: '📦',\n  exact_code_compatibility: '🛠️',\n  cross_reference: '🔄',\n  partial_code: '🔎',\n  vehicle_based_search: '🚗',\n  greeting: '👋',\n  non_product: '🤝',\n  unclear: '📝',\n  other: '📌'\n};\nconst replyEmoji = emojiForCase[caseType] || '📌';\nif (!/[\\u{1F300}-\\u{1FAFF}\\u2600-\\u27BF]/u.test(reply)) reply = `${replyEmoji} ${reply}`;\nif (!/[✅✔️]/u.test(reply) && ['exact_code_price_stock','exact_code_compatibility','cross_reference','vehicle_based_search'].includes(caseType)) reply = `${reply} ✅`;\nconst escapedName = String(ctx.senderName || '').replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nif (escapedName) reply = reply.replace(new RegExp(`^(Merhaba|Selam)\\\\s+${escapedName}\\\\s*(?:bey|hanım)?[,!:.]*\\\\s*`, 'i'), '$1, ');\nreply = reply.replace(/\\s+/g, ' ').trim();\n\nconst codeText = normalizedCodes.length ? normalizedCodes.map(code => `• ${code}`).join('\\n') : 'Belirtilmedi';\nconst vehicleText = vehicleStrings.length ? vehicleStrings.map(vehicle => `• ${vehicle}`).join('\\n') : (extractedVehicle ? `• ${extractedVehicle}` : 'Belirtilmedi');\nlet title = '📩 YENİ TALEP';\nlet extraInfo = '';\nif (caseType === 'vehicle_based_search') {\n  title = '📩 ARAÇ BAZLI ARAMA';\n  extraInfo = vehicleStrings.length ? `🚗 ${vehicleStrings[0]}` : '';\n} else if (caseType === 'exact_code_compatibility') {\n  title = '📩 UYUMLULUK SORGUSU';\n} else if (caseType === 'cross_reference') {\n  title = '📩 MUADİL ARAMA';\n} else if (caseType === 'exact_code_price_stock') {\n  title = '📩 STOK/FİYAT SORGUSU';\n} else if (caseType === 'non_product') {\n  title = intent === 'return_complaint' ? '📩 ŞİKAYET / İADE' : '📩 DESTEK TALEBİ';\n} else if (caseType === 'partial_code') {\n  title = '📩 EKSİK BİLGİ';\n  extraInfo = '🤖 Müşteriden bilgi istendi';\n} else if (handoffReason.includes('ürün kodu')) {\n  title = '📩 UZMANA AKTARIM';\n} else if (action === 'handoff') {\n  title = '📩 UZMANA AKTARIM';\n  extraInfo = handoffReason ? `⚠️ ${handoffReason}` : '';\n}\nconst adminMessage = `${title}\\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\\n${extraInfo}` : ''}\\n\\n💬 Müşteri\\n\"${originalText}\"\\n\\n🤖 Yanıt Gönderildi\\n\"${reply}\"${handoffReason ? `\\n\\n⚠️ ${handoffReason}` : ''}`;\nreturn { json: {\n  ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,\n  notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,\n  askVehicleInfo, expectsReply: askVehicleInfo || parsed.expectsReply === true,\n  action, handoffReason, retryAi,\n  parseFailureCode: retryAi ? 'invalid_ai_json' : null,\n  parseFailureMessage: retryAi ? 'AI output could not be parsed as valid JSON' : null,\n  fingerprint: `${caseType}:${normalizedCodes.sort().join(',')}:${vehicleStrings.join(',')}`\n} };"
+        "jsCode": "const current = $json || {};\nconst ctx = $('Store Context').item.json;\nconst raw = current.output ?? current.aiResult ?? current;\nlet parsed;\ntry {\n  parsed = typeof raw === 'object'\n    ? raw\n    : JSON.parse(String(raw).replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/i, '').trim());\n} catch (error) {\n  parsed = { intent: 'unclear', caseType: 'unclear', entities: {}, confidence: 0, _parseError: true };\n}\n\nconst allowed = new Set(['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','non_product','greeting','unclear','other']);\nconst originalText = String(ctx.allMessagesText || '');\nconst plainText = originalText.replace(/^\\s*\\d+\\.\\s*(?:\\[[^\\]]+\\]\\s*)?/, '').trim();\nconst textUpper = plainText.toLocaleUpperCase('tr-TR');\nlet intent = String(parsed.intent || 'other');\nlet caseType = String(parsed.caseType || 'other');\nlet entities = parsed.entities && typeof parsed.entities === 'object' ? parsed.entities : {};\nlet confidence = typeof parsed.confidence === 'number' ? parsed.confidence : Number(parsed.confidence?.caseType || 0);\nlet reply = String(parsed.replyDraft || '').trim();\nlet pauseAutomation = false;\nlet notifyAdmins = true;\nlet action = 'reply';\nlet handoffReason = '';\nlet askVehicleInfo = false;\nlet retryAi = false;\n\nconst filterRequest = /\\b(yağ|yag|hava|yakıt|yakit|polen|kabin|şanzıman|sanziman)\\s+filtresi?\\b|\\bfiltre\\b/i.test(plainText);\nconst yearMatch = plainText.match(/\\b(19\\d{2}|20\\d{2})\\b/);\nconst brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan'];\nconst brand = brands.find(item => new RegExp(`\\\\b${item}\\\\b`, 'i').test(plainText));\nlet extractedVehicle = '';\nif (brand) {\n  const afterBrand = plainText.slice(plainText.toLocaleLowerCase('tr-TR').indexOf(brand.toLocaleLowerCase('tr-TR')) + brand.length);\n  const modelPart = afterBrand.split(/\\b(?:19\\d{2}|20\\d{2})\\b/)[0]\n    .replace(/\\b(?:yağ|yag|hava|yakıt|yakit|polen|kabin|filtre|filtresi|arıyorum|ariyorum|için|icin)\\b/gi, ' ')\n    .replace(/[^\\p{L}\\p{N}.-]+/gu, ' ').trim().split(/\\s+/).slice(0, 3).join(' ');\n  extractedVehicle = [brand === 'VW' ? 'Volkswagen' : brand, modelPart, yearMatch?.[1] || ''].filter(Boolean).join(' ').trim();\n}\n\nconst vehicleRequestDetected = filterRequest && Boolean(brand || yearMatch);\nconst deterministicCase = vehicleRequestDetected || (Array.isArray(ctx.detectedCodes) && ctx.detectedCodes.length > 0)\n  || ['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','greeting','non_product'].includes(caseType);\n\nif (!allowed.has(caseType)) {\n  caseType = 'unclear'; action = 'handoff'; pauseAutomation = true; notifyAdmins = true;\n  handoffReason = 'AI şema doğrulaması başarısız';\n}\n\nif (!Array.isArray(entities.vehicles)) entities.vehicles = [];\nif (extractedVehicle && !entities.vehicles.some(v => String(v?.raw || v || '').toLocaleLowerCase('tr-TR').includes(extractedVehicle.toLocaleLowerCase('tr-TR')))) {\n  entities.vehicles.unshift({ raw: extractedVehicle, brand: brand === 'VW' ? 'Volkswagen' : brand, model: extractedVehicle.replace(new RegExp(`^${brand === 'VW' ? 'Volkswagen' : brand}\\\\s*`, 'i'), '').replace(/\\s+(?:19\\d{2}|20\\d{2})$/, ''), year: yearMatch?.[1] || null });\n}\nconst vehicleStrings = entities.vehicles.map(v => {\n  if (typeof v === 'string') return v.trim();\n  return String(v?.raw || [v?.brand, v?.model, v?.year, v?.engine].filter(Boolean).join(' ')).trim();\n}).filter(Boolean);\nconst vehicleBlob = `${plainText} ${vehicleStrings.join(' ')}`;\nconst hasVin = /\\b[A-HJ-NPR-Z0-9]{17}\\b/i.test(vehicleBlob);\nconst hasEngine = /\\b\\d[.,]\\d\\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZİN|DİZEL)?\\b/i.test(vehicleBlob);\nconst hasPower = /\\b\\d{2,3}\\s*(?:kw|hp|bg|beygir)\\b/i.test(vehicleBlob);\nconst hasModel = Boolean(brand && extractedVehicle.replace(new RegExp(`^${brand === 'VW' ? 'Volkswagen' : brand}\\\\s*`, 'i'), '').replace(/\\s+(?:19\\d{2}|20\\d{2})$/, '').trim());\nconst missingVehicleFields = [];\nif (!brand) missingVehicleFields.push('marka');\nif (!hasModel) missingVehicleFields.push('model');\nif (!yearMatch) missingVehicleFields.push('üretim yılı');\nif (!hasVin && !hasEngine) missingVehicleFields.push('motor hacmi (CC)');\nif (!hasVin && !hasPower) missingVehicleFields.push('motor gücü (kW/HP)');\nconst vehicleComplete = hasVin || missingVehicleFields.length === 0;\n\nlet codes = Array.isArray(entities.productCodes) ? entities.productCodes : [];\nif (codes.length === 0 && Array.isArray(ctx.detectedCodes)) codes = ctx.detectedCodes.map(code => ({ code }));\nconst plausibleCode = /^[A-Z]{1,3}[ -]\\d{2,}(?:(?:[/. -])[A-Z0-9]{1,8}){0,3}$/i;\nconst normalizedCodes = codes.map(c => String(c?.code || c?.raw || c || '').trim())\n  .filter(code => plausibleCode.test(code));\nentities.productCodes = normalizedCodes.map(code => ({ code }));\nif (normalizedCodes.length > 0 && ['other','unclear','partial_code'].includes(caseType)) {\n  caseType = 'exact_code_price_stock';\n  intent = 'price_stock';\n  action = 'reply';\n  pauseAutomation = false;\n  handoffReason = '';\n} else if (caseType === 'exact_code_price_stock' && normalizedCodes.length === 0) {\n  // Never promise a code-based stock/price lookup when no code was extracted.\n  caseType = 'partial_code';\n  intent = 'other';\n  reply = '';\n}\nconst invented = normalizedCodes.find(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));\nif (invented) {\n  entities.productCodes = codes.filter(c => String(c?.code || c?.raw || c || '').trim() !== invented);\n  action = 'handoff'; pauseAutomation = true; notifyAdmins = true;\n  handoffReason = 'Mesajda bulunmayan ürün kodu engellendi';\n  reply = 'Parça kodunuzu doğrulamak üzere talebinizi ürün uzmanımıza aktarıyorum.';\n}\n\nif (parsed._parseError) {\n  if (deterministicCase) {\n    reply = '';\n  } else {\n    action = 'retry'; retryAi = true;\n  }\n} else if (confidence < 0.55 && !deterministicCase && !['greeting','unclear'].includes(intent)) {\n  action = 'handoff'; pauseAutomation = true; notifyAdmins = true;\n  handoffReason ||= 'Düşük AI güven skoru';\n}\n\nif (caseType === 'exact_code_compatibility') {\n  notifyAdmins = true;\n  if (!vehicleComplete && action !== 'handoff') {\n    askVehicleInfo = true;\n    reply = `Doğru filtreyi belirleyebilmemiz için lütfen şu bilgileri paylaşın: ${missingVehicleFields.join(', ')}. Alternatif olarak şasi numarasını iletebilirsiniz.`;\n  } else if (action !== 'handoff') {\n    reply = 'Araç bilgileriniz tamamlandı. Uygun filtre kodu, güncel stok ve net fiyat kontrol edilerek paylaşılacaktır.';\n  }\n} else if (caseType === 'exact_code_price_stock') {\n  notifyAdmins = true;\n  reply = `📦 Filtre kodu ${normalizedCodes.join(', ')} için güncel stok ve net fiyat kontrol edilerek paylaşılacaktır. ✅`;\n} else if (caseType === 'cross_reference') {\n  notifyAdmins = true;\n  reply ||= 'Muadil parça talebiniz alındı. Üretici kataloğundan doğrulanarak stok ve fiyat bilgisi paylaşılacaktır.';\n} else if (caseType === 'partial_code') {\n  reply ||= 'Filtre kodunun tamamını veya aracınızın marka, model, yıl ve motor bilgisini paylaşabilir misiniz?';\n} else if (caseType === 'greeting') {\n  reply ||= 'Merhaba! Size nasıl yardımcı olabilirim?';\n} else if (caseType === 'non_product' || intent === 'return_complaint') {\n  action = 'handoff'; pauseAutomation = true; notifyAdmins = true;\n  handoffReason ||= 'Şikayet, iade veya temsilci talebi';\n  reply ||= 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';\n}\n\nconst unsafeClaim = /\\b\\d+(?:[.,]\\d+)?\\s*(?:tl|₺)\\b|\\bstokta\\b|kesin\\s+uyar|bugün\\s+kargo/i.test(reply);\nif (unsafeClaim) {\n  reply = 'Talebiniz alındı. Güncel stok, net fiyat ve uyumluluk bilgisi kontrol edilerek paylaşılacaktır.';\n  notifyAdmins = true;\n}\nif (!reply) reply = 'Talebiniz alındı. Yetkilimiz kontrol ederek size bilgi verecektir.';\nconst emojiForCase = {\n  exact_code_price_stock: '📦',\n  exact_code_compatibility: '🛠️',\n  cross_reference: '🔄',\n  partial_code: '🔎',\n  greeting: '👋',\n  non_product: '🤝',\n  unclear: '📝',\n  other: '📌'\n};\nconst replyEmoji = emojiForCase[caseType] || '📌';\nif (!/[\\u{1F300}-\\u{1FAFF}\\u2600-\\u27BF]/u.test(reply)) reply = `${replyEmoji} ${reply}`;\nif (!/[✅✔️]/u.test(reply) && ['exact_code_price_stock','exact_code_compatibility','cross_reference'].includes(caseType)) reply = `${reply} ✅`;\nconst escapedName = String(ctx.senderName || '').replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nif (escapedName) reply = reply.replace(new RegExp(`^(Merhaba|Selam)\\\\s+${escapedName}\\\\s*(?:bey|hanım)?[,!:.]*\\\\s*`, 'i'), '$1, ');\nreply = reply.replace(/\\s+/g, ' ').trim();\n\nconst codeText = normalizedCodes.length ? normalizedCodes.map(code => `• ${code}`).join('\\n') : 'Belirtilmedi';\nconst vehicleText = vehicleStrings.length ? vehicleStrings.map(vehicle => `• ${vehicle}`).join('\\n') : (extractedVehicle ? `• ${extractedVehicle}` : 'Belirtilmedi');\nlet title = '📩 YENİ TALEP';\nlet extraInfo = '';\nif (caseType === 'exact_code_compatibility') {\n  title = '📩 UYUMLULUK SORGUSU';\n} else if (caseType === 'cross_reference') {\n  title = '📩 MUADİL ARAMA';\n} else if (caseType === 'exact_code_price_stock') {\n  title = '📩 STOK/FİYAT SORGUSU';\n} else if (caseType === 'non_product') {\n  title = intent === 'return_complaint' ? '📩 ŞİKAYET / İADE' : '📩 DESTEK TALEBİ';\n} else if (caseType === 'partial_code') {\n  title = '📩 EKSİK BİLGİ';\n  extraInfo = '🤖 Müşteriden bilgi istendi';\n} else if (handoffReason.includes('ürün kodu')) {\n  title = '📩 UZMANA AKTARIM';\n} else if (action === 'handoff') {\n  title = '📩 UZMANA AKTARIM';\n  extraInfo = handoffReason ? `⚠️ ${handoffReason}` : '';\n}\nconst adminMessage = `${title}\\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\\n${extraInfo}` : ''}\\n\\n💬 Müşteri\\n\"${originalText}\"\\n\\n🤖 Yanıt Gönderildi\\n\"${reply}\"${handoffReason ? `\\n\\n⚠️ ${handoffReason}` : ''}`;\nreturn { json: {\n  ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,\n  notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,\n  askVehicleInfo, expectsReply: askVehicleInfo || parsed.expectsReply === true,\n  action, handoffReason, retryAi,\n  parseFailureCode: retryAi ? 'invalid_ai_json' : null,\n  parseFailureMessage: retryAi ? 'AI output could not be parsed as valid JSON' : null,\n  fingerprint: `${caseType}:${normalizedCodes.sort().join(',')}:${vehicleStrings.join(',')}`\n} };"
       },
       "id": "b6c4a833-c7f8-5196-9efc-afd62c82119e",
       "name": "Parse AI Output",
@@ -391,90 +391,6 @@
       "position": [
         1660,
         560
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "2782c145-1e3c-5bc6-87d1-6d237f2437bc",
-              "leftValue": "={{ $json.caseType === 'vehicle_based_search' }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "f3829a5f-e58c-587b-9ac6-9c4aab1e1d13",
-      "name": "Vehicle Catalog?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1880,
-        520
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const policy = $json || {};\nconst vehicles = Array.isArray(policy.entities?.vehicles) ? policy.entities.vehicles : [];\nconst vehicle = vehicles.find(v => v && typeof v === 'object') || {};\nconst text = String(policy.allMessagesText || '');\nconst intMatch = (pattern) => {\n  const match = text.match(pattern);\n  return match ? Number(match[1].replace(',', '.')) : null;\n};\nconst vin = (text.toUpperCase().match(/\\b[A-HJ-NPR-Z0-9]{17}\\b/) || [])[0] || null;\nconst engineText = String(vehicle.engine || vehicle.motor || '').trim()\n  || ((text.match(/\\b\\d[.,]\\d\\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZIN|DIZEL)?\\b/i) || [])[0] || '');\nreturn { json: {\n  policy,\n  senderNumber: policy.senderNumber,\n  brand: String(vehicle.brand || '').trim() || null,\n  model: String(vehicle.model || vehicle.modelSeries || '').trim() || null,\n  engine: engineText || null,\n  engineCode: String(vehicle.engineCode || '').trim() || null,\n  powerKw: Number(vehicle.powerKw || vehicle.kw) || intMatch(/\\b(\\d{2,3})\\s*kW\\b/i),\n  powerBhp: Number(vehicle.powerBhp || vehicle.bhp) || intMatch(/\\b(\\d{2,3})\\s*(?:BHP|HP|BG|beygir)\\b/i),\n  displacement: Number(vehicle.displacementCcm || vehicle.ccm) || intMatch(/\\b(\\d{3,4})\\s*(?:cc|ccm)\\b/i),\n  year: Number(vehicle.year) || intMatch(/\\b(19\\d{2}|20\\d{2})\\b/),\n  fuelType: String(vehicle.fuelType || '').trim() || null,\n  vin\n} };"
-      },
-      "id": "3c2875e2-995f-5fb2-9d86-ecc18602c5c3",
-      "name": "Prepare Catalog Lookup",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2100,
-        440
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT $1::jsonb AS policy, whatsapp_ai.resolve_vehicle_context($2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) AS catalog",
-        "options": {
-          "queryReplacement": "={{ [ JSON.stringify($json.policy), $json.senderNumber, $json.brand, $json.model, $json.engine, $json.engineCode, $json.powerKw, $json.powerBhp, $json.displacement, $json.fuelType, $json.year, $json.vin ] }}"
-        }
-      },
-      "id": "6bf773b2-03a5-5759-b665-8befde081f3b",
-      "name": "Resolve Vehicle Catalog",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        2320,
-        440
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "whatsapp-state-postgres",
-          "name": "WhatsApp State PostgreSQL"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const policy = typeof $json.policy === 'string' ? JSON.parse($json.policy) : ($json.policy || {});\nconst catalog = typeof $json.catalog === 'string' ? JSON.parse($json.catalog) : ($json.catalog || {});\nconst requiredLabels = { marka: 'marka', model: 'model serisi', motor: 'motor' };\nconst missing = (catalog.missingRequired || []).map(x => requiredLabels[x] || x);\nconst optional = (catalog.optionalFields || []).map(value => {\n  const raw = String(value);\n  if (/ccm/i.test(raw)) return 'hacim (ccm)';\n  if (/kw|bhp/i.test(raw)) return 'g\\u00fc\\u00e7 (kW veya BHP)';\n  if (/motor/i.test(raw)) return 'motor kodu';\n  return '\\u00fcretim y\\u0131l\\u0131';\n});\nlet reply = String(policy.cevap || '');\nlet notifyAdmins = true;\nlet pauseAutomation = Boolean(policy.pauseAutomation);\nlet expectsReply = Boolean(policy.expectsReply);\nif (policy.askVehicleInfo) {\n  // Do not overwrite AI's question about missing vehicle info\n  reply = policy.cevap;\n} else if (catalog.status === 'missing_required') {\n  reply = `Do\\u011fru filtreyi belirleyebilmemiz i\\u00e7in l\\u00fctfen ${missing.join(', ')} bilgisini payla\\u015f\\u0131n. Varsa \\u015fasi numaras\\u0131n\\u0131 da iletebilirsiniz.`;\n  pauseAutomation = false; expectsReply = true;\n} else if (catalog.status === 'ambiguous') {\n  reply = `Ara\\u00e7 bilgilerini netle\\u015ftirmek i\\u00e7in l\\u00fctfen ${optional.join(', ')} bilgisini payla\\u015f\\u0131n. Varsa \\u015fasi numaras\\u0131n\\u0131 da iletebilirsiniz.`;\n  pauseAutomation = false; expectsReply = true;\n} else if (catalog.status === 'unique') {\n  reply = 'Ara\\u00e7 bilgileriniz katalogda do\\u011fruland\\u0131. Uygun par\\u00e7a, g\\u00fcncel stok ve net fiyat kontrol edilerek payla\\u015f\\u0131lacakt\\u0131r.';\n  notifyAdmins = true; pauseAutomation = false;\n} else if (catalog.status === 'no_match' && optional.length) {\n  reply = `Katalog e\\u015fle\\u015fmesini netle\\u015ftirmek i\\u00e7in l\\u00fctfen ${optional.join(', ')} bilgisini payla\\u015f\\u0131n. Varsa \\u015fasi numaras\\u0131n\\u0131 da iletebilirsiniz.`;\n  pauseAutomation = false; expectsReply = true;\n} else if (catalog.status === 'no_match') {\n  reply = 'Ara\\u00e7 bilgileri katalogda kesin e\\u015fle\\u015fmedi. \\u00dcr\\u00fcn uzman\\u0131m\\u0131z uygun par\\u00e7ay\\u0131 kontrol ederek bilgi verecektir.';\n  notifyAdmins = true;\n}\n\nconst catalogEmoji = catalog.status === 'unique' ? '\\u2705' : (catalog.status === 'missing_required' || catalog.status === 'ambiguous' || catalog.status === 'no_match' ? '\\ud83d\\udd0e' : '\\ud83d\\udccc');\nif (!/[\\u{1F300}-\\u{1FAFF}\\u2600-\\u27BF]/u.test(reply)) reply = `${catalogEmoji} ${reply}`;\n\nlet finalBildirim = String(policy.bildirim || '');\nif (reply !== policy.cevap && finalBildirim.includes(policy.cevap)) {\n  finalBildirim = finalBildirim.replace(policy.cevap, reply);\n}\n\nconst vehicle = catalog.vehicle || {};\nconst adminCatalog = `\\n\\nKatalog Kontrol\\nDurum: ${catalog.status || 'bilinmiyor'}\\nAday: ${Number(catalog.candidateCount || 0)}\\nAra\\u00e7: ${[vehicle.brand, vehicle.model, vehicle.engine].filter(Boolean).join(' / ') || 'Belirtilmedi'}${vehicle.vin ? `\\n\\u015easi: ${vehicle.vin}` : ''}`;\nreturn { json: {\n  ...policy, cevap: reply, notifyAdmins, pauseAutomation, expectsReply,\n  bildirim: finalBildirim + adminCatalog,\n  fingerprint: `${policy.fingerprint || 'vehicle'}:catalog:${catalog.status || 'unknown'}`,\n  catalog\n} };"
-      },
-      "id": "f3a149c9-ff2a-5030-bbb8-0f484ca93c1e",
-      "name": "Apply Catalog Decision",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2540,
-        440
       ]
     },
     {
@@ -633,7 +549,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "/message/sendText/filtr",
+        "url": "https://evo.filtreoto.online/message/sendText/filtr",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendBody": true,
@@ -887,7 +803,7 @@
       "main": [
         [
           {
-            "node": "Vehicle Catalog?",
+            "node": "Complete AI Batch",
             "type": "main",
             "index": 0
           }
@@ -895,57 +811,6 @@
         [
           {
             "node": "Prepare AI Failure",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Vehicle Catalog?": {
-      "main": [
-        [
-          {
-            "node": "Prepare Catalog Lookup",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Complete AI Batch",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Catalog Lookup": {
-      "main": [
-        [
-          {
-            "node": "Resolve Vehicle Catalog",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Resolve Vehicle Catalog": {
-      "main": [
-        [
-          {
-            "node": "Apply Catalog Decision",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Apply Catalog Decision": {
-      "main": [
-        [
-          {
-            "node": "Complete AI Batch",
             "type": "main",
             "index": 0
           }
