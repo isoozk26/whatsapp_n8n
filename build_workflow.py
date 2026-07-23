@@ -124,8 +124,11 @@ const mediaFallback = {
 };
 const displayText = text || (isMediaMessage ? (mediaFallback[mediaType] || '[Medya]') : '');
 
-const authorizedCommand = fromMe && ['++', '--', '??'].includes(text);
-const command = authorizedCommand ? (text === '++' ? 'pause' : text === '--' ? 'resume' : 'check_mode') : null;
+const commandRegex = /^\s*(\+\+|--|\?\?)\s*$/;
+const commandMatch = text.match(commandRegex);
+const isCommand = commandMatch !== null;
+const authorizedCommand = fromMe && isCommand;
+const command = authorizedCommand ? (commandMatch[1] === '++' ? 'pause' : commandMatch[1] === '--' ? 'resume' : 'check_mode') : null;
 // Ignore: protocol messages, empty text without media, groups, broadcasts
 const valid = Boolean(payload && messageId && senderNumber && !isGroup && !isBroadcast && !isProtocolMessage && !isEmpty && (!fromMe || command));
 const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
@@ -197,11 +200,12 @@ if (isMediaMessage && !hasText) {
   return { json: {
     ...ctx, intent: 'other', caseType: 'non_product', entities: {},
     cevap: `${mediaLabel} mesajınız alındı. İncelemek üzere uzman ekibimize aktarıyorum.`,
-    bildirim: `📩 ${mediaLabel} MESAJI\n👤 ${ctx.senderName} · ${ctx.senderNumber}\n\n💬 Müşteri "${ctx.allMessagesText || '[Medya]'}"\n\n🤖 Yanıt Gönderildi\n"Mesajınız alındı. İncelemek üzere uzman ekibimize aktarıyorum."`,
+    bildirim: `📩 ${mediaLabel} MESAJI\n👤 ${ctx.senderName} · ${ctx.senderNumber}\n\n💬 Müşteri "${ctx.allMessagesText || '[Medya]'}"\n\n📩 Uzmanına Aktarıldı\n"Mesajınız alındı. İncelemek üzere uzman ekibimize aktarıyorum."`,
     notifyAdmins: true, replyCustomer: true, pauseAutomation: true,
     askVehicleInfo: false, expectsReply: false, action: 'handoff',
     handoffReason: `${mediaLabel} mesajı - manuel değerlendirme gerekli`,
-    retryAi: false, parseFailureCode: null, parseFailureMessage: null,
+    retryAi: false, replyStatus: 'handed_off', deliveryStatus: 'pending',
+    parseFailureCode: null, parseFailureMessage: null,
     fingerprint: `media:${ctx.mediaType}:${ctx.senderNumber}`
   } };
 }
@@ -261,6 +265,7 @@ let action = 'reply';
 let handoffReason = '';
 let askVehicleInfo = false;
 let retryAi = false;
+let fallbackType = null;
 
 const filterRequest = /\b(yağ|yag|hava|yakıt|yakit|polen|kabin|şanzıman|sanziman)\s+filtresi?\b|\bfiltre\b/i.test(plainText);
 const yearMatch = plainText.match(/\b(19\d{2}|20\d{2})\b/);
@@ -380,15 +385,21 @@ if (caseType === 'exact_code_compatibility') {
 } else if (caseType === 'exact_code_price_stock' && action !== 'handoff') {
   notifyAdmins = true;
   if (normalizedCodes.length === 1) {
-    reply = `${normalizedCodes[0]} kodlu ürün için güncel stok ve net fiyat kontrolü yapılacaktır. ✅`;
+    reply = 'Talebiniz kontrol için ekibimize iletilmiştir. ✅';
   } else {
-    const shown = normalizedCodes.slice(0, 3).join(', ');
-    const extra = normalizedCodes.length > 3 ? ` (ve ${normalizedCodes.length - 3} tane daha)` : '';
-    reply = `Paylaştığınız ${normalizedCodes.length} ürün kodu için güncel stok ve net fiyat kontrolü yapılacaktır${extra ? `: ${shown}${extra}` : ''}. ✅`;
+    let codeList;
+    if (normalizedCodes.length <= 3) {
+      codeList = normalizedCodes.join(', ');
+    } else if (normalizedCodes.length <= 10) {
+      codeList = normalizedCodes.slice(0, 3).join(', ') + ` ve ${normalizedCodes.length - 3} ürün daha`;
+    } else {
+      codeList = `${normalizedCodes.length} ürün kodu`;
+    }
+    reply = `Talebiniz kontrol için ekibimize iletilmiştir. (${codeList}) ✅`;
   }
 } else if (caseType === 'cross_reference') {
   notifyAdmins = true;
-  reply ||= 'Muadil parça talebiniz alındı. Çapraz referans ve ürün uyumluluğu kontrol edilerek stok ve fiyat bilgisi paylaşılacaktır.';
+  reply ||= 'Muadil parça talebiniz kontrol için ekibimize iletilmiştir.';
 } else if (caseType === 'partial_code') {
   if (partialSubType === 'incomplete_code') {
     reply ||= 'Filtre kodu eksik görünüyor. Kodun ürün üzerindeki veya kutudaki tam halini paylaşabilir misiniz?';
@@ -403,25 +414,41 @@ if (caseType === 'exact_code_compatibility') {
   action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
   if (intent === 'return_complaint') {
     handoffReason ||= 'İade/değişim talebi';
-    reply ||= 'İade/değişim talebinizi aldık. Sipariş numaranızı ve ürünle ilgili kısa açıklamayı paylaşabilir misiniz?';
+    const hasOrderNum = /sipari[şs]|order|s[ıi]ra.*no|fatura/i.test(plainText);
+    const hasDescription = plainText.length > 30;
+    if (hasOrderNum && hasDescription) {
+      reply ||= 'İade/değişim talebiniz ekibimize iletilmiştir. Detaylı inceleme başlatılacaktır.';
+    } else if (hasOrderNum) {
+      reply ||= 'İade/değişim talebinizi aldık. Ürünle ilgili sorunu kısaca paylaşabilir misiniz?';
+    } else {
+      reply ||= 'İade/değişim talebinizi aldık. Sipariş numaranızı ve ürünle ilgili kısa açıklamayı paylaşabilir misiniz?';
+    }
   } else if (intent === 'complaint') {
     handoffReason ||= 'Müşteri şikayeti';
-    reply ||= 'Bildiriminizi aldık. Konuyu incelemesi için ilgili ekibimize öncelikli olarak iletiyorum.';
+    reply ||= 'Bildiriminiz ekibimize iletilmiştir. İnceleme süreci başlatılacaktır.';
   } else if (intent === 'human_request') {
     handoffReason ||= 'Temsilci talebi';
     reply ||= 'Talebinizi müşteri temsilcimize aktarıyorum. Uygun olduğunda sizinle ilgilenecektir.';
   } else {
     handoffReason ||= 'Destek talebi';
-    reply ||= 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';
+    reply ||= 'Talebinizin ilgili ekibimize aktarıldığını teyit ederiz.';
   }
 }
 
 const unsafeClaim = /\b\d+(?:[.,]\d+)?\s*(?:tl|₺)\b|\bstokta\b|kesin\s+uyar|bugün\s+kargo/i.test(reply);
 if (unsafeClaim) {
-  reply = 'Talebiniz alındı. Ekibimiz güncel stok, net fiyat ve uyumluluk bilgisi kontrol ederek size dönüş sağlayacaktır.';
+  reply = 'Talebiniz kontrol için ekibimize iletilmiştir.';
   notifyAdmins = true;
 }
-if (!reply) reply = 'Talebiniz alındı. Yetkilimiz kontrol ederek size bilgi verecektir.';
+// Unclear intent fallback (when AI can't understand the message)
+if (!reply && action !== 'handoff') {
+  reply = 'Talebinizi tam anlayamadım. Filtre kodunu veya aracınızın marka, model, yıl ve motor bilgisini paylaşabilir misiniz?';
+  handoffReason = 'unclear_intent';
+  action = 'reply';
+}
+
+// Generic last-resort fallback
+if (!reply) reply = 'Talebiniz kontrol için ekibimize iletilmiştir.';
 const emojiForCase = {
   exact_code_price_stock: '📦',
   exact_code_compatibility: '🛠️',
@@ -432,9 +459,39 @@ const emojiForCase = {
   unclear: '📝',
   other: '📌'
 };
+const emojiRegex = /^[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u{2702}-\u{27B0}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}✅✔️❌⚠️🛑⏸️🔔📊]/u;
 const replyEmoji = emojiForCase[caseType] || '📌';
-if (!/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u.test(reply)) reply = `${replyEmoji} ${reply}`;
-if (!/[✅✔️]/u.test(reply) && ['exact_code_price_stock','exact_code_compatibility','cross_reference'].includes(caseType)) reply = `${reply} ✅`;
+if (!emojiRegex.test(reply)) reply = `${replyEmoji} ${reply}`;
+// Only add checkmark if not already present
+if (!reply.includes('✅') && ['exact_code_price_stock','exact_code_compatibility','cross_reference'].includes(caseType)) reply = `${reply} ✅`;
+let replyStatus = 'generated';
+if (action === 'ignore') replyStatus = 'suppressed';
+else if (retryAi) replyStatus = 'pending_retry';
+else if (action === 'handoff') replyStatus = 'handed_off';
+else if (pauseAutomation) replyStatus = 'suppressed_manual';
+else replyStatus = 'generated';
+
+let deliveryStatus = 'pending';
+// deliveryStatus will be updated by tag_success/tag_error nodes
+
+// Greetings don't need admin notification unless it's a handoff
+if (caseType === 'greeting' && action !== 'handoff') {
+  notifyAdmins = false;
+}
+// Also suppress for unclear first attempts (customer might clarify next message)
+if (caseType === 'unclear' && action !== 'handoff' && !pauseAutomation) {
+  notifyAdmins = false;
+}
+
+const replyStatusLabel = {
+  'generated': '🤖 Yanıt Hazırlandı',
+  'handed_off': '📩 Uzmanına Aktarıldı',
+  'suppressed_manual': '⏸️ Manuel Mod - Yanıt Gönderilmedi',
+  'suppressed': '🔇 Yanıt Bastırıldı',
+  'pending_retry': '🔁 Tekrar Denenecek'
+};
+const statusLabel = replyStatusLabel[replyStatus] || '📝 Yanıt Hazırlandı';
+
 const escapedName = String(ctx.senderName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 if (escapedName) reply = reply.replace(new RegExp(`^(Merhaba|Selam)\\s+${escapedName}\\s*(?:bey|hanım)?[,!:.]*\\s*`, 'i'), '$1, ');
 reply = reply.replace(/\s+/g, ' ').trim();
@@ -459,6 +516,11 @@ if (invented.length > 0) safetyFlags.push('invented_code_blocked');
 if (unsafeClaim) safetyFlags.push('unsafe_claim_rewritten');
 if (confidence < 0.55) safetyFlags.push('low_confidence');
 
+// Set fallbackType based on what triggered the fallback
+if (handoffReason === 'unclear_intent') fallbackType = 'unclear_intent';
+else if (retryAi) fallbackType = 'technical_failure';
+else if (unsafeClaim) fallbackType = 'safety_replacement';
+
 const codeText = normalizedCodes.length ? normalizedCodes.map(code => `• ${code}`).join('\n') : 'Belirtilmedi';
 const vehicleText = vehicleStrings.length ? vehicleStrings.map(vehicle => `• ${vehicle}`).join('\n') : (extractedVehicle ? `• ${extractedVehicle}` : 'Belirtilmedi');
 let title = '📩 YENİ TALEP';
@@ -479,7 +541,6 @@ const titleMap = {
   other: '📩 YENİ TALEP'
 };
 title = titleMap[caseType] || '📩 YENİ TALEP';
-if (action === 'handoff' && intent !== 'return_complaint') title = '📩 UZMANA AKTARIM';
 if (hasVin) title = '🚗 ŞASİ NO İLE UYUMLULUK SORGUSU';
 if (caseType === 'partial_code') {
   title = partialSubType === 'incomplete_code' ? '🔎 EKSİK KOD'
@@ -499,15 +560,53 @@ else if (intent === 'return_complaint') actionLine = '\n🎯 Beklenen Aksiyon: �
 
 const messageCount = ctx.messageCount || 1;
 const batchLabel = messageCount > 1 ? `\n📋 ${messageCount} mesaj birleştirildi` : '';
-const adminMessage = `${title}\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}\n\n💬 Müşteri\n"${originalText}"\n\n🤖 Yanıt Gönderildi\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
+
+const maskPhone = (num) => {
+  const s = String(num || '');
+  if (s.length < 7) return s;
+  return s.slice(0, 4) + '***' + s.slice(-4);
+};
+const maskVin = (vin) => {
+  const s = String(vin || '');
+  if (s.length < 10) return s;
+  return s.slice(0, 6) + '******' + s.slice(-4);
+};
+
+let maskedOriginalText = originalText;
+const vinMatch = originalText.match(/\b[A-HJ-NPR-Z0-9]{17}\b/gi);
+if (vinMatch) {
+  vinMatch.forEach(vin => {
+    maskedOriginalText = maskedOriginalText.replace(vin, maskVin(vin));
+  });
+}
+
+const adminMessage = `${title}\n👤 ${ctx.senderName} · ${maskPhone(ctx.senderNumber)}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}\n\n💬 Müşteri\n"${maskedOriginalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
 return { json: {
   ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,
   notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,
   askVehicleInfo, expectsReply: askVehicleInfo || parsed.expectsReply === true,
   action, handoffReason, retryAi, reason, missingFields, safetyFlags, partialSubType,
+  fallbackType,
+  replyStatus, deliveryStatus,
   parseFailureCode: retryAi ? 'invalid_ai_json' : null,
   parseFailureMessage: retryAi ? 'AI output could not be parsed as valid JSON' : null,
-  fingerprint: `${caseType}:${normalizedCodes.sort().join(',')}:${vehicleStrings.join(',')}`
+  fingerprint: `${caseType}:${normalizedCodes.sort().join(',')}:${vehicleStrings.join(',')}`,
+  rawOriginalText: originalText,
+  schemaVersion: '13.3',
+  templateKey: `${caseType}${partialSubType ? '_' + partialSubType : ''}_${action === 'handoff' ? 'handoff' : 'auto'}`,
+  mergedMessageCount: ctx.messageCount || 1,
+  mode: pauseAutomation ? 'manual' : 'automatic',
+  priority: caseType === 'non_product' && intent === 'complaint' ? 'high'
+    : caseType === 'non_product' && intent === 'return_complaint' ? 'high'
+    : action === 'handoff' ? 'normal'
+    : caseType === 'greeting' ? 'low'
+    : 'normal',
+  slaClass: caseType === 'non_product' && intent === 'complaint' ? 'complaint'
+    : caseType === 'non_product' && intent === 'return_complaint' ? 'return'
+    : caseType === 'exact_code_price_stock' ? 'sales_query'
+    : caseType === 'exact_code_compatibility' ? 'compatibility'
+    : caseType === 'cross_reference' ? 'cross_reference'
+    : 'general'
 } };
 """.strip()
 
