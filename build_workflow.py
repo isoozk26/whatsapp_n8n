@@ -108,7 +108,16 @@ return { json: {
 
 validate_webhook_secret_js = r"""
 const input = $json || {};
-return { json: Object.assign({}, input, { authorized: true, webhookToken: "whatsapp_webhook_2026", authSource: "db_check", action: null, authFailureReason: null }) };
+const headers = input.headers || {};
+const forwardedFor = String(headers['x-forwarded-for'] || '');
+const isInternalIp = /^10\./.test(forwardedFor) || /^172\.(1[6-9]|2\d|3[01])\./.test(forwardedFor) || /^192\.168\./.test(forwardedFor);
+const queryToken = String(input.queryToken || '');
+const headerToken = String(input.webhookToken || '');
+const suppliedToken = headerToken || queryToken;
+const webhookSecret = 'whatsapp_webhook_2026';
+const tokenValid = suppliedToken.length > 0 && suppliedToken === webhookSecret;
+const authorized = isInternalIp && tokenValid;
+return { json: Object.assign({}, input, { authorized, webhookToken: suppliedToken, authSource: authorized ? 'ip+token' : (isInternalIp ? 'invalid_token' : 'external_ip'), action: authorized ? null : 'unauthorized', authFailureReason: authorized ? null : (isInternalIp ? 'invalid_token' : 'external_request_blocked') }) };
 """.strip()
 
 
@@ -251,7 +260,7 @@ if (caseType === 'exact_code_compatibility') {
   } else if (action !== 'handoff') {
     reply = 'Araç bilgileriniz tamamlandı. Uygun filtre kodu, güncel stok ve net fiyat kontrol edilerek paylaşılacaktır.';
   }
-} else if (caseType === 'exact_code_price_stock') {
+} else if (caseType === 'exact_code_price_stock' && action !== 'handoff') {
   notifyAdmins = true;
   reply = `📦 Filtre kodu ${normalizedCodes.join(', ')} için güncel stok ve net fiyat kontrol edilerek paylaşılacaktır. ✅`;
 } else if (caseType === 'cross_reference') {
