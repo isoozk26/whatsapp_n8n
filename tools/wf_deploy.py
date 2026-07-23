@@ -53,7 +53,7 @@ def deploy(workflow_path='workflow.json'):
     with urllib.request.urlopen(credentials_req, context=context) as response:
         credentials = json.loads(response.read().decode('utf-8')).get('data', [])
     credential_ids = {item.get('name'): item.get('id') for item in credentials}
-    required = {'OpenAi account', 'WhatsApp State PostgreSQL', 'Evolution API'}
+    required = {'OpenAi account', 'Evolution API'}
     missing = sorted(required - set(credential_ids))
     if missing:
         print('  HATA: Eksik n8n credentials: ' + ', '.join(missing))
