@@ -1,0 +1,1 @@
+﻿INSERT INTO whatsapp_ai.settings(key, value) VALUES ('webhook_token', 'whatsapp_webhook_2026') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = clock_timestamp();
