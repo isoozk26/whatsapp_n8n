@@ -115,8 +115,14 @@ const mimetype = (isImage ? msg.imageMessage?.mimetype : null)
   || (isDocument ? msg.documentMessage?.mimetype : null)
   || (isVideo ? msg.videoMessage?.mimetype : null) || null;
 
-// For media without text, set default text
-const displayText = text || (isMediaMessage ? '[Medya]' : '');
+// For media without text, set specific fallback messages per type
+const mediaFallback = {
+  image: 'Görsel mesajınız alındı. Ürün detayını yazarak da paylaşabilirsiniz.',
+  audio: 'Sesli mesajınızı şu anda işleyemiyoruz. Kısa bir metin olarak paylaşabilir misiniz?',
+  document: 'Belge mesajınız alındı. İçeriğiyle ilgili kısa bir açıklama paylaşabilir misiniz?',
+  video: 'Video mesajınız alındı. Ürün detayını yazarak da paylaşabilirsiniz.'
+};
+const displayText = text || (isMediaMessage ? (mediaFallback[mediaType] || '[Medya]') : '');
 
 const authorizedCommand = fromMe && ['++', '--', '??'].includes(text);
 const command = authorizedCommand ? (text === '++' ? 'pause' : text === '--' ? 'resume' : 'check_mode') : null;
@@ -170,8 +176,12 @@ return { json: {
 
 system_prompt = """Sen otomotiv filtre satışı için güvenli bilgi çıkarımı yapan bir asistansın.
 Yalnız JSON üret. Şema:
-{"intent":"price_stock|compatibility|cross_reference|return_complaint|greeting|unclear|other","caseType":"exact_code_price_stock|exact_code_compatibility|cross_reference|partial_code|non_product|greeting|unclear|other","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[{"brand":null,"model":null,"year":null,"engine":null,"power":null,"vin":null,"raw":null}]},"replyDraft":"","confidence":0.0,"expectsReply":false}
-Fiyat, stok, kargo veya uyumluluk doğrulanmış gibi gösterme. Müşterinin yazmadığı ürün kodunu üretme. Eksik araç bilgisinde motor hacmi ve beygir veya şasi iste. Şikayet, iade ve insan talebini non_product olarak sınıflandır."""
+{"intent":"price_stock|compatibility|cross_reference|return_complaint|complaint|human_request|greeting|unclear|other","caseType":"exact_code_price_stock|exact_code_compatibility|cross_reference|partial_code|non_product|greeting|unclear|other","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[{"brand":null,"model":null,"year":null,"engine":null,"power":null,"vin":null,"raw":null}]},"replyDraft":"","confidence":0.0,"expectsReply":false}
+Fiyat, stok, kargo veya uyumluluk doğrulanmış gibi gösterme. Müşterinin yazmadığı ürün kodunu üretme. Eksik araç bilgisinde motor hacmi ve beygir veya şasi iste. non_product caseType'ında intent ayrımı:
+- return_complaint: müşteri iade veya değişim istiyor
+- complaint: müşteri memnuniyetsizliği, sorun bildiriyor
+- human_request: müşteri insan temsilci istiyor
+- other: diğer destek talepleri"""
 
 
 parse_ai_js = r"""
@@ -242,7 +252,7 @@ if (!Array.isArray(entities.preferredBrands)) entities.preferredBrands = [];
 entities.preferredBrands = entities.preferredBrands.filter(b => typeof b === 'string').slice(0, 10);
 if (typeof entities.quantity !== 'string' && typeof entities.quantity !== 'number') entities.quantity = 'Belirtilmedi';
 if (reply.length > 500) reply = reply.slice(0, 500);
-if (!['price_stock','compatibility','cross_reference','return_complaint','greeting','unclear','other'].includes(intent)) intent = 'other';
+if (!['price_stock','compatibility','cross_reference','return_complaint','complaint','human_request','greeting','unclear','other'].includes(intent)) intent = 'other';
 // --- End validation ---
 
 let pauseAutomation = false;
@@ -325,12 +335,27 @@ if (normalizedCodes.length > 0 && ['other','unclear','partial_code'].includes(ca
 }
 const invented = normalizedCodes.filter(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));
 if (invented.length > 0) {
+  const hadProductCodes = entities.productCodes.length > 0;
   entities.productCodes = [];
   normalizedCodes.length = 0;
   caseType = 'unclear';
   action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
   handoffReason = 'Mesajda bulunmayan ürün kodu engellendi';
-  reply = 'Parça kodunuzu doğrulamak üzere talebinizi ürün uzmanımıza aktarıyorum.';
+  reply = hadProductCodes
+    ? 'Paylaştığınız kodu doğrulamak üzere talebinizi ürün uzmanımıza aktarıyorum.'
+    : 'Aracınıza uygun ürünü belirlemek için talebinizi ürün uzmanımıza aktarıyorum.';
+}
+
+// --- partial_code sub-classification ---
+let partialSubType = '';
+if (caseType === 'partial_code') {
+  if (normalizedCodes.length > 0) {
+    partialSubType = 'incomplete_code';
+  } else if (brand || yearMatch) {
+    partialSubType = 'vehicle_info_only';
+  } else {
+    partialSubType = 'missing_all';
+  }
 }
 
 if (parsed._parseError) {
@@ -348,29 +373,52 @@ if (caseType === 'exact_code_compatibility') {
   notifyAdmins = true;
   if (!vehicleComplete && action !== 'handoff') {
     askVehicleInfo = true;
-    reply = `Doğru filtreyi belirleyebilmemiz için lütfen şu bilgileri paylaşın: ${missingVehicleFields.join(', ')}. Alternatif olarak şasi numarasını iletebilirsiniz.`;
+    reply = 'Doğru filtreyi belirleyebilmemiz için aracın marka, model, yılı ve motor bilgisini paylaşabilir misiniz? Ruhsat veya şasi numarası da iletebilirsiniz.';
   } else if (action !== 'handoff') {
-    reply = 'Araç bilgileriniz tamamlandı. Uygun filtre kodu, güncel stok ve net fiyat kontrol edilerek paylaşılacaktır.';
+    reply = 'Araç bilgilerinizi aldık. Uygun filtre kodu, güncel stok ve fiyat kontrolü için ekibimize iletiyorum.';
   }
 } else if (caseType === 'exact_code_price_stock' && action !== 'handoff') {
   notifyAdmins = true;
-  reply = `📦 Filtre kodu ${normalizedCodes.join(', ')} için güncel stok ve net fiyat kontrol edilerek paylaşılacaktır. ✅`;
+  if (normalizedCodes.length === 1) {
+    reply = `${normalizedCodes[0]} kodlu ürün için güncel stok ve net fiyat kontrolü yapılacaktır. ✅`;
+  } else {
+    const shown = normalizedCodes.slice(0, 3).join(', ');
+    const extra = normalizedCodes.length > 3 ? ` (ve ${normalizedCodes.length - 3} tane daha)` : '';
+    reply = `Paylaştığınız ${normalizedCodes.length} ürün kodu için güncel stok ve net fiyat kontrolü yapılacaktır${extra ? `: ${shown}${extra}` : ''}. ✅`;
+  }
 } else if (caseType === 'cross_reference') {
   notifyAdmins = true;
-  reply ||= 'Muadil parça talebiniz alındı. Üretici kataloğundan doğrulanarak stok ve fiyat bilgisi paylaşılacaktır.';
+  reply ||= 'Muadil parça talebiniz alındı. Çapraz referans ve ürün uyumluluğu kontrol edilerek stok ve fiyat bilgisi paylaşılacaktır.';
 } else if (caseType === 'partial_code') {
-  reply ||= 'Filtre kodunun tamamını veya aracınızın marka, model, yıl ve motor bilgisini paylaşabilir misiniz?';
+  if (partialSubType === 'incomplete_code') {
+    reply ||= 'Filtre kodu eksik görünüyor. Kodun ürün üzerindeki veya kutudaki tam halini paylaşabilir misiniz?';
+  } else if (partialSubType === 'vehicle_info_only') {
+    reply ||= 'Doğru filtreyi belirleyebilmemiz için motor hacmi ve yakıt türünü de paylaşabilir misiniz? Alternatif olarak şasi numarasını iletebilirsiniz.';
+  } else {
+    reply ||= 'Filtre kodunun tamamını veya aracınızın marka, model, yıl ve motor bilgisini paylaşabilir misiniz?';
+  }
 } else if (caseType === 'greeting') {
   reply ||= 'Merhaba! Size nasıl yardımcı olabilirim?';
 } else if (caseType === 'non_product' || intent === 'return_complaint') {
   action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
-  handoffReason ||= 'Şikayet, iade veya temsilci talebi';
-  reply ||= 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';
+  if (intent === 'return_complaint') {
+    handoffReason ||= 'İade/değişim talebi';
+    reply ||= 'İade/değişim talebinizi aldık. Sipariş numaranızı ve ürünle ilgili kısa açıklamayı paylaşabilir misiniz?';
+  } else if (intent === 'complaint') {
+    handoffReason ||= 'Müşteri şikayeti';
+    reply ||= 'Bildiriminizi aldık. Konuyu incelemesi için ilgili ekibimize öncelikli olarak iletiyorum.';
+  } else if (intent === 'human_request') {
+    handoffReason ||= 'Temsilci talebi';
+    reply ||= 'Talebinizi müşteri temsilcimize aktarıyorum. Uygun olduğunda sizinle ilgilenecektir.';
+  } else {
+    handoffReason ||= 'Destek talebi';
+    reply ||= 'Talebinizi ilgili ekibimize aktarıyorum. Yetkilimiz sizinle ilgilenecektir.';
+  }
 }
 
 const unsafeClaim = /\b\d+(?:[.,]\d+)?\s*(?:tl|₺)\b|\bstokta\b|kesin\s+uyar|bugün\s+kargo/i.test(reply);
 if (unsafeClaim) {
-  reply = 'Talebiniz alındı. Güncel stok, net fiyat ve uyumluluk bilgisi kontrol edilerek paylaşılacaktır.';
+  reply = 'Talebiniz alındı. Ekibimiz güncel stok, net fiyat ve uyumluluk bilgisi kontrol ederek size dönüş sağlayacaktır.';
   notifyAdmins = true;
 }
 if (!reply) reply = 'Talebiniz alındı. Yetkilimiz kontrol ederek size bilgi verecektir.';
@@ -391,33 +439,72 @@ const escapedName = String(ctx.senderName || '').replace(/[.*+?^${}()|[\]\\]/g, 
 if (escapedName) reply = reply.replace(new RegExp(`^(Merhaba|Selam)\\s+${escapedName}\\s*(?:bey|hanım)?[,!:.]*\\s*`, 'i'), '$1, ');
 reply = reply.replace(/\s+/g, ' ').trim();
 
+let reason = '';
+if (action === 'handoff') reason = handoffReason || 'manual_review_required';
+else if (caseType === 'partial_code') reason = 'missing_product_code_or_vehicle';
+else if (caseType === 'exact_code_price_stock') reason = 'product_code_identified';
+else if (caseType === 'exact_code_compatibility' && !vehicleComplete) reason = 'vehicle_info_incomplete';
+else if (caseType === 'exact_code_compatibility') reason = 'vehicle_and_code_ready';
+else if (caseType === 'cross_reference') reason = 'cross_reference_requested';
+else if (caseType === 'greeting') reason = 'customer_greeting';
+else reason = 'classified';
+
+const missingFields = [];
+if (caseType === 'partial_code' && normalizedCodes.length === 0) missingFields.push('productCode');
+if (caseType === 'exact_code_compatibility' && !vehicleComplete) missingFields.push(...missingVehicleFields);
+if (!yearMatch) missingFields.push('year');
+
+const safetyFlags = [];
+if (invented.length > 0) safetyFlags.push('invented_code_blocked');
+if (unsafeClaim) safetyFlags.push('unsafe_claim_rewritten');
+if (confidence < 0.55) safetyFlags.push('low_confidence');
+
 const codeText = normalizedCodes.length ? normalizedCodes.map(code => `• ${code}`).join('\n') : 'Belirtilmedi';
 const vehicleText = vehicleStrings.length ? vehicleStrings.map(vehicle => `• ${vehicle}`).join('\n') : (extractedVehicle ? `• ${extractedVehicle}` : 'Belirtilmedi');
 let title = '📩 YENİ TALEP';
 let extraInfo = '';
-if (caseType === 'exact_code_compatibility') {
-  title = '📩 UYUMLULUK SORGUSU';
-} else if (caseType === 'cross_reference') {
-  title = '📩 MUADİL ARAMA';
-} else if (caseType === 'exact_code_price_stock') {
-  title = '📩 STOK/FİYAT SORGUSU';
-} else if (caseType === 'non_product') {
-  title = intent === 'return_complaint' ? '📩 ŞİKAYET / İADE' : '📩 DESTEK TALEBİ';
-} else if (caseType === 'partial_code') {
-  title = '📩 EKSİK BİLGİ';
+const titleMap = {
+  exact_code_price_stock: '📦 STOK/FİYAT SORGUSU',
+  exact_code_compatibility: '🚗 UYUMLULUK SORGUSU',
+  cross_reference: '🔄 MUADİL ARAMA',
+  partial_code: '🔎 EKSİK BİLGİ',
+  non_product: (() => {
+    if (intent === 'return_complaint') return '🔄 İADE/DEĞİŞİM TALEBİ';
+    if (intent === 'complaint') return '⚠️ MÜŞTERİ ŞİKAYETİ';
+    if (intent === 'human_request') return '👤 TEMSİLCİ TALEBİ';
+    return '📩 DESTEK TALEBİ';
+  })(),
+  greeting: '👋 SELAMLAMA',
+  unclear: '❓ BELİRSİZ TALEP',
+  other: '📩 YENİ TALEP'
+};
+title = titleMap[caseType] || '📩 YENİ TALEP';
+if (action === 'handoff' && intent !== 'return_complaint') title = '📩 UZMANA AKTARIM';
+if (hasVin) title = '🚗 ŞASİ NO İLE UYUMLULUK SORGUSU';
+if (caseType === 'partial_code') {
+  title = partialSubType === 'incomplete_code' ? '🔎 EKSİK KOD'
+    : partialSubType === 'vehicle_info_only' ? '🚗 ARAÇ BİLGİSİ GEREKLİ'
+    : '🔎 EKSİK BİLGİ';
   extraInfo = '🤖 Müşteriden bilgi istendi';
-} else if (handoffReason.includes('ürün kodu')) {
-  title = '📩 UZMANA AKTARIM';
-} else if (action === 'handoff') {
-  title = '📩 UZMANA AKTARIM';
-  extraInfo = handoffReason ? `⚠️ ${handoffReason}` : '';
 }
-const adminMessage = `${title}\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\n${extraInfo}` : ''}\n\n💬 Müşteri\n"${originalText}"\n\n🤖 Yanıt Gönderildi\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
+else if (action === 'handoff') extraInfo = handoffReason ? `⚠️ ${handoffReason}` : '';
+
+let actionLine = '';
+if (caseType === 'exact_code_price_stock' && action !== 'handoff') actionLine = '\n🎯 Beklenen Aksiyon: Stok & Fiyat Kontrolü';
+else if (caseType === 'exact_code_compatibility' && !vehicleComplete) actionLine = '\n⏳ Eksik Bilgi: Araç detayı bekleniyor';
+else if (caseType === 'cross_reference') actionLine = '\n🎯 Beklenen Aksiyon: Muadil Çapraz Referans Kontrolü';
+else if (action === 'handoff') actionLine = '\n🎯 Beklenen Aksiyon: Manuel Müdahale';
+else if (caseType === 'partial_code') actionLine = '\n⏳ Müşteriden ek bilgi bekleniyor';
+else if (intent === 'return_complaint') actionLine = '\n🎯 Beklenen Aksiyon: Şikayet/İade İşlemi';
+
+const messageCount = ctx.messageCount || 1;
+const batchLabel = messageCount > 1 ? `\n📋 ${messageCount} mesaj birleştirildi` : '';
+const adminMessage = `${title}\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}\n\n💬 Müşteri\n"${originalText}"\n\n🤖 Yanıt Gönderildi\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
 return { json: {
   ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,
   notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,
   askVehicleInfo, expectsReply: askVehicleInfo || parsed.expectsReply === true,
-  action, handoffReason, retryAi, correlationId: ctx.correlationId || '',
+  action, handoffReason, retryAi, reason, missingFields, safetyFlags, partialSubType,
   parseFailureCode: retryAi ? 'invalid_ai_json' : null,
   parseFailureMessage: retryAi ? 'AI output could not be parsed as valid JSON' : null,
   fingerprint: `${caseType}:${normalizedCodes.sort().join(',')}:${vehicleStrings.join(',')}`
