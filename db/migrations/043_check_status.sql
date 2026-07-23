@@ -1,0 +1,1 @@
+﻿SELECT b.status, b.sender_number, b.pending_messages, b.processing_messages FROM whatsapp_ai.batches b; SELECT d.status, d.channel, left(d.payload->>'text',100) as msg, d.created_at FROM whatsapp_ai.deliveries d WHERE d.created_at > clock_timestamp() - interval '30 minutes' ORDER BY d.created_at DESC LIMIT 5;

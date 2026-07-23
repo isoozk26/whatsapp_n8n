@@ -1,0 +1,1 @@
+﻿SELECT id, channel, destination, status, attempt_count, left(payload->>'text',120) as msg, created_at FROM whatsapp_ai.deliveries ORDER BY created_at DESC LIMIT 10;

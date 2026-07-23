@@ -269,6 +269,10 @@ const vehicleRequestDetected = filterRequest && Boolean(brand || yearMatch);
 const deterministicCase = vehicleRequestDetected || (Array.isArray(ctx.detectedCodes) && ctx.detectedCodes.length > 0)
   || ['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','greeting','non_product'].includes(caseType);
 
+// Normalize caseType aliases
+const caseTypeAliases = { 'exact_code_stock': 'exact_code_price_stock' };
+if (caseTypeAliases[caseType]) caseType = caseTypeAliases[caseType];
+
 if (!allowed.has(caseType)) {
   caseType = 'unclear'; action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
   handoffReason = 'AI şema doğrulaması başarısız';

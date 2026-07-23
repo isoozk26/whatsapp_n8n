@@ -1,0 +1,1 @@
+﻿UPDATE whatsapp_ai.batches SET status = 'pending', pending_messages = processing_messages || pending_messages, processing_messages = '[]'::jsonb, processing_token = NULL, processing_started_at = NULL, first_message_at = clock_timestamp(), updated_at = clock_timestamp() WHERE status = 'processing';
