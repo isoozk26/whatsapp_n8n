@@ -132,18 +132,39 @@ const command = authorizedCommand ? (commandMatch[1] === '++' ? 'pause' : comman
 // Ignore: protocol messages, empty text without media, groups, broadcasts
 const valid = Boolean(payload && messageId && senderNumber && !isGroup && !isBroadcast && !isProtocolMessage && !isEmpty && (!fromMe || command));
 const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
+
+// Rate limiting kontrolü (staticData üzerinden)
+let rateLimitExceeded = false;
+if (valid && !fromMe) {
+  const staticData = $getWorkflowStaticData('global');
+  if (!staticData._rateLimits) staticData._rateLimits = {};
+  const rateLimitKey = `rate:${senderNumber}`;
+  const lastMessage = staticData._rateLimits[rateLimitKey] || 0;
+  const now = Date.now();
+  const cooldownMs = 5000; // 5 saniye cooldown
+  if (now - lastMessage < cooldownMs) {
+    rateLimitExceeded = true;
+  }
+  staticData._rateLimits[rateLimitKey] = now;
+  // Eski rate limit entries'leri temizle (5 dakika)
+  const cutoff = now - 300000;
+  for (const [key, timestamp] of Object.entries(staticData._rateLimits)) {
+    if (timestamp < cutoff) delete staticData._rateLimits[key];
+  }
+}
+
 const message = {
   id: messageId, text: displayText || '[Medya]',
   type: mediaType || 'text',
   timestamp: Date.now(), mediaUrl, mimetype, isMediaMessage, mediaType
 };
 return { json: {
-  valid, queryToken, webhookToken, authSource: headerSecret ? 'header' : 'query',
+  valid: valid && !rateLimitExceeded, queryToken, webhookToken, authSource: headerSecret ? 'header' : 'query',
   senderNumber, senderName: String(payload?.pushName || senderNumber),
   messageId, fromMe, command, rawJid, message, correlationId,
   commandMessageId: messageId, commandRemoteJid: rawJid,
   commandParticipant: String(payload?.key?.participant || ''),
-  isMediaMessage, mediaType
+  isMediaMessage, mediaType, rateLimitExceeded
 } };
 """.strip()
 
@@ -179,13 +200,49 @@ store_context_js = r"""
 const row = $json || {};
 const messages = Array.isArray(row.messages) ? row.messages : [];
 const allMessagesText = String(row.all_messages_text || '');
-// Prompt injection koruması — tehlikeli komutları temizle
+// Prompt injection koruması — tehlikeli komutları temizle (İngilizce + Türkçe)
 const sanitizedText = allMessagesText
+  // Unicode normalization (homoglyph bypass engelleme)
+  .normalize('NFKD')
+  // İngilizce injection kalıpları
   .replace(/ignore\s+previous\s+instructions/gi, '')
   .replace(/you\s+are\s+now/gi, '')
   .replace(/system\s*:/gi, '')
   .replace(/\[INST\]/gi, '')
   .replace(/\[\/INST\]/gi, '')
+  .replace(/forget\s+everything/gi, '')
+  .replace(/disregard\s+all/gi, '')
+  .replace(/new\s+instructions/gi, '')
+  .replace(/act\s+as/gi, '')
+  .replace(/pretend\s+you\s+are/gi, '')
+  .replace(/override\s+safety/gi, '')
+  .replace(/\[SYSTEM\]/gi, '')
+  .replace(/\[USER\]/gi, '')
+  .replace(/do\s+anything\s+now/gi, '')
+  .replace(/you\s+have\s+no\s+restrictions/gi, '')
+  .replace(/jailbreak/gi, '')
+  .replace(/dan\s+mode/gi, '')
+  // Türkçe injection kalıpları
+  .replace(/önceki\s+talimat(lar)?(ı)?\s+(yok\s+say|görmezden\s+gel|iptal\s+et|unut)/gi, '')
+  .replace(/artık\s+sen/gi, '')
+  .replace(/sistem\s*:/gi, '')
+  .replace(/tüm\s+önceki\s+talimatları?\s+unut/gi, '')
+  .replace(/yeni\s+talimatlar/gi, '')
+  .replace(/farklı\s+bir\s+kişi\s+ol/gi, '')
+  .replace(/rolün\s+değişti/gi, '')
+  .replace(/şimdi\s+sensin/gi, '')
+  .replace(/sen\s+artık/gi, '')
+  .replace(/bana\s+yardım\s+et/gi, '')
+  .replace(/talimatları\s+yoksay/gi, '')
+  .replace(/güvenlik\s+protokollerini\s+devre\s+dışı\s+bırak/gi, '')
+  .replace(/her\s+şeyi\s+yap/gi, '')
+  .replace(/sınırsız\s+ol/gi, '')
+  // Delimiter injection koruması
+  .replace(/\]\s*\n\s*\[/g, '')
+  .replace(/```system/gi, '')
+  .replace(/```user/gi, '')
+  .replace(/<|im_start|>/gi, '')
+  .replace(/<\/im_start>/gi, '')
   .slice(0, 1000);
 const _codePatterns = [
   /\b[A-Z]{1,4}\s?\d{2,6}(?:\/\d{1,4})?[A-Z]{0,3}\b/gi,
@@ -213,7 +270,29 @@ Fiyat, stok, kargo veya uyumluluk doğrulanmış gibi gösterme. Müşterinin ya
 - return_complaint: müşteri iade veya değişim istiyor
 - complaint: müşteri memnuniyetsizliği, sorun bildiriyor
 - human_request: müşteri insan temsilci istiyor
-- other: diğer destek talepleri"""
+- other: diğer destek talepleri
+
+Confidence rehberliği:
+- 0.9+: Tam kod bulundu, net talep
+- 0.7-0.9: Kısmi bilgi, araç bilgisi var
+- 0.5-0.7: Belirsiz, ek bilgi gerekli
+- <0.5: Çok belirsiz, insan devri
+
+Örnekler:
+Input: "BOSCH F026400287 var mı fiyat ne kadar"
+Output: {"intent":"price_stock","caseType":"exact_code_price_stock","entities":{"productCodes":[{"code":"BOSCH F026400287"}],"preferredBrands":["BOSCH"],"quantity":"Belirtilmedi","vehicles":[]},"replyDraft":"","confidence":0.95,"expectsReply":false}
+
+Input: "Fiat Egea 2019 yağ filtresi lazım"
+Output: {"intent":"compatibility","caseType":"exact_code_compatibility","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[{"brand":"Fiat","model":"Egea","year":"2019","engine":null,"power":null,"vin":null,"raw":"Fiat Egea 2019"}]},"replyDraft":"","confidence":0.70,"expectsReply":true}
+
+Input: "Siparişim hala gelmedi 3 gün oldu şikayetçiyim"
+Output: {"intent":"complaint","caseType":"non_product","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[]},"replyDraft":"","confidence":0.90,"expectsReply":false}
+
+Input: "Merhaba"
+Output: {"intent":"greeting","caseType":"greeting","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[]},"replyDraft":"","confidence":0.95,"expectsReply":false}
+
+Input: "MN134 ve HU7012 filtre var mı"
+Output: {"intent":"price_stock","caseType":"exact_code_price_stock","entities":{"productCodes":[{"code":"MN134"},{"code":"HU7012"}],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[]},"replyDraft":"","confidence":0.92,"expectsReply":false}"""
 
 
 parse_ai_js = r"""
@@ -468,7 +547,19 @@ if (caseType === 'exact_code_compatibility') {
 const unsafeClaim = /\b\d+(?:[.,]\d+)?\s*(?:tl|₺)\b/i.test(reply) ||
   /\bstok(?:ta|larımızda|umuzda)\s+(?:var|mevcut)\b/i.test(reply) ||
   /\bkesin(?:likle)?\s+(?:uyar|uyumludur|calisir)\b/i.test(reply) ||
-  /\bbugun\s+kargo\b/i.test(reply);
+  /\bbugun\s+kargo\b/i.test(reply) ||
+  /\bayni\s+gun\s+kargo\b/i.test(reply) ||
+  /\bhemen\s+kargoya\s+veriyoruz\b/i.test(reply) ||
+  /\bgarantili\b/i.test(reply) ||
+  /\borijinal\s+parca\b/i.test(reply) ||
+  /\bbirebir\s+karsiligi\b/i.test(reply) ||
+  /\btam\s+karsiligi\b/i.test(reply) ||
+  /\bdirekt\s+takilir\b/i.test(reply) ||
+  /\brahatlikla\s+kullanabilirsiniz\b/i.test(reply) ||
+  /\bsorunsuz\s+kullanabilirsiniz\b/i.test(reply) ||
+  /\bmevcut\s+görünüyor\b/i.test(reply) ||
+  /\bStokta\s+\d+\s+adet\b/i.test(reply) ||
+  /\bfiyat[ıi]?\s*[:=]?\s*\d+/i.test(reply);
 if (unsafeClaim) {
   reply = 'Talebiniz kontrol için ekibimize iletilmiştir.';
   notifyAdmins = true;
