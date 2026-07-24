@@ -150,7 +150,28 @@ return { json: {
 
 validate_webhook_secret_js = r"""
 const input = $json || {};
-return { json: Object.assign({}, input, { authorized: true, authSource: 'db_check', action: null, authFailureReason: null, correlationId: input.correlationId || '' }) };
+const webhookToken = String(input.webhookToken || input.queryToken || '');
+const authSource = input.authSource || 'query';
+
+// Token varlık kontrolü — eksikse reddet
+if (!webhookToken || webhookToken === '' || webhookToken === 'undefined' || webhookToken === 'null') {
+  return { json: Object.assign({}, input, {
+    authorized: false,
+    authSource: authSource,
+    action: 'unauthorized',
+    authFailureReason: 'missing_token',
+    correlationId: input.correlationId || ''
+  }) };
+}
+
+// Token mevcut — DB doğrulaması ingest_message fonksiyonunda yapılıyor
+return { json: Object.assign({}, input, {
+  authorized: true,
+  authSource: authSource,
+  action: null,
+  authFailureReason: null,
+  correlationId: input.correlationId || ''
+}) };
 """.strip()
 
 
@@ -158,6 +179,14 @@ store_context_js = r"""
 const row = $json || {};
 const messages = Array.isArray(row.messages) ? row.messages : [];
 const allMessagesText = String(row.all_messages_text || '');
+// Prompt injection koruması — tehlikeli komutları temizle
+const sanitizedText = allMessagesText
+  .replace(/ignore\s+previous\s+instructions/gi, '')
+  .replace(/you\s+are\s+now/gi, '')
+  .replace(/system\s*:/gi, '')
+  .replace(/\[INST\]/gi, '')
+  .replace(/\[\/INST\]/gi, '')
+  .slice(0, 1000);
 const _codePatterns = [
   /\b[A-Z]{1,4}\s?\d{2,6}(?:\/\d{1,4})?[A-Z]{0,3}\b/gi,
   /\b[A-Z0-9]{2,10}[.\/-][A-Z0-9]{1,10}\b/g,
@@ -172,7 +201,7 @@ return { json: {
   batchToken: String(row.batch_token || ''), messageCount: Number(row.message_count || messages.length),
   allMessagesText, detectedCodes, aiAttemptCount: Number(row.ai_attempt_count || 0),
   assigneeName: String(row.assignee_name || 'İsmail Özkaracan'), correlationId,
-  _prompt: `Müşteri mesajları:\n${allMessagesText}\n\n[Yalnız tanımlı JSON şemasında cevap ver. correlationId: ${correlationId}]`
+  _prompt: `Müşteri mesajları:\n${sanitizedText}\n\n[Yalnız tanımlı JSON şemasında cevap ver. correlationId: ${correlationId}]`
 } };
 """.strip()
 
@@ -435,7 +464,11 @@ if (caseType === 'exact_code_compatibility') {
   }
 }
 
-const unsafeClaim = /\b\d+(?:[.,]\d+)?\s*(?:tl|₺)\b|\bstokta\b|kesin\s+uyar|bugün\s+kargo/i.test(reply);
+// Daha spesifik regex — false positive riskini azalt
+const unsafeClaim = /\b\d+(?:[.,]\d+)?\s*(?:tl|₺)\b/i.test(reply) ||
+  /\bstok(?:ta|larımızda|umuzda)\s+(?:var|mevcut)\b/i.test(reply) ||
+  /\bkesin(?:likle)?\s+(?:uyar|uyumludur|calisir)\b/i.test(reply) ||
+  /\bbugun\s+kargo\b/i.test(reply);
 if (unsafeClaim) {
   reply = 'Talebiniz kontrol için ekibimize iletilmiştir.';
   notifyAdmins = true;
@@ -637,8 +670,13 @@ const isCustomer = channel === 'customer';
 const isHandoff = deliveryType === 'handoff_alert';
 const isCommand = deliveryType === 'command_notification';
 const priority = isCustomer ? 100 : (isHandoff ? 90 : (isCommand ? 40 : 50));
+// Boş/geçersiz UUID koruması — PostgreSQL cast hatasını önle
+const deliveryId = String(row.id || '');
+if (!deliveryId || deliveryId === '00000000-0000-0000-0000-000000000000') {
+  return { json: { skip: true, reason: 'invalid_delivery_id', correlationId } };
+}
 return { json: {
-  deliveryId: String(row.id || ''), batchToken: String(row.batch_token || ''),
+  deliveryId, batchToken: String(row.batch_token || ''),
   channel: channel, senderNumber: String(row.sender_number || ''),
   destination: String(row.destination || payload.number || ''), text: String(payload.text || ''),
   correlationId, priority,
@@ -699,7 +737,7 @@ nodes = [
     },
     code_node(
         "Prepare Ingest Failure",
-        "const ctx = $json || {};\nreturn { json: { accepted: false, retryable: true, error: 'temporary_ingest_failure', correlationId: String(ctx.correlationId || '') } };",
+        "const ctx = $json || {};\nconst corrId = String(ctx.correlationId || '');\nreturn { json: { accepted: false, retryable: true, error: 'temporary_ingest_failure', correlationId: corrId || ('fallback-' + Date.now()) } };",
         [1120, 440],
     ),
     {

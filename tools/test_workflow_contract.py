@@ -88,7 +88,7 @@ def main():
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)
-    assert "WEBHOOK_SECRET" in source
+    assert "webhook_token" in SQL, "PostgreSQL webhook auth must be present"
     assert "N8N_POSTGRES_CREDENTIAL_ID" in source
     assert "vehicle_based_search" not in source
     assert "prepare_catalog_js" not in source
