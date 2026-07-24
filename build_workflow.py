@@ -77,8 +77,19 @@ const headers = root.headers || {};
 const headerSecret = String(headers['x-webhook-secret'] || headers['x-evolution-webhook-secret'] || '');
 const queryToken = String(root.query?.token || '');
 const webhookToken = headerSecret || queryToken;
-const rawJid = String(payload?.key?.remoteJid || '');
-const senderNumber = rawJid.replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/g, '');
+
+// @lid normalizasyonu — gerçek telefon numarası için remoteJidAlt/senderPn fallback
+const key = payload?.key || {};
+const remoteJid = String(key.remoteJid || '');
+const remoteJidAlt = String(key.remoteJidAlt || key.senderPn || '');
+const effectiveJid = remoteJid.endsWith('@lid')
+  ? (remoteJidAlt || remoteJid)
+  : remoteJid;
+const senderNumber = effectiveJid
+  .replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/g, '')
+  .replace(/[^0-9]/g, '');
+const rawJid = remoteJid;
+
 const fromMe = payload?.key?.fromMe === true;
 const messageId = String(payload?.key?.id || '');
 const isGroup = rawJid.endsWith('@g.us');
@@ -159,7 +170,7 @@ const message = {
   timestamp: Date.now(), mediaUrl, mimetype, isMediaMessage, mediaType
 };
 return { json: {
-  valid: valid && !rateLimitExceeded, queryToken, webhookToken, authSource: headerSecret ? 'header' : 'query',
+  valid, queryToken, webhookToken, authSource: headerSecret ? 'header' : 'query',
   senderNumber, senderName: String(payload?.pushName || senderNumber),
   messageId, fromMe, command, rawJid, message, correlationId,
   commandMessageId: messageId, commandRemoteJid: rawJid,
@@ -254,10 +265,16 @@ const detectedCodes = [...new Set(_codePatterns.flatMap(p => allMessagesText.mat
   .map(x => x.trim()).filter(x => /\d/.test(x)))].slice(0, 20);
 const correlationId = String(row.correlationId || '');
 return { json: {
-  senderNumber: String(row.sender_number || ''), senderName: String(row.sender_name || row.sender_number || ''),
-  batchToken: String(row.batch_token || ''), messageCount: Number(row.message_count || messages.length),
+  ...row,
+  senderNumber: String(row.sender_number || row.senderNumber || ''),
+  senderName: String(row.sender_name || row.senderName || row.sender_number || ''),
+  batchToken: String(row.batch_token || row.batchToken || ''),
+  messageCount: Number(row.message_count || messages.length),
   allMessagesText, detectedCodes, aiAttemptCount: Number(row.ai_attempt_count || 0),
-  assigneeName: String(row.assignee_name || 'İsmail Özkaracan'), correlationId,
+  assigneeName: String(row.assignee_name || 'İsmail Özkaracan'),
+  correlationId: String(row.correlation_id || row.correlationId || ''),
+  isMediaMessage: Boolean(row.is_media_message || row.isMediaMessage),
+  mediaType: String(row.media_type || row.mediaType || ''),
   _prompt: `Müşteri mesajları:\n${sanitizedText}\n\n[Yalnız tanımlı JSON şemasında cevap ver. correlationId: ${correlationId}]`
 } };
 """.strip()
