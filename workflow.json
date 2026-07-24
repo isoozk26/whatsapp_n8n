@@ -567,7 +567,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const row = $json || {};\nconst payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {});\nconst correlationId = String(row.correlationId || '');\nconst channel = String(row.channel || '');\nconst deliveryType = String(payload._deliveryType || '');\nconst isCustomer = channel === 'customer';\nconst isHandoff = deliveryType === 'handoff_alert';\nconst isCommand = deliveryType === 'command_notification';\nconst priority = isCustomer ? 100 : (isHandoff ? 90 : (isCommand ? 40 : 50));\n// Boş/geçersiz UUID koruması — PostgreSQL cast hatasını önle\nconst deliveryId = String(row.id || '');\nif (!deliveryId || deliveryId === '00000000-0000-0000-0000-000000000000') {\n  return { json: { skip: true, reason: 'invalid_delivery_id', correlationId } };\n}\nreturn { json: {\n  deliveryId, batchToken: String(row.batch_token || ''),\n  channel: channel, senderNumber: String(row.sender_number || ''),\n  destination: String(row.destination || payload.number || ''), text: String(payload.text || ''),\n  correlationId, priority,\n  body: { number: String(row.destination || payload.number || ''), text: String(payload.text || ''), correlationId }\n} };"
+        "jsCode": "const row = $json || {};\n\nlet payload = {};\ntry {\n  payload = typeof row.payload === 'string'\n    ? JSON.parse(row.payload)\n    : (row.payload || {});\n} catch (error) {\n  return {\n    json: {\n      validDelivery: false,\n      deliveryId: String(row.id || ''),\n      correlationId: String(row.correlation_id || row.correlationId || ''),\n      validationError: 'invalid_payload_json'\n    }\n  };\n}\n\nconst deliveryId = String(row.id || '');\nconst batchToken = String(row.batch_token || row.batchToken || '');\nconst correlationId = String(row.correlation_id || row.correlationId || '');\nconst channel = String(row.channel || '');\nconst destination = String(row.destination || payload.number || '')\n  .replace(/[^0-9]/g, '');\nconst text = String(payload.text || '').trim();\n\nconst uuidOk =\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i\n    .test(deliveryId);\n\nconst destinationOk = /^[1-9][0-9]{9,14}$/.test(destination);\nconst textOk = text.length > 0 && text.length <= 4096;\nconst channelOk = ['customer', 'phone_a', 'phone_b'].includes(channel);\n\nconst errors = [];\nif (!uuidOk) errors.push('invalid_delivery_id');\nif (!destinationOk) errors.push('invalid_destination');\nif (!textOk) errors.push('invalid_text');\nif (!channelOk) errors.push('invalid_channel');\n\nreturn {\n  json: {\n    deliveryId,\n    batchToken,\n    channel,\n    senderNumber: String(row.sender_number || row.senderNumber || ''),\n    destination,\n    text,\n    correlationId,\n    validDelivery: errors.length === 0,\n    validationError: errors.join(','),\n    body: {\n      number: destination,\n      text\n    }\n  }\n};"
       },
       "id": "379eeeba-de79-5d54-a80e-c68b056ba73d",
       "name": "Prepare Delivery",
@@ -575,6 +575,39 @@
       "typeVersion": 2,
       "position": [
         560,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "377a7103-c899-57e5-a584-03c2dec8d88f",
+              "leftValue": "={{ $json.validDelivery === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "804546e7-85ad-5c0b-8d6b-394f50e9edd8",
+      "name": "Delivery Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
         820
       ]
     },
@@ -598,7 +631,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        780,
+        1000,
         820
       ],
       "onError": "continueErrorOutput",
@@ -612,6 +645,20 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
+        "jsCode": "\nconst ctx = $json || {};\nreturn {\n  json: {\n    ...ctx,\n    success: false,\n    providerId: '',\n    errorMessage: `delivery_validation:${ctx.validationError || 'unknown'}`\n  }\n};\n"
+      },
+      "id": "d4991edd-dd52-5648-a72a-27e4e2b58457",
+      "name": "Tag Delivery Validation Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        920
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const ctx = $('Prepare Delivery').item.json;\nconst providerId = String($json?.key?.id || $json?.messageId || $json?.id || '');\nreturn { json: { ...ctx, success: true, providerId, errorMessage: '' } };"
       },
       "id": "7f877a86-9ef7-5e10-bad9-56f8c939db75",
@@ -619,7 +666,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1000,
+        1220,
         800
       ]
     },
@@ -928,7 +975,25 @@
       "main": [
         [
           {
+            "node": "Delivery Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delivery Valid?": {
+      "main": [
+        [
+          {
             "node": "Send Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Delivery Validation Error",
             "type": "main",
             "index": 0
           }
@@ -965,6 +1030,17 @@
       ]
     },
     "Tag Delivery Error": {
+      "main": [
+        [
+          {
+            "node": "Record Delivery Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Delivery Validation Error": {
       "main": [
         [
           {

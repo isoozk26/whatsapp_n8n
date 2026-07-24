@@ -770,26 +770,62 @@ return { json: {
 
 prepare_delivery_js = r"""
 const row = $json || {};
-const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {});
-const correlationId = String(row.correlationId || '');
-const channel = String(row.channel || '');
-const deliveryType = String(payload._deliveryType || '');
-const isCustomer = channel === 'customer';
-const isHandoff = deliveryType === 'handoff_alert';
-const isCommand = deliveryType === 'command_notification';
-const priority = isCustomer ? 100 : (isHandoff ? 90 : (isCommand ? 40 : 50));
-// Boş/geçersiz UUID koruması — PostgreSQL cast hatasını önle
-const deliveryId = String(row.id || '');
-if (!deliveryId || deliveryId === '00000000-0000-0000-0000-000000000000') {
-  return { json: { skip: true, reason: 'invalid_delivery_id', correlationId } };
+
+let payload = {};
+try {
+  payload = typeof row.payload === 'string'
+    ? JSON.parse(row.payload)
+    : (row.payload || {});
+} catch (error) {
+  return {
+    json: {
+      validDelivery: false,
+      deliveryId: String(row.id || ''),
+      correlationId: String(row.correlation_id || row.correlationId || ''),
+      validationError: 'invalid_payload_json'
+    }
+  };
 }
-return { json: {
-  deliveryId, batchToken: String(row.batch_token || ''),
-  channel: channel, senderNumber: String(row.sender_number || ''),
-  destination: String(row.destination || payload.number || ''), text: String(payload.text || ''),
-  correlationId, priority,
-  body: { number: String(row.destination || payload.number || ''), text: String(payload.text || ''), correlationId }
-} };
+
+const deliveryId = String(row.id || '');
+const batchToken = String(row.batch_token || row.batchToken || '');
+const correlationId = String(row.correlation_id || row.correlationId || '');
+const channel = String(row.channel || '');
+const destination = String(row.destination || payload.number || '')
+  .replace(/[^0-9]/g, '');
+const text = String(payload.text || '').trim();
+
+const uuidOk =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    .test(deliveryId);
+
+const destinationOk = /^[1-9][0-9]{9,14}$/.test(destination);
+const textOk = text.length > 0 && text.length <= 4096;
+const channelOk = ['customer', 'phone_a', 'phone_b'].includes(channel);
+
+const errors = [];
+if (!uuidOk) errors.push('invalid_delivery_id');
+if (!destinationOk) errors.push('invalid_destination');
+if (!textOk) errors.push('invalid_text');
+if (!channelOk) errors.push('invalid_channel');
+
+return {
+  json: {
+    deliveryId,
+    batchToken,
+    channel,
+    senderNumber: String(row.sender_number || row.senderNumber || ''),
+    destination,
+    text,
+    correlationId,
+    validDelivery: errors.length === 0,
+    validationError: errors.join(','),
+    body: {
+      number: destination,
+      text
+    }
+  }
+};
 """.strip()
 
 
@@ -889,6 +925,7 @@ nodes = [
     if_node("Evolution Circuit Open?", "={{ $json.allowed === true }}", [560, 820]),
     postgres_node("Claim Deliveries", "SELECT * FROM whatsapp_ai.claim_deliveries(20)", "={{ [] }}", [780, 820]),
     code_node("Prepare Delivery", prepare_delivery_js, [560, 820]),
+    if_node("Delivery Valid?", "={{ $json.validDelivery === true }}", [780, 820]),
     {
         "parameters": {
             "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', '')}/message/sendText/filtr",
@@ -897,10 +934,21 @@ nodes = [
             "body": "={{ JSON.stringify($json.body) }}", "options": {"timeout": 15000, "ignoreSslIssues": True},
         },
         "id": node_id("Send Delivery"), "name": "Send Delivery", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
-        "position": [780, 820], "onError": "continueErrorOutput",
+        "position": [1000, 820], "onError": "continueErrorOutput",
         "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
     },
-    code_node("Tag Delivery Success", tag_success_js, [1000, 800]),
+    code_node("Tag Delivery Validation Error", """
+const ctx = $json || {};
+return {
+  json: {
+    ...ctx,
+    success: false,
+    providerId: '',
+    errorMessage: `delivery_validation:${ctx.validationError || 'unknown'}`
+  }
+};
+""", [1000, 920]),
+    code_node("Tag Delivery Success", tag_success_js, [1220, 800]),
     code_node("Tag Delivery Error", tag_error_js, [1000, 920]),
     postgres_node(
         "Record Delivery Result",
@@ -932,10 +980,12 @@ connections = {
     "Evolution Circuit Gate": {"main": [[edge("Evolution Circuit Open?")]]},
     "Evolution Circuit Open?": {"main": [[edge("Claim Deliveries")], []]},
     "Claim Deliveries": {"main": [[edge("Prepare Delivery")]]},
-    "Prepare Delivery": {"main": [[edge("Send Delivery")]]},
+    "Prepare Delivery": {"main": [[edge("Delivery Valid?")]]},
+    "Delivery Valid?": {"main": [[edge("Send Delivery")], [edge("Tag Delivery Validation Error")]]},
     "Send Delivery": {"main": [[edge("Tag Delivery Success")], [edge("Tag Delivery Error")]]},
     "Tag Delivery Success": {"main": [[edge("Record Delivery Result")]]},
     "Tag Delivery Error": {"main": [[edge("Record Delivery Result")]]},
+    "Tag Delivery Validation Error": {"main": [[edge("Record Delivery Result")]]},
 }
 
 
