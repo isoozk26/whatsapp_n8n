@@ -38,13 +38,21 @@ def main():
     normalize = node("Normalize Payload")["parameters"]["jsCode"]
     assert "body?.body?.data || root.body?.data" in normalize
     assert "isGroup" in normalize and "isBroadcast" in normalize
-    assert targets("Valid Event?", 0) == ["Ingest Message"]
+    assert targets("Valid Event?", 0) == ["Rate Limit Exceeded?"]
+    assert targets("Valid Event?", 1) == ["Respond Ignored"]
+    assert targets("Rate Limit Exceeded?", 0) == ["Respond Rate Limited"]
+    assert targets("Rate Limit Exceeded?", 1) == ["Ingest Message"]
+    assert node("Respond Rate Limited")["parameters"]["options"]["responseCode"] == 202
+    assert "rateLimitExceeded" in normalize
 
     assert targets("AI Agent", 0) == ["Parse AI Output"]
     assert targets("AI Agent", 1) == ["Prepare AI Failure"]
     assert targets("Parse AI Output") == ["AI Output Valid?"]
     assert targets("AI Output Valid?", 0) == ["Complete AI Batch"]
     assert targets("AI Output Valid?", 1) == ["Prepare AI Failure"]
+    assert targets("Complete AI Batch") == ["AI Batch Completed?"]
+    assert targets("AI Batch Completed?", 1) == ["Prepare Batch Completion Failure"]
+    assert targets("Prepare Batch Completion Failure") == ["Record AI Failure"]
     parse = node("Parse AI Output")["parameters"]["jsCode"]
     assert "vehicle_based_search" not in parse
     assert "catalogEmoji" not in parse
@@ -58,6 +66,9 @@ def main():
     send = node("Send Delivery")
     assert send["parameters"]["authentication"] == "predefinedCredentialType"
     assert send["credentials"]["httpHeaderAuth"]["name"] == "Evolution API"
+    tag_success = node("Tag Delivery Success")["parameters"]["jsCode"]
+    assert "providerId.length > 0" in tag_success
+    assert "missing_provider_message_id" in tag_success
 
     assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate"]
     for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result"):

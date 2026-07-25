@@ -131,6 +131,56 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c20f59e2-8d9d-56a9-9fa5-5a5a1c063f85",
+              "leftValue": "={{ $json.rateLimitExceeded === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4af8a9a4-5764-54db-84db-224f4c35962f",
+      "name": "Rate Limit Exceeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: true, ignored: true, rateLimited: true, correlationId: $json.correlationId || '' } }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "7023b621-f6fd-5985-9446-2297b95bd391",
+      "name": "Respond Rate Limited",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1000,
+        520
+      ]
+    },
+    {
+      "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { accepted: true, ignored: true, correlationId: $json.correlationId || '' } }}",
         "options": {
@@ -450,6 +500,39 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "900cfc22-1d09-5754-88bc-65ab0d416cae",
+              "leftValue": "={{ $json.completed === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7e1190e7-f6b1-53f3-9e0b-dc8af36f9e3d",
+      "name": "AI Batch Completed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2980,
+        520
+      ]
+    },
+    {
+      "parameters": {
         "mode": "runOnceForEachItem",
         "jsCode": "let ctx = $json || {};\nif (!ctx.senderNumber || !ctx.batchToken) {\n  try { ctx = { ...$('Store Context').item.json, ...ctx }; } catch (_) {}\n}\nreturn { json: {\n  senderNumber: String(ctx.senderNumber || ''), batchToken: String(ctx.batchToken || ''),\n  errorCode: String(ctx.parseFailureCode || ctx.error?.code || 'ai_error'),\n  errorMessage: String(ctx.parseFailureMessage || ctx.error?.message || ctx.message || 'AI execution failed').slice(0, 2000),\n  correlationId: String(ctx.correlationId || '')\n} };"
       },
@@ -459,6 +542,20 @@
       "typeVersion": 2,
       "position": [
         1880,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "let ctx = $json || {};\nif (!ctx.senderNumber || !ctx.batchToken) {\n  try { ctx = { ...$('Store Context').item.json, ...ctx }; } catch (_) {}\n}\nreturn { json: {\n  senderNumber: String(ctx.senderNumber || ''),\n  batchToken: String(ctx.batchToken || ''),\n  parseFailureCode: String(ctx.completionFailureCode || 'batch_completion_failed'),\n  parseFailureMessage: String(ctx.completionFailureMessage || 'complete_ai_batch returned false').slice(0, 2000),\n  correlationId: String(ctx.correlationId || '')\n} };"
+      },
+      "id": "d2a793ce-8608-5bbe-a4d7-6129610a68db",
+      "name": "Prepare Batch Completion Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3180,
         700
       ]
     },
@@ -659,7 +756,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const ctx = $('Prepare Delivery').item.json;\nconst providerId = String($json?.key?.id || $json?.messageId || $json?.id || '');\nreturn { json: { ...ctx, success: true, providerId, errorMessage: '' } };"
+        "jsCode": "const ctx = $('Prepare Delivery').item.json;\nconst providerId = String($json?.key?.id || $json?.messageId || $json?.id || '');\nconst success = providerId.length > 0;\nreturn { json: { ...ctx, success, providerId, errorMessage: success ? '' : 'missing_provider_message_id' } };"
       },
       "id": "7f877a86-9ef7-5e10-bad9-56f8c939db75",
       "name": "Tag Delivery Success",
@@ -764,7 +861,7 @@
       "main": [
         [
           {
-            "node": "Ingest Message",
+            "node": "Rate Limit Exceeded?",
             "type": "main",
             "index": 0
           }
@@ -772,6 +869,24 @@
         [
           {
             "node": "Respond Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Exceeded?": {
+      "main": [
+        [
+          {
+            "node": "Respond Rate Limited",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ingest Message",
             "type": "main",
             "index": 0
           }
@@ -915,7 +1030,41 @@
         ]
       ]
     },
+    "Complete AI Batch": {
+      "main": [
+        [
+          {
+            "node": "AI Batch Completed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Batch Completed?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Prepare Batch Completion Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Prepare AI Failure": {
+      "main": [
+        [
+          {
+            "node": "Record AI Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Batch Completion Failure": {
       "main": [
         [
           {

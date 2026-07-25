@@ -25,6 +25,7 @@ declare const $runIndex: number;
 declare const $mode: string;
 declare const $vars: Record<string, any>;
 declare const $env: Record<string, string | undefined>;
+declare function $getWorkflowStaticData(scope: string): any;
 declare const Buffer: any;
 declare const crypto: any;
 declare const fetch: any;

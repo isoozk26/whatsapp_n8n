@@ -768,6 +768,21 @@ return { json: {
 """.strip()
 
 
+prepare_batch_completion_failure_js = r"""
+let ctx = $json || {};
+if (!ctx.senderNumber || !ctx.batchToken) {
+  try { ctx = { ...$('Store Context').item.json, ...ctx }; } catch (_) {}
+}
+return { json: {
+  senderNumber: String(ctx.senderNumber || ''),
+  batchToken: String(ctx.batchToken || ''),
+  parseFailureCode: String(ctx.completionFailureCode || 'batch_completion_failed'),
+  parseFailureMessage: String(ctx.completionFailureMessage || 'complete_ai_batch returned false').slice(0, 2000),
+  correlationId: String(ctx.correlationId || '')
+} };
+""".strip()
+
+
 prepare_delivery_js = r"""
 const row = $json || {};
 
@@ -832,7 +847,8 @@ return {
 tag_success_js = r"""
 const ctx = $('Prepare Delivery').item.json;
 const providerId = String($json?.key?.id || $json?.messageId || $json?.id || '');
-return { json: { ...ctx, success: true, providerId, errorMessage: '' } };
+const success = providerId.length > 0;
+return { json: { ...ctx, success, providerId, errorMessage: success ? '' : 'missing_provider_message_id' } };
 """.strip()
 
 
@@ -857,6 +873,11 @@ nodes = [
     },
     code_node("Normalize Payload", normalize_js, [340, 260]),
     if_node("Valid Event?", "={{ $json.valid === true }}", [560, 260]),
+    if_node("Rate Limit Exceeded?", "={{ $json.rateLimitExceeded === true }}", [780, 260]),
+    {
+        "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, ignored: true, rateLimited: true, correlationId: $json.correlationId || '' } }}", "options": {"responseCode": 202}},
+        "id": node_id("Respond Rate Limited"), "name": "Respond Rate Limited", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [1000, 520],
+    },
     {
         "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, ignored: true, correlationId: $json.correlationId || '' } }}", "options": {"responseCode": 202}},
         "id": node_id("Respond Ignored"), "name": "Respond Ignored", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [1000, 420],
@@ -914,7 +935,9 @@ nodes = [
         "={{ [ $json.senderNumber, $json.batchToken, $json.cevap, $json.bildirim, $json.notifyAdmins, $json.replyCustomer, $json.pauseAutomation, $json.fingerprint, $json.caseType, $json.correlationId || '' ] }}",
         [2760, 520],
     ),
+    if_node("AI Batch Completed?", "={{ $json.completed === true }}", [2980, 520]),
     code_node("Prepare AI Failure", prepare_ai_failure_js, [1880, 700]),
+    code_node("Prepare Batch Completion Failure", prepare_batch_completion_failure_js, [3180, 700]),
     postgres_node(
         "Record AI Failure",
         "SELECT whatsapp_ai.record_ai_failure($1,$2::uuid,$3,$4,$5) AS result, whatsapp_ai.record_service_result('openai',false,$3) AS circuit_state",
@@ -964,7 +987,8 @@ connections = {
     "Normalize Payload": {"main": [[edge("Validate Webhook Secret")]]},
     "Validate Webhook Secret": {"main": [[edge("Webhook Auth")]]},
     "Webhook Auth": {"main": [[edge("Valid Event?")], [edge("Respond Unauthorized")]]},
-    "Valid Event?": {"main": [[edge("Ingest Message")], [edge("Respond Ignored")]]},
+    "Valid Event?": {"main": [[edge("Rate Limit Exceeded?")], [edge("Respond Ignored")]]},
+    "Rate Limit Exceeded?": {"main": [[edge("Respond Rate Limited")], [edge("Ingest Message")]]},
     "Ingest Message": {"main": [[edge("Respond Accepted")], [edge("Prepare Ingest Failure")]]},
     "Prepare Ingest Failure": {"main": [[edge("Respond 503")]]},
     "Schedule Trigger": {"main": [[edge("OpenAI Circuit Gate"), edge("Evolution Circuit Gate")]]},
@@ -975,7 +999,10 @@ connections = {
     "AI Agent": {"main": [[edge("Parse AI Output")], [edge("Prepare AI Failure")]]},
     "Parse AI Output": {"main": [[edge("AI Output Valid?")]]},
     "AI Output Valid?": {"main": [[edge("Complete AI Batch")], [edge("Prepare AI Failure")]]},
+    "Complete AI Batch": {"main": [[edge("AI Batch Completed?")]]},
+    "AI Batch Completed?": {"main": [[], [edge("Prepare Batch Completion Failure")]]},
     "Prepare AI Failure": {"main": [[edge("Record AI Failure")]]},
+    "Prepare Batch Completion Failure": {"main": [[edge("Record AI Failure")]]},
     "OpenAI Chat Model1": {"ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]},
     "Evolution Circuit Gate": {"main": [[edge("Evolution Circuit Open?")]]},
     "Evolution Circuit Open?": {"main": [[edge("Claim Deliveries")], []]},

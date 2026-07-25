@@ -41,9 +41,10 @@ async function testNormalize() {
   const data = {
     key: { remoteJid: "905320000001@s.whatsapp.net", fromMe: false, id: "msg-1" },
     pushName: "Mann Filtre",
-    message: { conversation: "MANN W 712/95 fiyatı nedir?" },
+    message: { conversation: "MANN W 712/95 fiyati nedir?" },
   };
   const normal = await execute(codeOf("Normalize Payload"), webhook(data), () => ({}), { OWNER_PHONE_NUMBERS: "905000000000" });
+  const rateLimited = await execute(codeOf("Normalize Payload"), webhook(data), () => ({}), { OWNER_PHONE_NUMBERS: "905000000000" });
   const nested = await execute(codeOf("Normalize Payload"), webhook(data, true), () => ({}), { OWNER_PHONE_NUMBERS: "905000000000" });
   const { timestamp: normalTimestamp, ...normalMessage } = normal.json.message;
   const { timestamp: nestedTimestamp, ...nestedMessage } = nested.json.message;
@@ -52,6 +53,8 @@ async function testNormalize() {
   assert.strictEqual(typeof nestedTimestamp, "number");
   assert.strictEqual(normal.json.valid, true);
   assert.strictEqual(normal.json.senderNumber, "905320000001");
+  assert.strictEqual(normal.json.rateLimitExceeded, false);
+  assert.strictEqual(rateLimited.json.rateLimitExceeded, true);
   const header = await execute(codeOf("Normalize Payload"), headerWebhook(data), () => ({}), {});
   assert.strictEqual(header.json.webhookToken, "header-token");
   assert.strictEqual(header.json.authSource, "header");
@@ -66,7 +69,7 @@ async function testNormalize() {
   assert.strictEqual((await execute(codeOf("Normalize Payload"), webhook(command), () => ({}), {})).json.command, "pause");
 }
 
-function context(text = "MANN W 712/95 fiyatı nedir?") {
+function context(text = "MANN W 712/95 fiyati nedir?") {
   return { senderNumber: "905320000001", senderName: "Mann Filtre", batchToken: "00000000-0000-0000-0000-000000000001", allMessagesText: text };
 }
 
@@ -81,14 +84,14 @@ async function testPolicy() {
   const base = {
     intent: "price_stock", caseType: "exact_code_price_stock",
     entities: { productCodes: [{ code: "W 712/95" }], vehicles: [] },
-    replyDraft: "Talebiniz alındı, kontrol edilecek.", confidence: 0.95,
+    replyDraft: "Talebiniz alindi, kontrol edilecek.", confidence: 0.95,
   };
   const result = await runParse(base);
   assert.strictEqual(result.json.notifyAdmins, true);
   assert.strictEqual(result.json.replyCustomer, true);
-  assert(result.json.bildirim.includes("Yanıt Hazırlandı"));
+  assert(result.json.bildirim.includes("Yan\u0131t Haz\u0131rland\u0131"));
 
-  const unsafe = await runParse({ ...base, replyDraft: "Stokta var, fiyatı 350 TL." });
+  const unsafe = await runParse({ ...base, replyDraft: "Stokta var, fiyati 350 TL." });
   assert(!unsafe.json.cevap.includes("350"));
   assert(!unsafe.json.cevap.toLowerCase().includes("stokta var"));
 
@@ -96,31 +99,31 @@ async function testPolicy() {
   assert.strictEqual(invented.json.action, "handoff");
   assert.strictEqual(invented.json.pauseAutomation, true);
 
-  const complaint = await runParse({ ...base, intent: "return_complaint", caseType: "non_product", entities: {}, replyDraft: "Aktarıyorum" }, context("Yanlış ürün geldi, iade istiyorum"));
-  assert(complaint.json.bildirim.includes("İADE/DEĞİŞİM TALEBİ"));
+  const complaint = await runParse({ ...base, intent: "return_complaint", caseType: "non_product", entities: {}, replyDraft: "Aktariyorum" }, context("Yanlis urun geldi, iade istiyorum"));
+  assert(complaint.json.bildirim.includes("\u0130ADE/DE\u011e\u0130\u015e\u0130M TALEB\u0130"));
   assert.strictEqual(complaint.json.pauseAutomation, true);
   assert.strictEqual(complaint.json.notifyAdmins, true);
-  assert(!complaint.json.bildirim.includes("Bugün kargo"));
+  assert(!complaint.json.bildirim.includes("Bugun kargo"));
 
   const name = await runParse({
     ...base,
     intent: "other",
     caseType: "partial_code",
-    replyDraft: "Merhaba Mann Filtre, MANN W 712/95 talebiniz alındı.",
+    replyDraft: "Merhaba Mann Filtre, MANN W 712/95 talebiniz alindi.",
   });
-  assert(name.json.cevap.includes("Talebiniz kontrol için ekibimize iletilmiştir"));
+  assert(name.json.cevap.includes("Talebiniz kontrol i\u00e7in ekibimize iletilmi\u015ftir"));
   assert(!name.json.cevap.startsWith("Merhaba Mann Filtre"));
 
   const hasan = await runParse({
     intent: "vehicle_search",
     caseType: "unclear",
     entities: { productCodes: [], vehicles: [] },
-    replyDraft: "Talebiniz alındı. Yetkilimiz kontrol ederek size bilgi verecektir.",
+    replyDraft: "Talebiniz alindi. Yetkilimiz kontrol ederek size bilgi verecektir.",
     confidence: 0.31,
   }, {
-    ...context("1. [09:30] Merhaba Fiat Egea 2022 yağ filtresi arıyorum"),
+    ...context("1. [09:30] Merhaba Fiat Egea 2022 yag filtresi ariyorum"),
     senderName: "Hasandurgun",
-    assigneeName: "İsmail Özkaracan",
+    assigneeName: "Ismail Ozkaracan",
   });
   assert.strictEqual(hasan.json.caseType, "unclear");
   assert.strictEqual(hasan.json.action, "reply");
@@ -132,20 +135,20 @@ async function testPolicy() {
   assert.strictEqual(invalid.json.pauseAutomation, false);
 
   const hasanInvalid = await execute(codeOf("Parse AI Output"), { output: "not-json" }, () => ({ item: { json: {
-    ...context("1. [21:09] Merhaba Fiat Egea 2022 yağ filtresi arıyorum\n2. [21:09] Mann filtre marka var mı"),
+    ...context("1. [21:09] Merhaba Fiat Egea 2022 yag filtresi ariyorum\n2. [21:09] Mann filtre marka var mi"),
     senderName: "Hasandurgun",
-    assigneeName: "İsmail Özkaracan",
+    assigneeName: "Ismail Ozkaracan",
   } } }));
   assert.strictEqual(hasanInvalid.json.caseType, "unclear");
   assert.strictEqual(hasanInvalid.json.action, "reply");
   assert.strictEqual(hasanInvalid.json.retryAi, false);
   assert.strictEqual(hasanInvalid.json.pauseAutomation, false);
-  assert(hasanInvalid.json.bildirim.includes("Mann filtre marka var mı"));
+  assert(hasanInvalid.json.bildirim.includes("Mann filtre marka var mi"));
 
   const vehicleDetails = await runParse({
     intent: "vehicle_search", caseType: "unclear",
     entities: { productCodes: [], vehicles: [] }, replyDraft: "", confidence: 0.2,
-  }, context("1. [21:22] Fiat Egea 2022 yağ filtresi\n2. [21:23] 1.6 TDI motor"));
+  }, context("1. [21:22] Fiat Egea 2022 yag filtresi\n2. [21:23] 1.6 TDI motor"));
   assert.strictEqual(vehicleDetails.json.pauseAutomation, false);
 
   const directCode = await runParse({
@@ -153,13 +156,13 @@ async function testPolicy() {
   }, { ...context("MANN W 712/95 filtre stok fiyat"), detectedCodes: ["W 712/95"] });
   assert.strictEqual(directCode.json.caseType, "exact_code_price_stock");
   assert.strictEqual(directCode.json.pauseAutomation, false);
-  assert(directCode.json.cevap.includes("Talebiniz kontrol için ekibimize iletilmiştir"));
+  assert(directCode.json.cevap.includes("Talebiniz kontrol i\u00e7in ekibimize iletilmi\u015ftir"));
 
   const noFalseCode = await runParse({
     intent: "price_stock", caseType: "exact_code_price_stock",
     entities: { productCodes: [{ code: "EGEA 2022 I" }, { code: "130 HP" }], vehicles: [] },
     replyDraft: "", confidence: 0.3,
-  }, { ...context("1. [21:43] Fiat Egea 2022 için yakıt filtresi varmı\n2. [21:43] Mann filtre\n3. [21:44] 130 HP"), detectedCodes: [] });
+  }, { ...context("1. [21:43] Fiat Egea 2022 icin yakit filtresi varmi\n2. [21:43] Mann filtre\n3. [21:44] 130 HP"), detectedCodes: [] });
   assert.strictEqual(noFalseCode.json.caseType, "partial_code");
   assert.strictEqual(noFalseCode.json.pauseAutomation, false);
   assert.strictEqual(noFalseCode.json.entities.productCodes.length, 0);
@@ -169,21 +172,37 @@ async function testPolicy() {
     entities: { productCodes: [], vehicles: [] }, replyDraft: "", confidence: 0.95,
   }, { ...context("Mann c 35 050 filtre varmi"), detectedCodes: [] });
   assert.strictEqual(missingCode.json.caseType, "partial_code");
-  assert(!missingCode.json.cevap.includes("güncel stok"));
-  assert(missingCode.json.cevap.includes("kodunun tamamını"));
-  assert(missingCode.json.bildirim.includes("EKSİK BİLGİ"));
-  assert(!missingCode.json.bildirim.includes("STOK/FİYAT SORGUSU"));
+  assert(!missingCode.json.cevap.includes("guncel stok"));
+  assert(missingCode.json.cevap.includes("Filtre kodunun tamam"));
+  assert(missingCode.json.bildirim.includes("ek bilgi bekleniyor"));
+  assert(!missingCode.json.bildirim.includes("STOK/FIYAT SORGUSU"));
 }
 
 async function testDeliveryTags() {
   const ctx = { deliveryId: "d1", channel: "phone_b", body: { number: "1", text: "x" } };
   const lookup = (name) => { assert.strictEqual(name, "Prepare Delivery"); return { item: { json: ctx } }; };
   const ok = await execute(codeOf("Tag Delivery Success"), { key: { id: "provider-1" } }, lookup);
+  const missing = await execute(codeOf("Tag Delivery Success"), {}, lookup);
   const err = await execute(codeOf("Tag Delivery Error"), { error: { message: "timeout" } }, lookup);
   assert.strictEqual(ok.json.success, true);
   assert.strictEqual(ok.json.providerId, "provider-1");
+  assert.strictEqual(missing.json.success, false);
+  assert.strictEqual(missing.json.errorMessage, "missing_provider_message_id");
   assert.strictEqual(err.json.success, false);
   assert.strictEqual(err.json.errorMessage, "timeout");
+}
+
+async function testBatchCompletionFailure() {
+  const result = await execute(codeOf("Prepare Batch Completion Failure"), {
+    senderNumber: "905320000001",
+    batchToken: "00000000-0000-0000-0000-000000000001",
+    completionFailureCode: "batch_completion_failed",
+    completionFailureMessage: "complete_ai_batch returned false",
+  });
+  assert.strictEqual(result.json.senderNumber, "905320000001");
+  assert.strictEqual(result.json.batchToken, "00000000-0000-0000-0000-000000000001");
+  assert.strictEqual(result.json.parseFailureCode, "batch_completion_failed");
+  assert.strictEqual(result.json.parseFailureMessage, "complete_ai_batch returned false");
 }
 
 async function testAiFailurePreparation() {
@@ -202,6 +221,7 @@ async function testAiFailurePreparation() {
   await testNormalize();
   await testPolicy();
   await testDeliveryTags();
+  await testBatchCompletionFailure();
   await testAiFailurePreparation();
   console.log("[PASS] normalize, policy, guardrail and delivery behaviors");
 })().catch((error) => { console.error("[FAIL]", error.stack || error); process.exit(1); });
