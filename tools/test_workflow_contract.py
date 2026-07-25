@@ -79,6 +79,11 @@ def main():
     assert "assignee_name text" in SQL
     assert "AT TIME ZONE 'Europe/Istanbul'" in SQL
     assert "interval '120 seconds'" in SQL
+    assert "recover_stale_batches" in SQL
+    assert "stale_batch_recovery" in SQL
+    assert "first_message_at = clock_timestamp() - interval '120 seconds'" in SQL
+    assert "status = CASE WHEN p_pause_automation THEN 'manual' ELSE 'pending' END" in SQL
+    assert "'staleBatches', whatsapp_ai.recover_stale_batches()" in SQL
     assert "interval '10 seconds'" not in SQL
     assert "ai_attempt_count > 0" in SQL
     assert "DROP TABLE IF EXISTS whatsapp_ai.mann_vehicle_catalog" in SQL
