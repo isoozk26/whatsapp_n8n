@@ -214,7 +214,7 @@ const allMessagesText = String(row.all_messages_text || '');
 // Prompt injection koruması — tehlikeli komutları temizle (İngilizce + Türkçe)
 const sanitizedText = allMessagesText
   // Unicode normalization (homoglyph bypass engelleme)
-  .normalize('NFKD')
+  .normalize('NFKC')
   // İngilizce injection kalıpları
   .replace(/ignore\s+previous\s+instructions/gi, '')
   .replace(/you\s+are\s+now/gi, '')
@@ -252,7 +252,7 @@ const sanitizedText = allMessagesText
   .replace(/\]\s*\n\s*\[/g, '')
   .replace(/```system/gi, '')
   .replace(/```user/gi, '')
-  .replace(/<|im_start|>/gi, '')
+  .replace(/<\|im_start\|>/gi, '')
   .replace(/<\/im_start>/gi, '')
   .slice(0, 1000);
 const _codePatterns = [
@@ -348,7 +348,7 @@ try {
 const allowed = new Set(['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','non_product','greeting','unclear','other']);
 const originalText = String(ctx.allMessagesText || '');
 const plainText = originalText.replace(/^\s*\d+\.\s*(?:\[[^\]]+\]\s*)?/, '').trim();
-const textUpper = plainText.toLocaleUpperCase('tr-TR');
+const textUpper = plainText.toUpperCase();
 let intent = String(parsed.intent || 'other');
 let caseType = String(parsed.caseType || 'other');
 let entities = parsed.entities && typeof parsed.entities === 'object' ? parsed.entities : {};
@@ -463,7 +463,7 @@ if (normalizedCodes.length > 0 && ['other','unclear','partial_code'].includes(ca
   intent = 'other';
   reply = '';
 }
-const invented = normalizedCodes.filter(code => !textUpper.includes(code.toLocaleUpperCase('tr-TR')));
+const invented = normalizedCodes.filter(code => !textUpper.includes(code.toUpperCase()));
 if (invented.length > 0) {
   const hadProductCodes = entities.productCodes.length > 0;
   entities.productCodes = [];
@@ -560,23 +560,27 @@ if (caseType === 'exact_code_compatibility') {
   }
 }
 
+const safetyText = String(reply || '')
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase();
 // Daha spesifik regex — false positive riskini azalt
-const unsafeClaim = /\b\d+(?:[.,]\d+)?\s*(?:tl|₺)\b/i.test(reply) ||
-  /\bstok(?:ta|larımızda|umuzda)\s+(?:var|mevcut)\b/i.test(reply) ||
-  /\bkesin(?:likle)?\s+(?:uyar|uyumludur|calisir)\b/i.test(reply) ||
-  /\bbugun\s+kargo\b/i.test(reply) ||
-  /\bayni\s+gun\s+kargo\b/i.test(reply) ||
-  /\bhemen\s+kargoya\s+veriyoruz\b/i.test(reply) ||
-  /\bgarantili\b/i.test(reply) ||
-  /\borijinal\s+parca\b/i.test(reply) ||
-  /\bbirebir\s+karsiligi\b/i.test(reply) ||
-  /\btam\s+karsiligi\b/i.test(reply) ||
-  /\bdirekt\s+takilir\b/i.test(reply) ||
-  /\brahatlikla\s+kullanabilirsiniz\b/i.test(reply) ||
-  /\bsorunsuz\s+kullanabilirsiniz\b/i.test(reply) ||
-  /\bmevcut\s+görünüyor\b/i.test(reply) ||
-  /\bStokta\s+\d+\s+adet\b/i.test(reply) ||
-  /\bfiyat[ıi]?\s*[:=]?\s*\d+/i.test(reply);
+const unsafeClaim = /\b\d+(?:[.,]\d+)?\s*(?:tl|₺)\b/i.test(safetyText) ||
+  /\bstok(?:ta|larimizda|umuzda)\s+(?:var|mevcut)\b/i.test(safetyText) ||
+  /\bkesin(?:likle)?\s+(?:uyar|uyumludur|calisir)\b/i.test(safetyText) ||
+  /\bbugun\s+kargo\b/i.test(safetyText) ||
+  /\bayni\s+gun\s+kargo\b/i.test(safetyText) ||
+  /\bhemen\s+kargoya\s+veriyoruz\b/i.test(safetyText) ||
+  /\bgarantili\b/i.test(safetyText) ||
+  /\borijinal\s+parca\b/i.test(safetyText) ||
+  /\bbirebir\s+karsiligi\b/i.test(safetyText) ||
+  /\btam\s+karsiligi\b/i.test(safetyText) ||
+  /\bdirekt\s+takilir\b/i.test(safetyText) ||
+  /\brahatlikla\s+kullanabilirsiniz\b/i.test(safetyText) ||
+  /\bsorunsuz\s+kullanabilirsiniz\b/i.test(safetyText) ||
+  /\bmevcut\s+gorunuyor\b/i.test(safetyText) ||
+  /\bstokta\s+\d+\s+adet\b/i.test(safetyText) ||
+  /\bfiyat[ıi]?\s*[:=]?\s*\d+/i.test(safetyText);
 if (unsafeClaim) {
   reply = 'Talebiniz kontrol için ekibimize iletilmiştir.';
   notifyAdmins = true;

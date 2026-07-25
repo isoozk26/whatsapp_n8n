@@ -95,6 +95,10 @@ async function testPolicy() {
   assert(!unsafe.json.cevap.includes("350"));
   assert(!unsafe.json.cevap.toLowerCase().includes("stokta var"));
 
+  const unsafeTurkish = await runParse({ ...base, replyDraft: "Bugün kargo ile orijinal parça gönderiyoruz." });
+  assert(!unsafeTurkish.json.cevap.toLowerCase().includes("kargo"));
+  assert(!unsafeTurkish.json.cevap.toLowerCase().includes("orijinal"));
+
   const invented = await runParse({ ...base, entities: { productCodes: [{ code: "XYZ 999" }] } });
   assert.strictEqual(invented.json.action, "handoff");
   assert.strictEqual(invented.json.pauseAutomation, true);

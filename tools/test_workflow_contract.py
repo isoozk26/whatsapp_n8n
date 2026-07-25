@@ -45,6 +45,10 @@ def main():
     assert node("Respond Rate Limited")["parameters"]["options"]["responseCode"] == 202
     assert "rateLimitExceeded" in normalize
 
+    store = node("Store Context")["parameters"]["jsCode"]
+    assert ".normalize('NFKC')" in store
+    assert ".replace(/<\\|im_start\\|>/gi, '')" in store
+
     assert targets("AI Agent", 0) == ["Parse AI Output"]
     assert targets("AI Agent", 1) == ["Prepare AI Failure"]
     assert targets("Parse AI Output") == ["AI Output Valid?"]
@@ -106,6 +110,13 @@ def main():
     assert "nextClaimInSeconds" in SQL
     assert "staleProcessingCount" in SQL
     assert "current_setting('TimeZone')" in SQL
+
+    parse = node("Parse AI Output")["parameters"]["jsCode"]
+    assert "textUpper = plainText.toUpperCase()" in parse
+    assert "code.toUpperCase()" in parse
+    assert "const safetyText = String(reply || '')" in parse
+    assert "normalize('NFKD')" in parse
+    assert "mevcut\\s+gorunuyor" in parse
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)
