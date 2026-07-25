@@ -78,7 +78,7 @@ def main():
 
     for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events"):
         assert f"whatsapp_ai.{table}" in SQL
-    for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report"):
+    for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report", "run_batch_readiness_probe"):
         assert f"FUNCTION whatsapp_ai.{function}" in SQL
     assert "x-webhook-secret" in normalize
     assert "webhook_legacy_query_enabled" in SQL
@@ -101,6 +101,11 @@ def main():
     assert "DROP TABLE IF EXISTS whatsapp_ai.catalog_imports" in SQL
     assert "DROP TABLE IF EXISTS whatsapp_ai.customer_vehicle_context" in SQL
     assert "state IN ('closed', 'open', 'half_open')" in SQL
+    assert "run_batch_readiness_probe" in SQL
+    assert "claimableCount" in SQL
+    assert "nextClaimInSeconds" in SQL
+    assert "staleProcessingCount" in SQL
+    assert "current_setting('TimeZone')" in SQL
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)
