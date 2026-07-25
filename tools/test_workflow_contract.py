@@ -62,6 +62,10 @@ def main():
     assert "catalogEmoji" not in parse
     for forbidden in ("$getWorkflowStaticData", "_deliveryLedger", "_batches", "_adminNotifications"):
         assert forbidden not in parse
+    assert "SLA_TEXT" in parse
+    assert "BRAND_LINE" in parse
+    assert "SLA_LINE" in parse
+    assert "suppressEmoji" in parse
 
     assert targets("Send Delivery", 0) == ["Tag Delivery Success"]
     assert targets("Send Delivery", 1) == ["Tag Delivery Error"]
@@ -115,8 +119,15 @@ def main():
     assert "textUpper = plainText.toUpperCase()" in parse
     assert "code.toUpperCase()" in parse
     assert "const safetyText = String(reply || '')" in parse
-    assert "normalize('NFKD')" in parse
+    assert ".replace(/\\u0131/g, 'i')" in parse
+    assert ".replace(/\\u0130/g, 'i')" in parse
+    assert ".replace(/\\u0049/g, 'i')" in parse
+    assert "reply = reply.replace(/\\*\\*(.+?)\\*\\*/g, '*$1*');" in parse
     assert "mevcut\\s+gorunuyor" in parse
+    assert "Talebinizi ürün uzmanımıza ilettik" in parse
+    assert "Merhaba, ${BRAND_LINE}'ya hoş geldiniz" in parse
+    assert "Talebinizi aldık ve ekibimize ilettik." in parse
+    assert "schemaVersion: '13.5'" in parse
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)

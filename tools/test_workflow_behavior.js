@@ -90,12 +90,27 @@ async function testPolicy() {
   assert.strictEqual(result.json.notifyAdmins, true);
   assert.strictEqual(result.json.replyCustomer, true);
   assert(result.json.bildirim.includes("Yan\u0131t Haz\u0131rland\u0131"));
+  assert.strictEqual(result.json.schemaVersion, "13.5");
+  assert.strictEqual(result.json.funnelStage, "F4 Dönüşüm");
 
-  const unsafe = await runParse({ ...base, replyDraft: "Stokta var, fiyati 350 TL." });
+  const unsafe = await runParse({
+    intent: "other",
+    caseType: "other",
+    entities: {},
+    replyDraft: "Stokta var, fiyati 350 TL.",
+    confidence: 0.95,
+  }, context("Bana şu parça için fiyat verin"));
   assert(!unsafe.json.cevap.includes("350"));
   assert(!unsafe.json.cevap.toLowerCase().includes("stokta var"));
+  assert(unsafe.json.cevap.includes("Talebinizi ürün uzmanımıza ilettik"));
 
-  const unsafeTurkish = await runParse({ ...base, replyDraft: "Bugün kargo ile orijinal parça gönderiyoruz." });
+  const unsafeTurkish = await runParse({
+    intent: "other",
+    caseType: "other",
+    entities: {},
+    replyDraft: "Bugün kargo ile orijinal parça gönderiyoruz.",
+    confidence: 0.95,
+  }, context("Bana şu parça için bilgi verin"));
   assert(!unsafeTurkish.json.cevap.toLowerCase().includes("kargo"));
   assert(!unsafeTurkish.json.cevap.toLowerCase().includes("orijinal"));
 
@@ -108,6 +123,8 @@ async function testPolicy() {
   assert.strictEqual(complaint.json.pauseAutomation, true);
   assert.strictEqual(complaint.json.notifyAdmins, true);
   assert(!complaint.json.bildirim.includes("Bugun kargo"));
+  assert.strictEqual(complaint.json.cevap.includes("✅"), false);
+  assert(["📦", "🛠️", "🔄", "🔎", "👋", "🤝", "📝", "📌"].every((prefix) => !complaint.json.cevap.startsWith(prefix)), true);
 
   const name = await runParse({
     ...base,
@@ -115,7 +132,8 @@ async function testPolicy() {
     caseType: "partial_code",
     replyDraft: "Merhaba Mann Filtre, MANN W 712/95 talebiniz alindi.",
   });
-  assert(name.json.cevap.includes("Talebiniz kontrol i\u00e7in ekibimize iletilmi\u015ftir"));
+  assert(name.json.cevap.includes("kaç adet düşündüğünüzü"));
+  assert(name.json.cevap.includes("mesai saatleri içinde") || name.json.cevap.includes("Mesai dışındayız"));
   assert(!name.json.cevap.startsWith("Merhaba Mann Filtre"));
 
   const hasan = await runParse({
@@ -160,7 +178,8 @@ async function testPolicy() {
   }, { ...context("MANN W 712/95 filtre stok fiyat"), detectedCodes: ["W 712/95"] });
   assert.strictEqual(directCode.json.caseType, "exact_code_price_stock");
   assert.strictEqual(directCode.json.pauseAutomation, false);
-  assert(directCode.json.cevap.includes("Talebiniz kontrol i\u00e7in ekibimize iletilmi\u015ftir"));
+  assert(directCode.json.cevap.includes("kaç adet düşündüğünüzü"));
+  assert(directCode.json.cevap.includes("ürün uzmanımız"));
 
   const noFalseCode = await runParse({
     intent: "price_stock", caseType: "exact_code_price_stock",
@@ -177,7 +196,7 @@ async function testPolicy() {
   }, { ...context("Mann c 35 050 filtre varmi"), detectedCodes: [] });
   assert.strictEqual(missingCode.json.caseType, "partial_code");
   assert(!missingCode.json.cevap.includes("guncel stok"));
-  assert(missingCode.json.cevap.includes("Filtre kodunun tamam"));
+  assert(missingCode.json.cevap.includes("iki yoldan biri yeterli"));
   assert(missingCode.json.bildirim.includes("ek bilgi bekleniyor"));
   assert(!missingCode.json.bildirim.includes("STOK/FIYAT SORGUSU"));
 }
