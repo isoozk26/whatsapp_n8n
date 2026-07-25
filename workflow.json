@@ -614,7 +614,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://evo.filtreoto.online/message/sendText/filtr",
+        "url": "https://evo.filtreoto.online/message/sendText/otofiltre",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "httpHeaderAuth",
         "sendBody": true,
