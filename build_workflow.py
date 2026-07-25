@@ -147,7 +147,7 @@ const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
 // Rate limiting kontrolü (staticData üzerinden)
 let rateLimitExceeded = false;
 if (valid && !fromMe) {
-  const staticData = this.getWorkflowStaticData('global');
+  const staticData = $getWorkflowStaticData('global');
   if (!staticData._rateLimits) staticData._rateLimits = {};
   const rateLimitKey = `rate:${senderNumber}`;
   const lastMessage = staticData._rateLimits[rateLimitKey] || 0;
