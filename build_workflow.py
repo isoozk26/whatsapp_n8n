@@ -928,7 +928,7 @@ nodes = [
     if_node("Delivery Valid?", "={{ $json.validDelivery === true }}", [780, 820]),
     {
         "parameters": {
-            "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', '')}/message/sendText/filtr",
+            "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', 'https://evo.filtreoto.online')}/message/sendText/filtr",
             "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
             "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
             "body": "={{ JSON.stringify($json.body) }}", "options": {"timeout": 15000, "ignoreSslIssues": True},
