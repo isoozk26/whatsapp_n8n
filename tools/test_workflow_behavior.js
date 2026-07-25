@@ -90,7 +90,7 @@ async function testPolicy() {
   assert.strictEqual(result.json.notifyAdmins, true);
   assert.strictEqual(result.json.replyCustomer, true);
   assert(result.json.bildirim.includes("Yan\u0131t Haz\u0131rland\u0131"));
-  assert.strictEqual(result.json.schemaVersion, "13.5");
+  assert.strictEqual(result.json.schemaVersion, "13.6");
   assert.strictEqual(result.json.funnelStage, "F4 Dönüşüm");
 
   const unsafe = await runParse({
@@ -130,11 +130,51 @@ async function testPolicy() {
     ...base,
     intent: "other",
     caseType: "partial_code",
+    entities: { productCodes: [{ code: "WX123" }], vehicles: [] },
     replyDraft: "Merhaba Mann Filtre, MANN W 712/95 talebiniz alindi.",
   });
-  assert(name.json.cevap.includes("kaç adet düşündüğünüzü"));
+  assert(name.json.cevap.includes("fotoğrafını gönderebilir misiniz"));
+  assert.strictEqual((name.json.cevap.match(/\?/g) || []).length, 1);
   assert(name.json.cevap.includes("mesai saatleri içinde") || name.json.cevap.includes("Mesai dışındayız"));
   assert(!name.json.cevap.startsWith("Merhaba Mann Filtre"));
+
+  const missingAll = await runParse({
+    ...base,
+    intent: "other",
+    caseType: "partial_code",
+    entities: { productCodes: [], vehicles: [] },
+    replyDraft: "",
+    confidence: 0.2,
+  }, context("Filtre kodu yok"));
+  assert(missingAll.json.cevap.includes("onu yazar mısınız"));
+  assert.strictEqual((missingAll.json.cevap.match(/\?/g) || []).length, 1);
+
+  const quantitySingle = await runParse({
+    ...base,
+    entities: { productCodes: [{ code: "BOSCH F026400287" }], vehicles: [] },
+    replyDraft: "Talebiniz alindi, kontrol edilecek.",
+  }, context("BOSCH F026400287 5 adet lazım"));
+  assert.strictEqual(quantitySingle.json.entities.quantity, 5);
+  assert.strictEqual(quantitySingle.json.isBulkOrder, false);
+
+  const quantityBulk = await runParse({
+    ...base,
+    entities: { productCodes: [{ code: "MN134" }], vehicles: [] },
+    replyDraft: "Talebiniz alindi, kontrol edilecek.",
+  }, context("MN134 20 tane lazım"));
+  assert.strictEqual(quantityBulk.json.entities.quantity, 20);
+  assert.strictEqual(quantityBulk.json.isBulkOrder, true);
+  assert(quantityBulk.json.bildirim.includes("Toplu sipariş"));
+
+  const media = await runParse({
+    intent: "other",
+    caseType: "other",
+    entities: {},
+    replyDraft: "",
+    confidence: 0.9,
+  }, { ...context("[Medya]"), allMessagesText: "[Medya]", isMediaMessage: true, mediaType: "image" });
+  assert(media.json.cevap.includes("mesajınızı aldık, ürün uzmanımız inceliyor"));
+  assert(media.json.cevap.includes("tek cümleyle özetler misiniz"));
 
   const hasan = await runParse({
     intent: "vehicle_search",
@@ -181,6 +221,24 @@ async function testPolicy() {
   assert(directCode.json.cevap.includes("kaç adet düşündüğünüzü"));
   assert(directCode.json.cevap.includes("ürün uzmanımız"));
 
+  const fingerprintA = await runParse({
+    intent: "other",
+    caseType: "other",
+    entities: {},
+    replyDraft: "",
+    confidence: 0.2,
+  }, { ...context("MANN W 712/95 filtre stok fiyat"), detectedCodes: ["W 712/95"], senderNumber: "905320000001" });
+  const fingerprintB = await runParse({
+    intent: "other",
+    caseType: "other",
+    entities: {},
+    replyDraft: "",
+    confidence: 0.2,
+  }, { ...context("MANN W 712/95 filtre stok fiyat"), detectedCodes: ["W 712/95"], senderNumber: "905320000002" });
+  assert(fingerprintA.json.fingerprint.startsWith("905320000001:"));
+  assert(fingerprintB.json.fingerprint.startsWith("905320000002:"));
+  assert.notStrictEqual(fingerprintA.json.fingerprint, fingerprintB.json.fingerprint);
+
   const noFalseCode = await runParse({
     intent: "price_stock", caseType: "exact_code_price_stock",
     entities: { productCodes: [{ code: "EGEA 2022 I" }, { code: "130 HP" }], vehicles: [] },
@@ -196,7 +254,7 @@ async function testPolicy() {
   }, { ...context("Mann c 35 050 filtre varmi"), detectedCodes: [] });
   assert.strictEqual(missingCode.json.caseType, "partial_code");
   assert(!missingCode.json.cevap.includes("guncel stok"));
-  assert(missingCode.json.cevap.includes("iki yoldan biri yeterli"));
+  assert(missingCode.json.cevap.includes("şasi numarası"));
   assert(missingCode.json.bildirim.includes("ek bilgi bekleniyor"));
   assert(!missingCode.json.bildirim.includes("STOK/FIYAT SORGUSU"));
 }

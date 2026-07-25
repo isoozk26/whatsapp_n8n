@@ -66,6 +66,10 @@ def main():
     assert "BRAND_LINE" in parse
     assert "SLA_LINE" in parse
     assert "suppressEmoji" in parse
+    assert "HOLIDAYS" in parse and "BUSINESS_HOURS" in parse
+    assert "Sat: [9, 14]" in parse
+    assert "const isBulkOrder" in parse
+    assert "Toplu sipariş" in parse
 
     assert targets("Send Delivery", 0) == ["Tag Delivery Success"]
     assert targets("Send Delivery", 1) == ["Tag Delivery Error"]
@@ -125,9 +129,28 @@ def main():
     assert "reply = reply.replace(/\\*\\*(.+?)\\*\\*/g, '*$1*');" in parse
     assert "mevcut\\s+gorunuyor" in parse
     assert "Talebinizi ürün uzmanımıza ilettik" in parse
+    assert "mesajınızı aldık, ürün uzmanımız inceliyor" in parse
     assert "Merhaba, ${BRAND_LINE}'ya hoş geldiniz" in parse
     assert "Talebinizi aldık ve ekibimize ilettik." in parse
-    assert "schemaVersion: '13.5'" in parse
+    assert "schemaVersion: '13.6'" in parse
+    assert "fingerprint: `${ctx.senderNumber}:" in parse
+
+    for retry_name in ("Ingest Message", "Claim Ready Batches", "Claim Deliveries", "Complete AI Batch", "Record AI Failure", "Record Delivery Result", "OpenAI Circuit Gate", "Evolution Circuit Gate"):
+        retry_node = node(retry_name)
+        assert retry_node["retryOnFail"] is True
+        assert retry_node["maxTries"] == 3
+        assert retry_node["waitBetweenTries"] == 2000
+
+    assert node("Evolution Circuit Gate")["position"] == [352, 1040]
+    assert node("Evolution Circuit Open?")["position"] == [560, 1040]
+    assert node("Claim Deliveries")["position"] == [784, 1040]
+    assert node("Prepare Delivery")["position"] == [1008, 1040]
+    assert node("Delivery Valid?")["position"] == [1232, 1040]
+    assert node("Send Delivery")["position"] == [1456, 1040]
+    assert node("Tag Delivery Success")["position"] == [1680, 960]
+    assert node("Tag Delivery Error")["position"] == [1680, 1088]
+    assert node("Tag Delivery Validation Error")["position"] == [1456, 1216]
+    assert node("Record Delivery Result")["position"] == [1904, 1040]
 
     source = (ROOT / "build_workflow.py").read_text(encoding="utf-8")
     assert not re.search(r"apikey.{0,30}[A-F0-9]{20,}", source, flags=re.I | re.S)

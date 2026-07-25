@@ -324,7 +324,7 @@ if (isMediaMessage && !hasText) {
   const mediaLabel = mediaLabels[ctx.mediaType] || 'Medya';
   return { json: {
     ...ctx, intent: 'other', caseType: 'non_product', entities: {},
-    cevap: `${mediaLabel} mesajınız alındı. İncelemek üzere uzman ekibimize aktarıyorum.`,
+    cevap: `${mediaLabel} mesajınızı aldık, ürün uzmanımız inceliyor. İçeriği tek cümleyle özetler misiniz? Örneğin "bu filtrenin muadili" demeniz dönüşümüzü çok hızlandırır.`,
     bildirim: `📩 ${mediaLabel} MESAJI\n👤 ${ctx.senderName} · ${ctx.senderNumber}\n\n💬 Müşteri "${ctx.allMessagesText || '[Medya]'}"\n\n📩 Uzmanına Aktarıldı\n"Mesajınız alındı. İncelemek üzere uzman ekibimize aktarıyorum."`,
     notifyAdmins: true, replyCustomer: true, pauseAutomation: true,
     askVehicleInfo: false, expectsReply: false, action: 'handoff',
@@ -359,7 +359,11 @@ const BRAND_LINE = 'Filtre Oto';
 const _tz = 'Europe/Istanbul';
 const _hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12: false, timeZone: _tz }).format(new Date()));
 const _day = new Date().toLocaleDateString('en-US', { weekday: 'short', timeZone: _tz });
-const isBusinessHours = !['Sun'].includes(_day) && _hour >= 9 && _hour < 18;
+const _dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: _tz }).format(new Date());
+const HOLIDAYS = ['2026-01-01','2026-03-20','2026-03-21','2026-03-22','2026-04-23','2026-05-01','2026-05-19','2026-05-27','2026-05-28','2026-05-29','2026-07-15','2026-08-30','2026-10-28','2026-10-29'];
+const BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18], Fri: [9, 18], Sat: [9, 14], Sun: null };
+const _window = HOLIDAYS.includes(_dateKey) ? null : BUSINESS_HOURS[_day];
+const isBusinessHours = Array.isArray(_window) && _hour >= _window[0] && _hour < _window[1];
 const SLA_LINE = isBusinessHours
   ? `Uzmanımız ${SLA_TEXT} dönüş yapacak.`
   : 'Mesai dışındayız; talebiniz sıraya alındı, ilk iş saatinde dönüş yapılacak.';
@@ -389,6 +393,16 @@ entities.vehicles = entities.vehicles.slice(0, 5).map(v => {
 if (!Array.isArray(entities.preferredBrands)) entities.preferredBrands = [];
 entities.preferredBrands = entities.preferredBrands.filter(b => typeof b === 'string').slice(0, 10);
 if (typeof entities.quantity !== 'string' && typeof entities.quantity !== 'number') entities.quantity = 'Belirtilmedi';
+// Deterministik adet yakalama — LLM kaçırırsa metinden çıkar
+if (entities.quantity === 'Belirtilmedi') {
+  const qMatch = plainText.match(/(\d{1,4})\s*(?:adet|tane|ad\.|ad\b|x)\b/i)
+    || plainText.match(/\b(?:adet|tane)\s*[:=]?\s*(\d{1,4})\b/i);
+  if (qMatch) {
+    const q = parseInt(qMatch[1], 10);
+    if (q > 0 && q <= 9999) entities.quantity = q;
+  }
+}
+const isBulkOrder = typeof entities.quantity === 'number' && entities.quantity >= 10;
 if (reply.length > 700) reply = reply.slice(0, 700);
 if (!['price_stock','compatibility','cross_reference','return_complaint','complaint','human_request','greeting','unclear','other'].includes(intent)) intent = 'other';
 // --- End validation ---
@@ -481,8 +495,8 @@ if (invented.length > 0) {
   action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
   handoffReason = 'Mesajda bulunmayan ürün kodu engellendi';
   reply = hadProductCodes
-    ? 'Paylaştığınız kodu doğrulamak üzere talebinizi ürün uzmanımıza aktarıyorum.'
-    : 'Aracınıza uygun ürünü belirlemek için talebinizi ürün uzmanımıza aktarıyorum.';
+    ? `Paylaştığınız kodu birebir doğrulamak için ürün uzmanımıza ilettik. Kutu veya ürün üzerindeki yazının fotoğrafını gönderebilir misiniz? Eşleştirmeyi çok daha hızlı tamamlarız. ${SLA_LINE}`
+    : `Aracınıza uygun ürünü doğru seçebilmek için talebinizi ürün uzmanımıza ilettik. Ruhsattaki şasi numarasını paylaşır mısınız? Eşleştirme böylece kesinleşir. ${SLA_LINE}`;
 }
 
 // --- partial_code sub-classification ---
@@ -536,11 +550,11 @@ if (caseType === 'exact_code_compatibility') {
   reply = `Muadil aramasını başlattık. Çapraz referans tablomuzda aynı teknik ölçülere sahip alternatifleri çıkarıyoruz. Bir marka tercihiniz var mı, yoksa fiyat/performans açısından en uygununu mu önerelim? ${SLA_LINE}`;
 } else if (caseType === 'partial_code') {
   if (partialSubType === 'incomplete_code') {
-    reply = 'Kodun bir kısmını görüyoruz ama tam eşleşme için tamamı gerekli. En kolayı: eski filtrenin üzerindeki yazının fotoğrafını gönderin, kodu biz okuyalım. Dilerseniz kodu yazarak da iletebilirsiniz.';
+    reply = 'Kodun bir kısmını görüyoruz ama tam eşleşme için tamamı gerekli. En kolayı şu: eski filtrenin üzerindeki yazının fotoğrafını gönderebilir misiniz? Kodu biz okuyalım. Dilerseniz kodu yazarak da iletebilirsiniz.';
   } else if (partialSubType === 'vehicle_info_only') {
     reply = 'Aracınızı not aldık. Aynı modelde farklı motor seçenekleri farklı filtre kullanıyor; yanlış parça göndermemek için ruhsattaki şasi numarasını paylaşır mısınız? Motor hacmi ve yakıt türünü yazmanız da yeterli olur.';
   } else {
-    reply = 'Size en hızlı şekilde yardımcı olabilmemiz için iki yoldan biri yeterli: ürünün kodu ya da ruhsattaki şasi numarası. Hangisi elinizin altındaysa onu gönderin, gerisini biz halledelim.';
+    reply = 'Size en hızlı şekilde yardımcı olabilmemiz için iki yoldan biri yeterli: ürünün kodu ya da ruhsattaki şasi numarası. Hangisi elinizin altındaysa onu yazar mısınız? Gerisini biz halledelim.';
   }
 } else if (caseType === 'greeting') {
   reply = `Merhaba, ${BRAND_LINE}'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü uzmanımız sizin için belirlesin. Hangi araç için bakıyorsunuz?`;
@@ -693,6 +707,7 @@ const funnelStage =
   : ['complaint','return_complaint'].includes(intent) ? 'F5 Elde Tutma'
   : 'F1 Yakalama';
 const upsellFlag = (caseType === 'exact_code_compatibility' && vehicleComplete) ? '\n📈 Upsell fırsatı: periyodik bakım seti' : '';
+const bulkFlag = isBulkOrder ? `\n📦 Toplu sipariş: ${entities.quantity} adet — B2B fiyatlandırma değerlendirilebilir` : '';
 const titleMap = {
   exact_code_price_stock: '📦 STOK/FİYAT SORGUSU',
   exact_code_compatibility: '🚗 UYUMLULUK SORGUSU',
@@ -748,7 +763,7 @@ if (vinMatch) {
   });
 }
 
-const adminMessage = `${title}\n👤 ${ctx.senderName} · ${maskPhone(ctx.senderNumber)}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}${upsellFlag}\n🎯 Funnel: ${funnelStage}\n\n💬 Müşteri\n"${maskedOriginalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
+const adminMessage = `${title}\n👤 ${ctx.senderName} · ${maskPhone(ctx.senderNumber)}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}${upsellFlag}${bulkFlag}\n🎯 Funnel: ${funnelStage}\n\n💬 Müşteri\n"${maskedOriginalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
 return { json: {
   ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,
   notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,
@@ -758,9 +773,9 @@ return { json: {
   replyStatus, deliveryStatus,
   parseFailureCode: retryAi ? 'invalid_ai_json' : null,
   parseFailureMessage: retryAi ? 'AI output could not be parsed as valid JSON' : null,
-  fingerprint: `${caseType}:${normalizedCodes.sort().join(',')}:${vehicleStrings.join(',')}`,
+  fingerprint: `${ctx.senderNumber}:${caseType}:${normalizedCodes.sort().join(',')}:${vehicleStrings.join(',')}`,
   rawOriginalText: originalText,
-  schemaVersion: '13.5',
+  schemaVersion: '13.6',
   templateKey: `${caseType}${partialSubType ? '_' + partialSubType : ''}_${action === 'handoff' ? 'handoff' : 'auto'}`,
   mergedMessageCount: ctx.messageCount || 1,
   mode: pauseAutomation ? 'manual' : 'automatic',
@@ -776,7 +791,8 @@ return { json: {
     : caseType === 'cross_reference' ? 'cross_reference'
     : 'general',
   funnelStage,
-  hasUpsellOpportunity: caseType === 'exact_code_compatibility' && vehicleComplete
+  hasUpsellOpportunity: caseType === 'exact_code_compatibility' && vehicleComplete,
+  isBulkOrder
 } };
 """.strip()
 
@@ -1009,6 +1025,40 @@ return {
         [1220, 840],
     ),
 ]
+
+
+for node in nodes:
+    name = node.get("name")
+    if name in {
+        "Ingest Message",
+        "Claim Ready Batches",
+        "Claim Deliveries",
+        "Complete AI Batch",
+        "Record AI Failure",
+        "Record Delivery Result",
+        "OpenAI Circuit Gate",
+        "Evolution Circuit Gate",
+    }:
+        node["retryOnFail"] = True
+        node["maxTries"] = 3
+        node["waitBetweenTries"] = 2000
+
+position_overrides = {
+    "Evolution Circuit Gate": [352, 1040],
+    "Evolution Circuit Open?": [560, 1040],
+    "Claim Deliveries": [784, 1040],
+    "Prepare Delivery": [1008, 1040],
+    "Delivery Valid?": [1232, 1040],
+    "Send Delivery": [1456, 1040],
+    "Tag Delivery Success": [1680, 960],
+    "Tag Delivery Error": [1680, 1088],
+    "Tag Delivery Validation Error": [1456, 1216],
+    "Record Delivery Result": [1904, 1040],
+}
+for node in nodes:
+    position = position_overrides.get(node.get("name"))
+    if position:
+        node["position"] = position
 
 
 connections = {
