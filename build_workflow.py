@@ -147,20 +147,29 @@ const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
 // Rate limiting kontrolü (staticData üzerinden)
 let rateLimitExceeded = false;
 if (valid && !fromMe) {
-  const staticData = this.getWorkflowStaticData('global');
-  if (!staticData._rateLimits) staticData._rateLimits = {};
-  const rateLimitKey = `rate:${senderNumber}`;
-  const lastMessage = staticData._rateLimits[rateLimitKey] || 0;
-  const now = Date.now();
-  const cooldownMs = 5000; // 5 saniye cooldown
-  if (now - lastMessage < cooldownMs) {
-    rateLimitExceeded = true;
-  }
-  staticData._rateLimits[rateLimitKey] = now;
-  // Eski rate limit entries'leri temizle (5 dakika)
-  const cutoff = now - 300000;
-  for (const [key, timestamp] of Object.entries(staticData._rateLimits)) {
-    if (timestamp < cutoff) delete staticData._rateLimits[key];
+  try {
+    const getStaticData = typeof this?.getWorkflowStaticData === 'function'
+      ? this.getWorkflowStaticData.bind(this)
+      : null;
+    if (getStaticData) {
+      const staticData = getStaticData('global');
+      if (!staticData._rateLimits) staticData._rateLimits = {};
+      const rateLimitKey = `rate:${senderNumber}`;
+      const lastMessage = staticData._rateLimits[rateLimitKey] || 0;
+      const now = Date.now();
+      const cooldownMs = 5000; // 5 saniye cooldown
+      if (now - lastMessage < cooldownMs) {
+        rateLimitExceeded = true;
+      }
+      staticData._rateLimits[rateLimitKey] = now;
+      // Eski rate limit entries'leri temizle (5 dakika)
+      const cutoff = now - 300000;
+      for (const [key, timestamp] of Object.entries(staticData._rateLimits)) {
+        if (timestamp < cutoff) delete staticData._rateLimits[key];
+      }
+    }
+  } catch (_) {
+    rateLimitExceeded = false;
   }
 }
 
@@ -361,7 +370,7 @@ const _hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12:
 const _day = new Date().toLocaleDateString('en-US', { weekday: 'short', timeZone: _tz });
 const _dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: _tz }).format(new Date());
 const HOLIDAYS = ['2026-01-01','2026-03-20','2026-03-21','2026-03-22','2026-04-23','2026-05-01','2026-05-19','2026-05-27','2026-05-28','2026-05-29','2026-07-15','2026-08-30','2026-10-28','2026-10-29'];
-const BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18], Fri: [9, 18], Sat: [9, 14], Sun: null };
+const BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18], Fri: [9, 18], Sat: [9, 18], Sun: null };
 const _window = HOLIDAYS.includes(_dateKey) ? null : BUSINESS_HOURS[_day];
 const isBusinessHours = Array.isArray(_window) && _hour >= _window[0] && _hour < _window[1];
 const SLA_LINE = isBusinessHours
@@ -741,6 +750,10 @@ else if (action === 'handoff') actionLine = '\n🎯 Beklenen Aksiyon: Manuel Mü
 else if (caseType === 'partial_code') actionLine = '\n⏳ Müşteriden ek bilgi bekleniyor';
 else if (intent === 'return_complaint') actionLine = '\n🎯 Beklenen Aksiyon: Şikayet/İade İşlemi';
 
+const handoffLine = action === 'handoff'
+  ? `\n🚦 Manuel Geçiş: Bu müşteri manuel incelemeye alındı. Sebep: ${handoffReason || 'manual_review_required'}`
+  : '';
+
 const messageCount = ctx.messageCount || 1;
 const batchLabel = messageCount > 1 ? `\n📋 ${messageCount} mesaj birleştirildi` : '';
 
@@ -763,7 +776,7 @@ if (vinMatch) {
   });
 }
 
-const adminMessage = `${title}\n👤 ${ctx.senderName} · ${maskPhone(ctx.senderNumber)}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}${upsellFlag}${bulkFlag}\n🎯 Funnel: ${funnelStage}\n\n💬 Müşteri\n"${maskedOriginalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
+const adminMessage = `${title}\n👤 ${ctx.senderName} · ${maskPhone(ctx.senderNumber)}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}${handoffLine}${upsellFlag}${bulkFlag}\n🎯 Funnel: ${funnelStage}\n\n💬 Müşteri\n"${maskedOriginalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
 return { json: {
   ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,
   notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,
@@ -793,6 +806,100 @@ return { json: {
   funnelStage,
   hasUpsellOpportunity: caseType === 'exact_code_compatibility' && vehicleComplete,
   isBulkOrder
+} };
+""".strip()
+
+
+check_business_hours_js = r"""
+const ctx = $json || {};
+const tz = 'Europe/Istanbul';
+const now = new Date();
+const hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12: false, timeZone: tz }).format(now));
+const minute = Number(new Intl.DateTimeFormat('tr-TR', { minute: 'numeric', timeZone: tz }).format(now));
+const dayShort = now.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
+const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
+const HOLIDAYS = ['2026-01-01','2026-03-20','2026-03-21','2026-03-22','2026-04-23','2026-05-01','2026-05-19','2026-05-27','2026-05-28','2026-05-29','2026-07-15','2026-08-30','2026-10-28','2026-10-29'];
+const BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18], Fri: [9, 18], Sat: [9, 18], Sun: null };
+const window = HOLIDAYS.includes(dateKey) ? null : BUSINESS_HOURS[dayShort];
+const offHours = !Array.isArray(window) || hour < window[0] || hour >= window[1];
+const scenario = HOLIDAYS.includes(dateKey)
+  ? 'holiday'
+  : dayShort === 'Sun'
+    ? 'sunday'
+    : hour < 9
+      ? 'early_morning'
+      : 'evening';
+const istanbulDay = { Mon: 'Pazartesi', Tue: 'Salı', Wed: 'Çarşamba', Thu: 'Perşembe', Fri: 'Cuma', Sat: 'Cumartesi', Sun: 'Pazar' }[dayShort] || dayShort;
+const istanbulTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+return { json: {
+  ...ctx,
+  offHours,
+  isHoliday: HOLIDAYS.includes(dateKey),
+  scenario,
+  istanbulDay,
+  istanbulTime,
+  senderName: String(ctx.senderName || ctx.pushName || 'Değerli Müşterimiz'),
+  senderNumber: String(ctx.senderNumber || ''),
+  businessWindow: window,
+} };
+""".strip()
+
+
+build_ooh_messages_js = r"""
+const ctx = $('Check Business Hours').item.json || {};
+const ooh = $('OOH Cooldown Check').item.json || {};
+const senderName = String(ctx.senderName || 'Değerli Müşterimiz');
+const senderNumber = String(ctx.senderNumber || '');
+const scenario = String(ctx.scenario || 'evening');
+const istanbulDay = String(ctx.istanbulDay || '');
+const istanbulTime = String(ctx.istanbulTime || '');
+const isHoliday = ctx.isHoliday === true;
+const cooldownCount = Number(ooh.oohCooldownCount ?? ooh.cnt ?? 0);
+const sendCustomer = cooldownCount === 0;
+const managerPhoneA = String(ooh.adminPhoneA || '');
+const managerPhoneB = String(ooh.adminPhoneB || '');
+const managerTargets = [managerPhoneA, managerPhoneB].filter(Boolean);
+const name = senderName || 'Değerli Müşterimiz';
+const scenarioLabel = {
+  sunday: 'Pazar (Tüm Gün Kapalı)',
+  holiday: 'Resmi Tatil',
+  early_morning: 'Sabah Erken (00:00-09:00)',
+  evening: 'Akşam Mesai Dışı (18:00-24:00)',
+}[scenario] || 'Bilinmiyor';
+
+const templates = {
+  sunday: `Merhaba ${name} 👋\n\nPazar günü bizi tercih ettiğiniz için teşekkür ederiz.\n\nOtoFiltre olarak Pazar günleri işletmemiz kapalıdır. Mesajınız kayıt altına alınmıştır ve Pazartesi sabahı 09:00 itibarıyla uzmanlarımız tarafından değerlendirilecektir.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nAnlayışınız için teşekkür eder, iyi Pazarlar dileriz! 🙏\n— OtoFiltre Ekibi`,
+  holiday: `Merhaba ${name} 👋\n\nResmi tatil günü bizi tercih ettiğiniz için teşekkür ederiz.\n\nBugün işletmemiz resmi tatil nedeniyle kapalıdır. Mesajınız kayıt altına alınmıştır; bir sonraki iş günü sabahı 09:00 itibarıyla uzman ekibimiz tarafından değerlendirilecektir.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00 (Resmi tatiller hariç)\n\nAnlayışınız için teşekkür ederiz. 🙏\n— OtoFiltre Ekibi`,
+  early_morning: `Merhaba ${name} 👋\n\nSabahın erken saatinde bize ulaştığınız için teşekkür ederiz.\n\nMesajınız alınmıştır. Ekibimiz bugün saat 09:00'da göreve başlayacak ve size en kısa sürede dönüş yapacaktır.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nİyi günler dileriz! 🙏\n— OtoFiltre Ekibi`,
+  evening: `Merhaba ${name} 👋\n\nMesajınız için teşekkür ederiz.\n\nŞu an (${istanbulTime}) işletmemiz mesai saatleri dışındadır. Mesajınız kayıt altına alınmıştır; yarın sabah 09:00 itibarıyla uzman ekibimiz tarafından değerlendirilecek ve size dönüş yapılacaktır.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nBizi tercih ettiğiniz için teşekkür eder, anlayışınız için minnettarız. 🙏\n— OtoFiltre Ekibi`,
+};
+
+const customerMsg = templates[scenario] || templates.evening;
+const managerMsg = `📋 *Mesai Dışı Müşteri Bildirimi*\n────────────────────\n👤 *Müşteri:* ${name}\n📱 *Numara:* +${senderNumber}\n🗓 *Zaman:* ${istanbulDay} ${istanbulTime} (İstanbul)\n⏰ *Durum:* ${scenarioLabel}\n────────────────────\n✅ Müşteriye otomatik bilgilendirme ${sendCustomer ? 'gönderilecek.' : 'cooldown nedeniyle atlandı.'}\n📥 Mesaj sisteme kaydedildi, iş saatinde işlenecek.\n\n💡 *Öneri:* Bir sonraki iş gününde 09:00'da bu müşteriyi öncelikli ele alın.\n\n— OtoFiltre Otomatik Sistem`;
+const logSummary = sendCustomer
+  ? 'customer notification queued'
+  : 'customer notification skipped by cooldown';
+
+return { json: {
+  ...ctx,
+  ...ooh,
+  senderName,
+  senderNumber,
+  scenario,
+  istanbulDay,
+  istanbulTime,
+  isHoliday,
+  cooldownCount,
+  sendCustomer,
+  customerMsg,
+  managerMsg,
+  managerPhoneA,
+  managerPhoneB,
+  managerTargets,
+  customerSent: sendCustomer,
+  managerSent: managerTargets.length > 0,
+  logSummary,
+  correlationId: String(ctx.correlationId || ooh.correlationId || ''),
 } };
 """.strip()
 
@@ -918,6 +1025,58 @@ nodes = [
     },
     code_node("Normalize Payload", normalize_js, [340, 260]),
     if_node("Valid Event?", "={{ $json.valid === true }}", [560, 260]),
+    code_node("Check Business Hours", check_business_hours_js, [780, 260]),
+    postgres_node(
+        "OOH Cooldown Check",
+        "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\", COUNT(*)::int AS \"oohCooldownCount\", MAX(created_at) AS \"lastOohSentAt\" FROM whatsapp_ai.ooh_log WHERE sender_number = $1 AND created_at > NOW() - INTERVAL '8 hours'",
+        "={{ [ $json.senderNumber ] }}",
+        [1000, 260],
+    ),
+    if_node("Is Off Hours?", "={{ $json.offHours === true }}", [1220, 260]),
+    code_node("Build OOH Messages", build_ooh_messages_js, [1440, 260]),
+    if_node("Send Customer Allowed?", "={{ $json.sendCustomer === true }}", [1660, 260]),
+    {
+        "parameters": {
+            "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', 'https://evo.filtreoto.online')}/message/sendText/otofiltre",
+            "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
+            "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
+            "body": "={{ JSON.stringify({ number: $json.senderNumber, text: $json.customerMsg }) }}",
+            "options": {"timeout": 15000, "ignoreSslIssues": True},
+        },
+        "id": node_id("Send OOH to Customer"), "name": "Send OOH to Customer", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+        "position": [1880, 120], "onError": "continueErrorOutput",
+        "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
+    },
+    {
+        "parameters": {
+            "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', 'https://evo.filtreoto.online')}/message/sendText/otofiltre",
+            "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
+            "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
+            "body": "={{ JSON.stringify({ number: $json.managerPhoneA, text: $json.managerMsg }) }}",
+            "options": {"timeout": 15000, "ignoreSslIssues": True},
+        },
+        "id": node_id("Notify Managers A"), "name": "Notify Managers A", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+        "position": [2100, 120], "onError": "continueErrorOutput",
+        "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
+    },
+    {
+        "parameters": {
+            "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', 'https://evo.filtreoto.online')}/message/sendText/otofiltre",
+            "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
+            "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
+            "body": "={{ JSON.stringify({ number: $json.managerPhoneB, text: $json.managerMsg }) }}",
+            "options": {"timeout": 15000, "ignoreSslIssues": True},
+        },
+        "id": node_id("Notify Managers B"), "name": "Notify Managers B", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+        "position": [2320, 120], "onError": "continueErrorOutput",
+        "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
+    },
+    postgres_node(
+        "Log OOH Event",
+        "INSERT INTO whatsapp_ai.ooh_log(sender_number, sender_name, scenario, istanbul_day, istanbul_time, customer_sent, manager_sent, correlation_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
+        "={{ [ $('Build OOH Messages').item.json.senderNumber, $('Build OOH Messages').item.json.senderName, $('Build OOH Messages').item.json.scenario, $('Build OOH Messages').item.json.istanbulDay, $('Build OOH Messages').item.json.istanbulTime, $('Build OOH Messages').item.json.customerSent, $('Build OOH Messages').item.json.managerSent, $('Build OOH Messages').item.json.correlationId || '' ] }}",
+        [2540, 260],
+    ),
     if_node("Rate Limit Exceeded?", "={{ $json.rateLimitExceeded === true }}", [780, 260]),
     {
         "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, ignored: true, rateLimited: true, correlationId: $json.correlationId || '' } }}", "options": {"responseCode": 202}},
@@ -931,7 +1090,7 @@ nodes = [
         **postgres_node(
             "Ingest Message",
             "SELECT * FROM whatsapp_ai.ingest_message($1,$2,$3,$4::jsonb,$5,$6,$7)",
-            "={{ [ $json.messageId, $json.senderNumber, $json.senderName, JSON.stringify($json.message), $json.command, $json.webhookToken, $json.authSource ] }}",
+            "={{ [ $json.messageId, $json.senderNumber, $json.senderName, JSON.stringify({ text: $json.message.text, type: $json.message.type, timestamp: $json.message.timestamp, mediaUrl: $json.message.mediaUrl, mimetype: $json.message.mimetype, isMediaMessage: $json.message.isMediaMessage, mediaType: $json.message.mediaType, fromMe: $json.fromMe, command: $json.command, rawJid: $json.rawJid, senderNumber: $json.senderNumber, senderName: $json.senderName, messageId: $json.messageId, correlationId: $json.correlationId }), $json.command, $json.webhookToken, $json.authSource ] }}",
             [1000, 240],
         ),
         "onError": "continueErrorOutput",
@@ -1038,12 +1197,23 @@ for node in nodes:
         "Record Delivery Result",
         "OpenAI Circuit Gate",
         "Evolution Circuit Gate",
+        "OOH Cooldown Check",
+        "Log OOH Event",
     }:
         node["retryOnFail"] = True
         node["maxTries"] = 3
         node["waitBetweenTries"] = 2000
 
 position_overrides = {
+    "Check Business Hours": [784, 420],
+    "OOH Cooldown Check": [1008, 420],
+    "Is Off Hours?": [1232, 420],
+    "Build OOH Messages": [1456, 420],
+    "Send Customer Allowed?": [1680, 420],
+    "Send OOH to Customer": [1904, 340],
+    "Notify Managers A": [2128, 420],
+    "Notify Managers B": [2352, 420],
+    "Log OOH Event": [2576, 420],
     "Evolution Circuit Gate": [352, 1040],
     "Evolution Circuit Open?": [560, 1040],
     "Claim Deliveries": [784, 1040],
@@ -1066,7 +1236,16 @@ connections = {
     "Normalize Payload": {"main": [[edge("Validate Webhook Secret")]]},
     "Validate Webhook Secret": {"main": [[edge("Webhook Auth")]]},
     "Webhook Auth": {"main": [[edge("Valid Event?")], [edge("Respond Unauthorized")]]},
-    "Valid Event?": {"main": [[edge("Rate Limit Exceeded?")], [edge("Respond Ignored")]]},
+    "Valid Event?": {"main": [[edge("Check Business Hours")], [edge("Respond Ignored")]]},
+    "Check Business Hours": {"main": [[edge("OOH Cooldown Check")]]},
+    "OOH Cooldown Check": {"main": [[edge("Is Off Hours?")]]},
+    "Is Off Hours?": {"main": [[edge("Build OOH Messages")], [edge("Rate Limit Exceeded?")]]},
+    "Build OOH Messages": {"main": [[edge("Send Customer Allowed?")]]},
+    "Send Customer Allowed?": {"main": [[edge("Send OOH to Customer")], [edge("Notify Managers A")]]},
+    "Send OOH to Customer": {"main": [[edge("Notify Managers A")], [edge("Notify Managers A")]]},
+    "Notify Managers A": {"main": [[edge("Notify Managers B")], [edge("Notify Managers B")]]},
+    "Notify Managers B": {"main": [[edge("Log OOH Event")], [edge("Log OOH Event")]]},
+    "Log OOH Event": {"main": [[edge("Rate Limit Exceeded?")]]},
     "Rate Limit Exceeded?": {"main": [[edge("Respond Rate Limited")], [edge("Ingest Message")]]},
     "Ingest Message": {"main": [[edge("Respond Accepted")], [edge("Prepare Ingest Failure")]]},
     "Prepare Ingest Failure": {"main": [[edge("Respond 503")]]},

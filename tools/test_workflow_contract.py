@@ -38,12 +38,29 @@ def main():
     normalize = node("Normalize Payload")["parameters"]["jsCode"]
     assert "body?.body?.data || root.body?.data" in normalize
     assert "isGroup" in normalize and "isBroadcast" in normalize
-    assert targets("Valid Event?", 0) == ["Rate Limit Exceeded?"]
+    assert targets("Valid Event?", 0) == ["Check Business Hours"]
     assert targets("Valid Event?", 1) == ["Respond Ignored"]
+    assert targets("Check Business Hours") == ["OOH Cooldown Check"]
+    assert targets("OOH Cooldown Check") == ["Is Off Hours?"]
+    assert targets("Is Off Hours?", 0) == ["Build OOH Messages"]
+    assert targets("Is Off Hours?", 1) == ["Rate Limit Exceeded?"]
+    assert targets("Build OOH Messages") == ["Send Customer Allowed?"]
+    assert targets("Send Customer Allowed?", 0) == ["Send OOH to Customer"]
+    assert targets("Send Customer Allowed?", 1) == ["Notify Managers A"]
+    assert targets("Send OOH to Customer", 0) == ["Notify Managers A"]
+    assert targets("Send OOH to Customer", 1) == ["Notify Managers A"]
+    assert targets("Notify Managers A", 0) == ["Notify Managers B"]
+    assert targets("Notify Managers A", 1) == ["Notify Managers B"]
+    assert targets("Notify Managers B", 0) == ["Log OOH Event"]
+    assert targets("Notify Managers B", 1) == ["Log OOH Event"]
+    assert targets("Log OOH Event") == ["Rate Limit Exceeded?"]
     assert targets("Rate Limit Exceeded?", 0) == ["Respond Rate Limited"]
     assert targets("Rate Limit Exceeded?", 1) == ["Ingest Message"]
     assert node("Respond Rate Limited")["parameters"]["options"]["responseCode"] == 202
     assert "rateLimitExceeded" in normalize
+    check_hours = node("Check Business Hours")["parameters"]["jsCode"]
+    assert "Sat: [9, 18]" in check_hours
+    assert "offHours" in check_hours
 
     store = node("Store Context")["parameters"]["jsCode"]
     assert ".normalize('NFKC')" in store
@@ -67,7 +84,7 @@ def main():
     assert "SLA_LINE" in parse
     assert "suppressEmoji" in parse
     assert "HOLIDAYS" in parse and "BUSINESS_HOURS" in parse
-    assert "Sat: [9, 14]" in parse
+    assert "Sat: [9, 18]" in parse
     assert "const isBulkOrder" in parse
     assert "Toplu sipariş" in parse
 
@@ -83,15 +100,28 @@ def main():
     assert "missing_provider_message_id" in tag_success
 
     assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate"]
-    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result"):
+    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "OOH Cooldown Check", "Log OOH Event"):
         pg = node(pg_name)
         assert pg["type"] == "n8n-nodes-base.postgres"
         assert pg["credentials"]["postgres"]["name"] == "WhatsApp State PostgreSQL"
 
-    for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events"):
+    for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events", "ooh_log"):
         assert f"whatsapp_ai.{table}" in SQL
     for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report", "run_batch_readiness_probe"):
         assert f"FUNCTION whatsapp_ai.{function}" in SQL
+    assert "p_correlation_id text DEFAULT ''" in SQL
+    assert "correlationId', p_correlation_id" in SQL
+    assert "manual_pause" in SQL
+    assert "manual_resume" in SQL
+    assert "manual_check" in SQL
+    assert "customer_sent boolean not null default false" in SQL.lower()
+    assert "manager_sent boolean not null default false" in SQL.lower()
+    assert "create index if not exists idx_ooh_log_created" in SQL.lower()
+    assert "create index if not exists idx_ooh_log_sender" in SQL.lower()
+    assert "interval '8 hours'" in node("OOH Cooldown Check")["parameters"]["query"].lower()
+    ingest_query = node("Ingest Message")["parameters"]["options"]["queryReplacement"]
+    assert "fromMe: $json.fromMe" in ingest_query
+    assert "command: $json.command" in ingest_query
     assert "x-webhook-secret" in normalize
     assert "webhook_legacy_query_enabled" in SQL
     assert "first_attempt_at" in SQL and "latency_ms" in SQL
@@ -118,6 +148,7 @@ def main():
     assert "nextClaimInSeconds" in SQL
     assert "staleProcessingCount" in SQL
     assert "current_setting('TimeZone')" in SQL
+    assert '"oohCooldownCount"' in node("OOH Cooldown Check")["parameters"]["query"]
 
     parse = node("Parse AI Output")["parameters"]["jsCode"]
     assert "textUpper = plainText.toUpperCase()" in parse

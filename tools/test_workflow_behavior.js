@@ -73,6 +73,24 @@ function context(text = "MANN W 712/95 fiyati nedir?") {
   return { senderNumber: "905320000001", senderName: "Mann Filtre", batchToken: "00000000-0000-0000-0000-000000000001", allMessagesText: text };
 }
 
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/İ/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/Ğ/g, "g")
+    .replace(/ş/g, "s")
+    .replace(/Ş/g, "s")
+    .replace(/ç/g, "c")
+    .replace(/Ç/g, "c")
+    .replace(/ö/g, "o")
+    .replace(/Ö/g, "o")
+    .replace(/ü/g, "u")
+    .replace(/Ü/g, "u");
+}
+
 async function runParse(ai, ctx = context()) {
   return execute(codeOf("Parse AI Output"), { output: JSON.stringify(ai) }, (name) => {
     assert.strictEqual(name, "Store Context");
@@ -259,6 +277,64 @@ async function testPolicy() {
   assert(!missingCode.json.bildirim.includes("STOK/FIYAT SORGUSU"));
 }
 
+async function testOohMessages() {
+  const baseCtx = {
+    senderNumber: "905320000001",
+    senderName: "Mann Filtre",
+    scenario: "evening",
+    istanbulDay: "Cumartesi",
+    istanbulTime: "19:30",
+    isHoliday: false,
+    offHours: true,
+    correlationId: "corr-1",
+  };
+  const lookup = (name) => {
+    if (name === "Check Business Hours") {
+      return { item: { json: baseCtx } };
+    }
+    if (name === "OOH Cooldown Check") {
+      return { item: { json: {
+        adminPhoneA: "905052237182",
+        adminPhoneB: "905306056066",
+        oohCooldownCount: 0,
+        lastOohSentAt: null,
+      } } };
+    }
+    throw new Error(`unexpected lookup: ${name}`);
+  };
+
+  const fresh = await execute(codeOf("Build OOH Messages"), {}, lookup);
+  assert.strictEqual(fresh.json.sendCustomer, true);
+  assert.strictEqual(fresh.json.customerSent, true);
+  assert.strictEqual(fresh.json.managerSent, true);
+  assert.deepStrictEqual(fresh.json.managerTargets, ["905052237182", "905306056066"]);
+  assert(fresh.json.customerMsg.includes("Mesajınız için teşekkür ederiz."));
+  assert(fresh.json.customerMsg.includes("09:00 itibarıyla"));
+  assert(fresh.json.managerMsg.includes("Mesai Dışı Müşteri Bildirimi"));
+  assert(fresh.json.managerMsg.includes("gönderilecek."));
+
+  const cooledLookup = (name) => {
+    if (name === "Check Business Hours") {
+      return { item: { json: { ...baseCtx, scenario: "holiday", istanbulDay: "Pazar", istanbulTime: "10:15", isHoliday: true } } };
+    }
+    if (name === "OOH Cooldown Check") {
+      return { item: { json: {
+        adminPhoneA: "905052237182",
+        adminPhoneB: "905306056066",
+        oohCooldownCount: 1,
+        lastOohSentAt: "2026-07-26T01:00:00.000Z",
+      } } };
+    }
+    throw new Error(`unexpected lookup: ${name}`);
+  };
+
+  const cooled = await execute(codeOf("Build OOH Messages"), {}, cooledLookup);
+  assert.strictEqual(cooled.json.sendCustomer, false);
+  assert.strictEqual(cooled.json.customerSent, false);
+  assert(cooled.json.managerMsg.includes("cooldown nedeniyle atlandı"));
+  assert(normalizeText(cooled.json.customerMsg).includes("resmi tatil"));
+}
+
 async function testDeliveryTags() {
   const ctx = { deliveryId: "d1", channel: "phone_b", body: { number: "1", text: "x" } };
   const lookup = (name) => { assert.strictEqual(name, "Prepare Delivery"); return { item: { json: ctx } }; };
@@ -301,6 +377,7 @@ async function testAiFailurePreparation() {
 (async () => {
   await testNormalize();
   await testPolicy();
+  await testOohMessages();
   await testDeliveryTags();
   await testBatchCompletionFailure();
   await testAiFailurePreparation();

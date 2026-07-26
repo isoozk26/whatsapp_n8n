@@ -85,6 +85,13 @@ BEGIN
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b, jsonb_build_object('number', v_admin_phone_b, 'text', v_msg_text, 'fingerprint', v_fingerprint)) ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
 
+        INSERT INTO whatsapp_ai.system_events(event_type, sender_number_masked, details)
+        VALUES (
+            'manual_pause',
+            right(p_sender_number, 4),
+            jsonb_build_object('source', 'command', 'mode', 'manual', 'authSource', p_auth_source)
+        );
+
         RETURN QUERY SELECT 'command'::text, 0, 'paused'::text;
         RETURN;
 
@@ -109,6 +116,13 @@ BEGIN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b, jsonb_build_object('number', v_admin_phone_b, 'text', v_msg_text, 'fingerprint', v_fingerprint)) ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
+
+        INSERT INTO whatsapp_ai.system_events(event_type, sender_number_masked, details)
+        VALUES (
+            'manual_resume',
+            right(p_sender_number, 4),
+            jsonb_build_object('source', 'command', 'mode', 'automatic', 'authSource', p_auth_source)
+        );
 
         RETURN QUERY SELECT 'command'::text, 0, 'resumed'::text;
         RETURN;
@@ -138,6 +152,13 @@ BEGIN
             INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
             VALUES (gen_random_uuid(), gen_random_uuid(), p_sender_number, 'phone_b', v_admin_phone_b, jsonb_build_object('number', v_admin_phone_b, 'text', v_msg_text, 'fingerprint', v_fingerprint)) ON CONFLICT (batch_token, channel) DO NOTHING;
         END IF;
+
+        INSERT INTO whatsapp_ai.system_events(event_type, sender_number_masked, details)
+        VALUES (
+            'manual_check',
+            right(p_sender_number, 4),
+            jsonb_build_object('source', 'command', 'mode', CASE WHEN v_mode_status THEN 'manual' ELSE 'automatic' END, 'authSource', p_auth_source)
+        );
 
         RETURN QUERY SELECT 'command'::text, 0, CASE WHEN v_mode_status THEN 'manual' ELSE 'automatic' END::text;
         RETURN;

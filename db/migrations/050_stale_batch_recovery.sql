@@ -111,7 +111,8 @@ CREATE OR REPLACE FUNCTION whatsapp_ai.complete_ai_batch(
     p_reply_customer boolean,
     p_pause_automation boolean,
     p_fingerprint text,
-    p_case_type text
+    p_case_type text,
+    p_correlation_id text DEFAULT ''
 ) RETURNS boolean
 LANGUAGE plpgsql
 AS $$
@@ -154,7 +155,7 @@ BEGIN
     ) THEN
         INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
         VALUES (gen_random_uuid(), p_batch_token, p_sender_number, 'phone_a', p_admin_phone_a,
-                jsonb_build_object('number', p_admin_phone_a, 'text', p_admin_message, 'fingerprint', p_fingerprint))
+                jsonb_build_object('number', p_admin_phone_a, 'text', p_admin_message, 'fingerprint', p_fingerprint, 'correlationId', p_correlation_id))
         ON CONFLICT (batch_token, channel) DO NOTHING;
     END IF;
     IF p_notify_admins AND p_admin_phone_b <> '' AND NOT EXISTS (
@@ -164,13 +165,13 @@ BEGIN
     ) THEN
         INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
         VALUES (gen_random_uuid(), p_batch_token, p_sender_number, 'phone_b', p_admin_phone_b,
-                jsonb_build_object('number', p_admin_phone_b, 'text', p_admin_message, 'fingerprint', p_fingerprint))
+                jsonb_build_object('number', p_admin_phone_b, 'text', p_admin_message, 'fingerprint', p_fingerprint, 'correlationId', p_correlation_id))
         ON CONFLICT (batch_token, channel) DO NOTHING;
     END IF;
     IF p_reply_customer AND p_customer_reply <> '' THEN
         INSERT INTO whatsapp_ai.deliveries(id, batch_token, sender_number, channel, destination, payload)
         VALUES (gen_random_uuid(), p_batch_token, p_sender_number, 'customer', p_sender_number,
-                jsonb_build_object('number', p_sender_number, 'text', p_customer_reply))
+                jsonb_build_object('number', p_sender_number, 'text', p_customer_reply, 'correlationId', p_correlation_id))
         ON CONFLICT (batch_token, channel) DO NOTHING;
     END IF;
 
