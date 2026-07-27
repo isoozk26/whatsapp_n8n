@@ -53,21 +53,24 @@ def main():
     assert "isGroup" in normalize and "isBroadcast" in normalize
     assert targets("Valid Event?", 0) == ["Check Business Hours"]
     assert targets("Valid Event?", 1) == ["Respond Ignored"]
-    assert targets("Check Business Hours") == ["OOH Cooldown Check"]
-    assert targets("OOH Cooldown Check") == ["Is Off Hours?"]
+    assert targets("Check Business Hours") == ["Rate Limit Exceeded?"]
     assert "$('Check Business Hours').item.json.offHours === true" in node("Is Off Hours?")["parameters"]["conditions"]["conditions"][0]["leftValue"]
-    assert targets("Is Off Hours?", 0) == ["Build OOH Messages"]
-    assert targets("Is Off Hours?", 1) == ["Rate Limit Exceeded?"]
-    assert targets("Build OOH Messages") == ["Send Customer Allowed?"]
-    assert targets("Send Customer Allowed?", 0) == ["Send OOH to Customer"]
-    assert targets("Send Customer Allowed?", 1) == ["Notify Managers A"]
+    assert targets("Ingest Message", 0) == ["Respond Accepted", "Is Off Hours?"]
+    assert targets("Respond Accepted") == []
+    assert targets("Is Off Hours?", 0) == ["Wait OOH 120 Seconds"]
+    assert targets("Is Off Hours?", 1) == []
+    assert targets("Wait OOH 120 Seconds") == ["Claim OOH Notification"]
+    assert targets("Claim OOH Notification") == ["OOH Claim Won?"]
+    assert targets("OOH Claim Won?", 0) == ["Build OOH Messages"]
+    assert targets("OOH Claim Won?", 1) == []
+    assert targets("Build OOH Messages") == ["Send OOH to Customer"]
     assert targets("Send OOH to Customer", 0) == ["Notify Managers A"]
     assert targets("Send OOH to Customer", 1) == ["Notify Managers A"]
     assert targets("Notify Managers A", 0) == ["Notify Managers B"]
     assert targets("Notify Managers A", 1) == ["Notify Managers B"]
     assert targets("Notify Managers B", 0) == ["Log OOH Event"]
     assert targets("Notify Managers B", 1) == ["Log OOH Event"]
-    assert targets("Log OOH Event") == ["Rate Limit Exceeded?"]
+    assert targets("Log OOH Event") == []
     assert targets("Rate Limit Exceeded?", 0) == ["Respond Rate Limited"]
     assert targets("Rate Limit Exceeded?", 1) == ["Ingest Message"]
     assert node("Respond Rate Limited")["parameters"]["options"]["responseCode"] == 202
@@ -76,6 +79,14 @@ def main():
     assert "Sat: [9, 18]" in check_hours
     assert "offHours" in check_hours
     assert "nextAiAttemptAt" in check_hours
+    wait = node("Wait OOH 120 Seconds")
+    assert wait["type"] == "n8n-nodes-base.wait"
+    assert wait["parameters"]["amount"] == 2
+    assert wait["parameters"]["unit"] == "minutes"
+    claim_sql = node("Claim OOH Notification")["parameters"]["query"].lower()
+    assert "first_message_at <= clock_timestamp() - interval '120 seconds'" in claim_sql
+    assert "for update skip locked" in claim_sql
+    assert "customer_sent = false" in claim_sql
 
     store = node("Store Context")["parameters"]["jsCode"]
     assert ".normalize('NFKC')" in store
@@ -127,7 +138,7 @@ def main():
         assert http_node["alwaysOutputData"] is True
 
     assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate", "Run Stale Batch Monitor"]
-    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "OOH Cooldown Check", "Log OOH Event"):
+    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "Claim OOH Notification", "Log OOH Event"):
         pg = node(pg_name)
         assert pg["type"] == "n8n-nodes-base.postgres"
         assert pg["credentials"]["postgres"]["name"] == "WhatsApp State PostgreSQL"
@@ -149,7 +160,7 @@ def main():
     assert "create index if not exists idx_ooh_log_created" in SQL.lower()
     assert "create index if not exists idx_ooh_log_sender" in SQL.lower()
     assert "create index if not exists idx_ooh_log_sender_created" in SQL.lower()
-    assert "interval '8 hours'" in node("OOH Cooldown Check")["parameters"]["query"].lower()
+    assert "interval '8 hours'" in node("Claim OOH Notification")["parameters"]["query"].lower()
     ingest_query = node("Ingest Message")["parameters"]["options"]["queryReplacement"]
     assert "fromMe: $('Normalize Payload').item.json.fromMe" in ingest_query
     assert "command: $('Normalize Payload').item.json.command" in ingest_query
@@ -196,7 +207,7 @@ def main():
     assert "nextClaimInSeconds" in SQL
     assert "staleProcessingCount" in SQL
     assert "current_setting('TimeZone')" in SQL
-    assert '"oohCooldownCount"' in node("OOH Cooldown Check")["parameters"]["query"]
+    assert "customer_sent = true" in node("Claim OOH Notification")["parameters"]["query"].lower()
 
     parse = node("Parse AI Output")["parameters"]["jsCode"]
     assert "textUpper = plainText.toUpperCase()" in parse

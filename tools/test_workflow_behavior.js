@@ -372,12 +372,12 @@ async function testOohMessages() {
     if (name === "Check Business Hours") {
       return { item: { json: baseCtx } };
     }
-    if (name === "OOH Cooldown Check") {
+    if (name === "Claim OOH Notification") {
       return { item: { json: {
         adminPhoneA: "905052237182",
         adminPhoneB: "905306056066",
-        oohCooldownCount: 0,
-        lastOohSentAt: null,
+        claimed: true,
+        oohLogId: "00000000-0000-0000-0000-000000000002",
       } } };
     }
     throw new Error(`unexpected lookup: ${name}`);
@@ -400,12 +400,12 @@ async function testOohMessages() {
     if (name === "Check Business Hours") {
       return { item: { json: { ...baseCtx, scenario: "holiday", istanbulDay: "Pazar", istanbulTime: "10:15", isHoliday: true } } };
     }
-    if (name === "OOH Cooldown Check") {
+    if (name === "Claim OOH Notification") {
       return { item: { json: {
         adminPhoneA: "905052237182",
         adminPhoneB: "905306056066",
-        oohCooldownCount: 1,
-        lastOohSentAt: "2026-07-26T01:00:00.000Z",
+        claimed: false,
+        oohLogId: null,
       } } };
     }
     throw new Error(`unexpected lookup: ${name}`);

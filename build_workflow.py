@@ -70,6 +70,14 @@ def if_node(name, expression, position):
     }
 
 
+def wait_node(name, amount, unit, position):
+    return {
+        "parameters": {"resume": "timeInterval", "amount": amount, "unit": unit},
+        "id": node_id(name), "name": name, "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1, "position": position,
+    }
+
+
 normalize_js = r"""
 const root = $json || {};
 const payload = root.body?.body?.data || root.body?.data || null;
@@ -922,17 +930,17 @@ return { json: {
 
 build_ooh_messages_js = r"""
 const ctx = $('Check Business Hours').item.json || {};
-const ooh = $('OOH Cooldown Check').item.json || {};
-const senderName = String(ctx.senderName || 'Değerli Müşterimiz');
-const senderNumber = String(ctx.senderNumber || '');
-const scenario = String(ctx.scenario || 'evening');
-const istanbulDay = String(ctx.istanbulDay || '');
-const istanbulTime = String(ctx.istanbulTime || '');
+const claim = $('Claim OOH Notification').item.json || {};
+const senderName = String(claim.senderName || ctx.senderName || 'Değerli Müşterimiz');
+const senderNumber = String(claim.senderNumber || ctx.senderNumber || '');
+const scenario = String(claim.scenario || ctx.scenario || 'evening');
+const istanbulDay = String(claim.istanbulDay || ctx.istanbulDay || '');
+const istanbulTime = String(claim.istanbulTime || ctx.istanbulTime || '');
 const isHoliday = ctx.isHoliday === true;
-const cooldownCount = Number(ooh.oohCooldownCount ?? ooh.cnt ?? 0);
-const sendCustomer = cooldownCount === 0;
-const managerPhoneA = String(ooh.adminPhoneA || '');
-const managerPhoneB = String(ooh.adminPhoneB || '');
+const cooldownCount = 0;
+const sendCustomer = claim.claimed === true;
+const managerPhoneA = String(claim.adminPhoneA || '');
+const managerPhoneB = String(claim.adminPhoneB || '');
 const managerTargets = [managerPhoneA, managerPhoneB].filter(Boolean);
 const name = senderName || 'Değerli Müşterimiz';
 const scenarioLabel = {
@@ -957,7 +965,7 @@ const logSummary = sendCustomer
 
 return { json: {
   ...ctx,
-  ...ooh,
+  ...claim,
   senderName,
   senderNumber,
   scenario,
@@ -971,10 +979,12 @@ return { json: {
   managerPhoneA,
   managerPhoneB,
   managerTargets,
+  oohLogId: String(claim.oohLogId || ''),
+  oohClaimed: claim.claimed === true,
   customerSent: sendCustomer,
   managerSent: managerTargets.length > 0,
   logSummary,
-  correlationId: String(ctx.correlationId || ooh.correlationId || ''),
+  correlationId: String(ctx.correlationId || claim.correlationId || ''),
 } };
 """.strip()
 
@@ -1114,14 +1124,54 @@ nodes = [
     if_node("Valid Event?", "={{ $json.valid === true }}", [560, 260]),
     code_node("Check Business Hours", check_business_hours_js, [780, 260]),
     postgres_node(
-        "OOH Cooldown Check",
-        "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\", COUNT(*)::int AS \"oohCooldownCount\", MAX(created_at) AS \"lastOohSentAt\" FROM whatsapp_ai.ooh_log WHERE sender_number = $1 AND created_at > NOW() - INTERVAL '8 hours'",
-        "={{ [ $json.senderNumber ] }}",
-        [1000, 260],
+        "Claim OOH Notification",
+        """WITH candidate AS (
+    SELECT b.sender_number
+    FROM whatsapp_ai.batches b
+    WHERE b.sender_number = $1
+      AND b.status = 'pending'
+      AND jsonb_array_length(b.pending_messages) > 0
+      AND b.first_message_at <= clock_timestamp() - INTERVAL '120 seconds'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM whatsapp_ai.ooh_log l
+          WHERE l.sender_number = b.sender_number
+            AND l.created_at > clock_timestamp() - INTERVAL '8 hours'
+            AND l.customer_sent = true
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM whatsapp_ai.ooh_log l
+          WHERE l.sender_number = b.sender_number
+            AND l.created_at > clock_timestamp() - INTERVAL '10 minutes'
+            AND l.customer_sent = false
+      )
+    ORDER BY b.first_message_at
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+), claimed AS (
+    INSERT INTO whatsapp_ai.ooh_log(sender_number, sender_name, scenario, istanbul_day, istanbul_time, customer_sent, manager_sent, correlation_id)
+    SELECT $1, $2, $3, $4, $5, false, false, $6
+    FROM candidate
+    RETURNING id
+)
+SELECT EXISTS(SELECT 1 FROM claimed) AS claimed,
+       (SELECT id FROM claimed LIMIT 1) AS \"oohLogId\",
+       $1::text AS \"senderNumber\",
+       $2::text AS \"senderName\",
+       $3::text AS scenario,
+       $4::text AS \"istanbulDay\",
+       $5::text AS \"istanbulTime\",
+       $6::text AS \"correlationId\",
+       COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\",
+       COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\"""",
+        "={{ [ $('Normalize Payload').item.json.senderNumber, $('Normalize Payload').item.json.senderName, $('Check Business Hours').item.json.scenario, $('Check Business Hours').item.json.istanbulDay, $('Check Business Hours').item.json.istanbulTime, $('Normalize Payload').item.json.correlationId || '' ] }}",
+        [1000, 520],
     ),
     if_node("Is Off Hours?", "={{ $('Check Business Hours').item.json.offHours === true }}", [1220, 260]),
+    wait_node("Wait OOH 120 Seconds", 2, "minutes", [1440, 520]),
     code_node("Build OOH Messages", build_ooh_messages_js, [1440, 260]),
-    if_node("Send Customer Allowed?", "={{ $json.sendCustomer === true }}", [1660, 260]),
+    if_node("OOH Claim Won?", "={{ $json.claimed === true }}", [1660, 520]),
     {
         "parameters": {
             "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', 'https://evo.filtreoto.online')}/message/sendText/otofiltre",
@@ -1166,8 +1216,8 @@ nodes = [
     },
     postgres_node(
         "Log OOH Event",
-        "INSERT INTO whatsapp_ai.ooh_log(sender_number, sender_name, scenario, istanbul_day, istanbul_time, customer_sent, manager_sent, correlation_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
-        "={{ [ $('Build OOH Messages').item.json.senderNumber, $('Build OOH Messages').item.json.senderName, $('Build OOH Messages').item.json.scenario, $('Build OOH Messages').item.json.istanbulDay, $('Build OOH Messages').item.json.istanbulTime, $('Build OOH Messages').item.json.customerSent, $('Build OOH Messages').item.json.managerSent, $('Build OOH Messages').item.json.correlationId || '' ] }}",
+        "UPDATE whatsapp_ai.ooh_log SET customer_sent = $2, manager_sent = $3 WHERE id = $1::uuid RETURNING id",
+        "={{ [ $('Build OOH Messages').item.json.oohLogId, $('Build OOH Messages').item.json.customerSent, $('Build OOH Messages').item.json.managerSent ] }}",
         [2540, 260],
     ),
     if_node("Rate Limit Exceeded?", "={{ $json.rateLimitExceeded === true }}", [780, 260]),
@@ -1337,7 +1387,7 @@ for node in nodes:
         "Record Delivery Result",
         "OpenAI Circuit Gate",
         "Evolution Circuit Gate",
-        "OOH Cooldown Check",
+        "Claim OOH Notification",
         "Load Admin Filter Settings",
         "Log OOH Event",
         "Run Stale Batch Monitor",
@@ -1349,10 +1399,11 @@ for node in nodes:
 
 position_overrides = {
     "Check Business Hours": [784, 420],
-    "OOH Cooldown Check": [1008, 420],
+    "Claim OOH Notification": [1680, 620],
     "Is Off Hours?": [1232, 420],
-    "Build OOH Messages": [1456, 420],
-    "Send Customer Allowed?": [1680, 420],
+    "Wait OOH 120 Seconds": [1456, 620],
+    "Build OOH Messages": [2128, 420],
+    "OOH Claim Won?": [1904, 620],
     "Send OOH to Customer": [1904, 340],
     "Notify Managers A": [2128, 420],
     "Notify Managers B": [2352, 420],
@@ -1384,17 +1435,19 @@ connections = {
     "Apply Admin Number Filter": {"main": [[edge("Is Admin Number?")]]},
     "Is Admin Number?": {"main": [[edge("Respond Admin Filtered")], [edge("Valid Event?")]]},
     "Valid Event?": {"main": [[edge("Check Business Hours")], [edge("Respond Ignored")]]},
-    "Check Business Hours": {"main": [[edge("OOH Cooldown Check")]]},
-    "OOH Cooldown Check": {"main": [[edge("Is Off Hours?")]]},
-    "Is Off Hours?": {"main": [[edge("Build OOH Messages")], [edge("Rate Limit Exceeded?")]]},
-    "Build OOH Messages": {"main": [[edge("Send Customer Allowed?")]]},
-    "Send Customer Allowed?": {"main": [[edge("Send OOH to Customer")], [edge("Notify Managers A")]]},
+    "Check Business Hours": {"main": [[edge("Rate Limit Exceeded?")]]},
+    "Is Off Hours?": {"main": [[edge("Wait OOH 120 Seconds")], []]},
+    "Wait OOH 120 Seconds": {"main": [[edge("Claim OOH Notification")]]},
+    "Claim OOH Notification": {"main": [[edge("OOH Claim Won?")]]},
+    "OOH Claim Won?": {"main": [[edge("Build OOH Messages")], []]},
+    "Build OOH Messages": {"main": [[edge("Send OOH to Customer")]]},
     "Send OOH to Customer": {"main": [[edge("Notify Managers A")], [edge("Notify Managers A")]]},
     "Notify Managers A": {"main": [[edge("Notify Managers B")], [edge("Notify Managers B")]]},
     "Notify Managers B": {"main": [[edge("Log OOH Event")], [edge("Log OOH Event")]]},
-    "Log OOH Event": {"main": [[edge("Rate Limit Exceeded?")]]},
+    "Log OOH Event": {"main": [[]]},
     "Rate Limit Exceeded?": {"main": [[edge("Respond Rate Limited")], [edge("Ingest Message")]]},
-    "Ingest Message": {"main": [[edge("Respond Accepted")], [edge("Prepare Ingest Failure")]]},
+    "Ingest Message": {"main": [[edge("Respond Accepted"), edge("Is Off Hours?")], [edge("Prepare Ingest Failure")]]},
+    "Respond Accepted": {"main": [[]]},
     "Prepare Ingest Failure": {"main": [[edge("Respond 503")]]},
     "Schedule Trigger": {"main": [[edge("OpenAI Circuit Gate"), edge("Evolution Circuit Gate"), edge("Run Stale Batch Monitor")]]},
     "OpenAI Circuit Gate": {"main": [[edge("OpenAI Circuit Open?")]]},
