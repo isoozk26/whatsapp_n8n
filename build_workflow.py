@@ -813,7 +813,7 @@ return { json: {
 check_business_hours_js = r"""
 const ctx = $json || {};
 const tz = 'Europe/Istanbul';
-const now = new Date();
+const now = ctx.overrideNow ? new Date(ctx.overrideNow) : new Date();
 const hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12: false, timeZone: tz }).format(now));
 const minute = Number(new Intl.DateTimeFormat('tr-TR', { minute: 'numeric', timeZone: tz }).format(now));
 const dayShort = now.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
@@ -822,6 +822,25 @@ const HOLIDAYS = ['2026-01-01','2026-03-20','2026-03-21','2026-03-22','2026-04-2
 const BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18], Fri: [9, 18], Sat: [9, 18], Sun: null };
 const window = HOLIDAYS.includes(dateKey) ? null : BUSINESS_HOURS[dayShort];
 const offHours = !Array.isArray(window) || hour < window[0] || hour >= window[1];
+const nextBusinessOpenIso = (() => {
+  if (!offHours) return null;
+  const cursor = new Date(now.getTime());
+  for (let i = 0; i < 14; i += 1) {
+    const candidateDateKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(cursor);
+    const candidateDayShort = cursor.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
+    const candidateWindow = HOLIDAYS.includes(candidateDateKey) ? null : BUSINESS_HOURS[candidateDayShort];
+    if (Array.isArray(candidateWindow)) {
+      if (candidateDateKey === dateKey && hour < candidateWindow[0]) {
+        return new Date(`${candidateDateKey}T${String(candidateWindow[0]).padStart(2, '0')}:00:00+03:00`).toISOString();
+      }
+      if (candidateDateKey !== dateKey) {
+        return new Date(`${candidateDateKey}T${String(candidateWindow[0]).padStart(2, '0')}:00:00+03:00`).toISOString();
+      }
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return null;
+})();
 const scenario = HOLIDAYS.includes(dateKey)
   ? 'holiday'
   : dayShort === 'Sun'
@@ -838,6 +857,7 @@ return { json: {
   scenario,
   istanbulDay,
   istanbulTime,
+  nextAiAttemptAt: nextBusinessOpenIso,
   senderName: String(ctx.senderName || ctx.pushName || 'Değerli Müşterimiz'),
   senderNumber: String(ctx.senderNumber || ''),
   businessWindow: window,
@@ -1095,8 +1115,8 @@ nodes = [
     {
         **postgres_node(
             "Ingest Message",
-            "SELECT * FROM whatsapp_ai.ingest_message($1,$2,$3,$4::jsonb,$5,$6,$7)",
-            "={{ [ $json.messageId, $json.senderNumber, $json.senderName, JSON.stringify({ text: $json.message.text, type: $json.message.type, timestamp: $json.message.timestamp, mediaUrl: $json.message.mediaUrl, mimetype: $json.message.mimetype, isMediaMessage: $json.message.isMediaMessage, mediaType: $json.message.mediaType, fromMe: $json.fromMe, command: $json.command, rawJid: $json.rawJid, senderNumber: $json.senderNumber, senderName: $json.senderName, messageId: $json.messageId, correlationId: $json.correlationId }), $json.command, $json.webhookToken, $json.authSource ] }}",
+            "SELECT * FROM whatsapp_ai.ingest_message($1,$2,$3,$4::jsonb,$5,$6,$7,$8)",
+            "={{ [ $('Normalize Payload').item.json.messageId, $('Normalize Payload').item.json.senderNumber, $('Normalize Payload').item.json.senderName, JSON.stringify({ text: $('Normalize Payload').item.json.message.text, type: $('Normalize Payload').item.json.message.type, timestamp: $('Normalize Payload').item.json.message.timestamp, mediaUrl: $('Normalize Payload').item.json.message.mediaUrl, mimetype: $('Normalize Payload').item.json.message.mimetype, isMediaMessage: $('Normalize Payload').item.json.message.isMediaMessage, mediaType: $('Normalize Payload').item.json.message.mediaType, fromMe: $('Normalize Payload').item.json.fromMe, command: $('Normalize Payload').item.json.command, rawJid: $('Normalize Payload').item.json.rawJid, senderNumber: $('Normalize Payload').item.json.senderNumber, senderName: $('Normalize Payload').item.json.senderName, messageId: $('Normalize Payload').item.json.messageId, correlationId: $('Normalize Payload').item.json.correlationId, nextAiAttemptAt: $('Check Business Hours').item.json.nextAiAttemptAt || null }), $('Normalize Payload').item.json.command, $('Normalize Payload').item.json.webhookToken, $('Normalize Payload').item.json.authSource, $('Check Business Hours').item.json.nextAiAttemptAt || null ] }}",
             [1000, 240],
         ),
         "onError": "continueErrorOutput",

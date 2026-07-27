@@ -104,7 +104,8 @@ CREATE OR REPLACE FUNCTION whatsapp_ai.ingest_message(
     p_message jsonb,
     p_command text DEFAULT NULL,
     p_webhook_token text DEFAULT NULL,
-    p_auth_source text DEFAULT 'query'
+    p_auth_source text DEFAULT 'query',
+    p_next_ai_attempt_at timestamptz DEFAULT NULL
 ) RETURNS TABLE(action text, pending_count integer, reason text)
 LANGUAGE plpgsql
 AS $$
@@ -166,9 +167,9 @@ BEGIN
     END IF;
 
     INSERT INTO whatsapp_ai.batches(
-        sender_number, sender_name, pending_messages, first_message_at, last_message_at
+        sender_number, sender_name, pending_messages, first_message_at, last_message_at, next_ai_attempt_at
     ) VALUES (
-        p_sender_number, p_sender_name, jsonb_build_array(p_message), clock_timestamp(), clock_timestamp()
+        p_sender_number, p_sender_name, jsonb_build_array(p_message), clock_timestamp(), clock_timestamp(), p_next_ai_attempt_at
     )
     ON CONFLICT (sender_number) DO UPDATE
     SET sender_name = EXCLUDED.sender_name,
@@ -179,6 +180,11 @@ BEGIN
         END,
         first_message_at = COALESCE(whatsapp_ai.batches.first_message_at, clock_timestamp()),
         last_message_at = clock_timestamp(),
+        next_ai_attempt_at = CASE
+            WHEN p_next_ai_attempt_at IS NULL THEN whatsapp_ai.batches.next_ai_attempt_at
+            WHEN whatsapp_ai.batches.next_ai_attempt_at IS NULL THEN p_next_ai_attempt_at
+            ELSE LEAST(whatsapp_ai.batches.next_ai_attempt_at, p_next_ai_attempt_at)
+        END,
         status = CASE WHEN whatsapp_ai.batches.status = 'manual' THEN 'manual'
                       ELSE whatsapp_ai.batches.status END,
         updated_at = clock_timestamp()

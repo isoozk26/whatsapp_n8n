@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = json.loads((ROOT / "workflow.json").read_text(encoding="utf-8"))
 SQL = "\n".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "db" / "migrations").glob("*.sql")))
+FINAL_SQL = (ROOT / "db" / "migrations" / "053_finalize_ai_retry_and_priority.sql").read_text(encoding="utf-8")
+SCHEMA_RECONCILE_SQL = (ROOT / "db" / "migrations" / "054_reconcile_delivery_priority_schema.sql").read_text(encoding="utf-8")
 
 
 def node(name):
@@ -61,6 +63,7 @@ def main():
     check_hours = node("Check Business Hours")["parameters"]["jsCode"]
     assert "Sat: [9, 18]" in check_hours
     assert "offHours" in check_hours
+    assert "nextAiAttemptAt" in check_hours
 
     store = node("Store Context")["parameters"]["jsCode"]
     assert ".normalize('NFKC')" in store
@@ -126,10 +129,13 @@ def main():
     assert "create index if not exists idx_ooh_log_sender_created" in SQL.lower()
     assert "interval '8 hours'" in node("OOH Cooldown Check")["parameters"]["query"].lower()
     ingest_query = node("Ingest Message")["parameters"]["options"]["queryReplacement"]
-    assert "fromMe: $json.fromMe" in ingest_query
-    assert "command: $json.command" in ingest_query
+    assert "fromMe: $('Normalize Payload').item.json.fromMe" in ingest_query
+    assert "command: $('Normalize Payload').item.json.command" in ingest_query
+    assert "nextAiAttemptAt" in ingest_query
     assert "x-webhook-secret" in normalize
     assert "webhook_legacy_query_enabled" in SQL
+    assert "p_next_ai_attempt_at timestamptz DEFAULT NULL" in SQL
+    assert "next_ai_attempt_at = CASE" in SQL
     assert "first_attempt_at" in SQL and "latency_ms" in SQL
     assert "FOR UPDATE SKIP LOCKED" in SQL
     assert SQL.count("processing_token = p_batch_token") >= 4
@@ -148,6 +154,13 @@ def main():
     assert "DROP TABLE IF EXISTS whatsapp_ai.mann_vehicle_catalog" in SQL
     assert "DROP TABLE IF EXISTS whatsapp_ai.catalog_imports" in SQL
     assert "DROP TABLE IF EXISTS whatsapp_ai.customer_vehicle_context" in SQL
+    assert "DROP FUNCTION IF EXISTS whatsapp_ai.complete_ai_batch(text, uuid, text, text, boolean, boolean, boolean, text, text)" in FINAL_SQL
+    assert "DROP FUNCTION IF EXISTS whatsapp_ai.record_ai_failure(text, uuid, text, text)" in FINAL_SQL
+    assert "priority" in FINAL_SQL
+    assert "next_ai_attempt_at = clock_timestamp() + CASE v_attempt" in FINAL_SQL
+    assert "ADD COLUMN IF NOT EXISTS priority integer NOT NULL DEFAULT 50" in SCHEMA_RECONCILE_SQL
+    assert "ORDER BY d.priority DESC, d.created_at" in SCHEMA_RECONCILE_SQL
+    assert "CREATE INDEX deliveries_ready_idx" in SCHEMA_RECONCILE_SQL
     assert "state IN ('closed', 'open', 'half_open')" in SQL
     assert "run_batch_readiness_probe" in SQL
     assert "claimableCount" in SQL

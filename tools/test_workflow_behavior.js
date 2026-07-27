@@ -287,6 +287,7 @@ async function testOohMessages() {
     isHoliday: false,
     offHours: true,
     correlationId: "corr-1",
+    nextAiAttemptAt: "2026-07-28T06:00:00.000Z",
   };
   const lookup = (name) => {
     if (name === "Check Business Hours") {
@@ -308,6 +309,7 @@ async function testOohMessages() {
   assert.strictEqual(fresh.json.customerSent, true);
   assert.strictEqual(fresh.json.managerSent, true);
   assert.deepStrictEqual(fresh.json.managerTargets, ["905052237182", "905306056066"]);
+  assert.strictEqual(fresh.json.nextAiAttemptAt, "2026-07-28T06:00:00.000Z");
   assert(fresh.json.customerMsg.includes("Mesajınız için teşekkür ederiz."));
   assert(fresh.json.customerMsg.includes("09:00 itibarıyla"));
   assert(fresh.json.managerMsg.includes("Mesai Dışı Müşteri Bildirimi"));
@@ -333,6 +335,18 @@ async function testOohMessages() {
   assert.strictEqual(cooled.json.customerSent, false);
   assert(cooled.json.managerMsg.includes("cooldown nedeniyle atlandı"));
   assert(normalizeText(cooled.json.customerMsg).includes("resmi tatil"));
+}
+
+async function testBusinessHoursNextAttempt() {
+  const result = await execute(codeOf("Check Business Hours"), {
+    overrideNow: "2026-07-27T19:30:00+03:00",
+    senderNumber: "905320000001",
+    senderName: "Mann Filtre",
+  });
+  assert.strictEqual(result.json.offHours, true);
+  assert.strictEqual(result.json.scenario, "evening");
+  assert.strictEqual(result.json.nextAiAttemptAt, "2026-07-28T06:00:00.000Z");
+  assert.deepStrictEqual(result.json.businessWindow, [9, 18]);
 }
 
 async function testDeliveryTags() {
@@ -377,6 +391,7 @@ async function testAiFailurePreparation() {
 (async () => {
   await testNormalize();
   await testPolicy();
+  await testBusinessHoursNextAttempt();
   await testOohMessages();
   await testDeliveryTags();
   await testBatchCompletionFailure();
