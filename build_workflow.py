@@ -1134,7 +1134,7 @@ nodes = [
         "={{ [ $json.senderNumber ] }}",
         [1000, 260],
     ),
-    if_node("Is Off Hours?", "={{ $json.offHours === true }}", [1220, 260]),
+    if_node("Is Off Hours?", "={{ $('Check Business Hours').item.json.offHours === true }}", [1220, 260]),
     code_node("Build OOH Messages", build_ooh_messages_js, [1440, 260]),
     if_node("Send Customer Allowed?", "={{ $json.sendCustomer === true }}", [1660, 260]),
     {

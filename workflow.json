@@ -271,7 +271,7 @@
           "conditions": [
             {
               "id": "34146535-6ff4-508b-9348-617efc3899ac",
-              "leftValue": "={{ $json.offHours === true }}",
+              "leftValue": "={{ $('Check Business Hours').item.json.offHours === true }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",

@@ -52,6 +52,7 @@ def main():
     assert targets("Valid Event?", 1) == ["Respond Ignored"]
     assert targets("Check Business Hours") == ["OOH Cooldown Check"]
     assert targets("OOH Cooldown Check") == ["Is Off Hours?"]
+    assert "$('Check Business Hours').item.json.offHours === true" in node("Is Off Hours?")["parameters"]["conditions"]["conditions"][0]["leftValue"]
     assert targets("Is Off Hours?", 0) == ["Build OOH Messages"]
     assert targets("Is Off Hours?", 1) == ["Rate Limit Exceeded?"]
     assert targets("Build OOH Messages") == ["Send Customer Allowed?"]
