@@ -205,88 +205,6 @@
           "name": "WhatsApp State PostgreSQL"
         }
       }
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 5
-            }
-          ]
-        }
-      },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "name": "Dashboard Stats Every 5min",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        120,
-        920
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.get_dashboard_stats() AS stats",
-        "options": {}
-      },
-      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-      "name": "Get Dashboard Stats",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        400,
-        920
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "whatsapp-state-postgres",
-          "name": "WhatsApp State PostgreSQL"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 1
-            }
-          ]
-        }
-      },
-      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
-      "name": "Health Check Trigger",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        120,
-        1120
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.get_health_status() AS health",
-        "options": {}
-      },
-      "id": "d4e5f6a7-b8c9-0123-def0-234567890123",
-      "name": "Get Health Status",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        400,
-        1120
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "whatsapp-state-postgres",
-          "name": "WhatsApp State PostgreSQL"
-        }
-      }
     }
   ],
   "connections": {
@@ -339,28 +257,6 @@
         [
           {
             "node": "Run Rotation Reminder",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Dashboard Stats Every 5min": {
-      "main": [
-        [
-          {
-            "node": "Get Dashboard Stats",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Health Check Trigger": {
-      "main": [
-        [
-          {
-            "node": "Get Health Status",
             "type": "main",
             "index": 0
           }

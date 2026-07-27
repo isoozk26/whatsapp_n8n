@@ -40,9 +40,13 @@ def main():
     assert targets("Webhook Auth", 1) == ["Respond Unauthorized"]
     assert targets("Load Admin Filter Settings") == ["Apply Admin Number Filter"]
     assert targets("Apply Admin Number Filter") == ["Is Admin Number?"]
-    assert 'key = \'admin_phone_a\'' in node("Load Admin Filter Settings")["parameters"]["query"]
-    assert 'key = \'admin_phone_b\'' in node("Load Admin Filter Settings")["parameters"]["query"]
-    assert "configuredAdminNumbers.includes(senderNumber)" in node("Apply Admin Number Filter")["parameters"]["jsCode"]
+    admin_filter_query = node("Load Admin Filter Settings")["parameters"]["query"]
+    admin_filter_code = node("Apply Admin Number Filter")["parameters"]["jsCode"]
+    assert 'key = \'admin_phone_a\'' in admin_filter_query
+    assert 'key = \'admin_phone_b\'' in admin_filter_query
+    assert "admin_number_prefixes" not in admin_filter_query
+    assert "configuredAdminNumbers.includes(senderNumber)" in admin_filter_code
+    assert "startsWith(prefix)" not in admin_filter_code
     assert targets("Is Admin Number?", 0) == ["Respond Admin Filtered"]
     assert targets("Is Admin Number?", 1) == ["Valid Event?"]
     assert node("Respond Admin Filtered")["parameters"]["options"]["responseCode"] == 202
@@ -94,8 +98,9 @@ def main():
     assert "chatMemoryText" in store
     assert "chat_memory" in node("Claim Ready Batches")["parameters"]["query"]
     admin_filter = node("Apply Admin Number Filter")["parameters"]["jsCode"]
-    assert "905360" in admin_filter
     assert "authorizedCommand" in admin_filter
+    assert "configuredAdminNumbers.includes(senderNumber)" in admin_filter
+    assert "startsWith" not in admin_filter
 
     assert targets("AI Agent", 0) == ["Parse AI Output"]
     assert targets("AI Agent", 1) == ["Prepare AI Failure"]

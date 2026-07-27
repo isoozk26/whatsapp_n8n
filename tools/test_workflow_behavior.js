@@ -77,9 +77,7 @@ async function testAdminNumberFilter() {
   };
   const normalized = await execute(codeOf("Normalize Payload"), webhook(data), () => ({}), {});
   const filtered = await execute(codeOf("Apply Admin Number Filter"), {
-    adminFilterEnabled: "true",
-    adminNumberPrefixes: "905360",
-    adminPhoneA: "111",
+    adminPhoneA: "905360000001",
     adminPhoneB: "222",
   }, (name) => {
     assert.strictEqual(name, "Normalize Payload");
@@ -88,36 +86,28 @@ async function testAdminNumberFilter() {
   assert.strictEqual(filtered.json.isAdminNumber, true);
 
   const normal = await execute(codeOf("Apply Admin Number Filter"), {
-    adminFilterEnabled: "true",
-    adminNumberPrefixes: "905360",
+    adminPhoneA: "111",
+    adminPhoneB: "222",
+  }, () => ({ item: { json: { ...normalized.json, senderNumber: "905360999999" } } }));
+  assert.strictEqual(normal.json.isAdminNumber, false);
+
+  const normalCustomer = await execute(codeOf("Apply Admin Number Filter"), {
     adminPhoneA: "111",
     adminPhoneB: "222",
   }, () => ({ item: { json: { ...normalized.json, senderNumber: "905320000001" } } }));
-  assert.strictEqual(normal.json.isAdminNumber, false);
+  assert.strictEqual(normalCustomer.json.isAdminNumber, false);
 
-  const command = await execute(codeOf("Apply Admin Number Filter"), {
-    adminFilterEnabled: "true",
-    adminNumberPrefixes: "905360",
-    adminPhoneA: "111",
-    adminPhoneB: "222",
-  }, () => ({ item: { json: { ...normalized.json, fromMe: true, command: "pause" } } }));
-  assert.strictEqual(command.json.isAdminNumber, false);
-
-  const exactAdmin = await execute(codeOf("Apply Admin Number Filter"), {
-    adminFilterEnabled: "false",
-    adminNumberPrefixes: "905360",
+  const exactAdminA = await execute(codeOf("Apply Admin Number Filter"), {
     adminPhoneA: "111",
     adminPhoneB: "222",
   }, () => ({ item: { json: { ...normalized.json, senderNumber: "111" } } }));
-  assert.strictEqual(exactAdmin.json.isAdminNumber, true);
+  assert.strictEqual(exactAdminA.json.isAdminNumber, true);
 
-  const exactAdminCommand = await execute(codeOf("Apply Admin Number Filter"), {
-    adminFilterEnabled: "false",
-    adminNumberPrefixes: "905360",
+  const exactAdminB = await execute(codeOf("Apply Admin Number Filter"), {
     adminPhoneA: "111",
     adminPhoneB: "222",
-  }, () => ({ item: { json: { ...normalized.json, senderNumber: "222", fromMe: true, command: "pause" } } }));
-  assert.strictEqual(exactAdminCommand.json.isAdminNumber, true);
+  }, () => ({ item: { json: { ...normalized.json, senderNumber: "222" } } }));
+  assert.strictEqual(exactAdminB.json.isAdminNumber, true);
 }
 
 function context(text = "MANN W 712/95 fiyati nedir?", chatMemoryText = "") {

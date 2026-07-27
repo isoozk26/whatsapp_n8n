@@ -227,24 +227,15 @@ return { json: Object.assign({}, input, {
 apply_admin_number_filter_js = r"""
 const source = $('Normalize Payload').item.json || {};
 const settings = $json || {};
-const enabled = String(settings.adminFilterEnabled ?? 'true').toLowerCase() !== 'false';
-const prefixes = String(settings.adminNumberPrefixes || '905360')
-  .split(',')
-  .map(value => value.replace(/[^0-9]/g, ''))
-  .filter(Boolean);
 const configuredAdminNumbers = [settings.adminPhoneA, settings.adminPhoneB]
   .map(value => String(value || '').replace(/[^0-9]/g, ''))
   .filter(Boolean);
 const authorizedCommand = source.fromMe === true
   && ['pause', 'resume', 'check_mode'].includes(source.command);
 const senderNumber = String(source.senderNumber || '');
-const isConfiguredAdminNumber = configuredAdminNumbers.includes(senderNumber);
-const isAdminNumber = isConfiguredAdminNumber
-  || (enabled && !authorizedCommand && prefixes.some(prefix => senderNumber.startsWith(prefix)));
+const isAdminNumber = !authorizedCommand && configuredAdminNumbers.includes(senderNumber);
 return { json: {
   ...source,
-  adminFilterEnabled: enabled,
-  adminNumberPrefixes: prefixes,
   configuredAdminNumbers,
   isAdminNumber
 } };
@@ -1106,7 +1097,7 @@ nodes = [
     if_node("Webhook Auth", "={{ $json.authorized === true }}", [780, 160]),
     postgres_node(
         "Load Admin Filter Settings",
-        "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_filter_enabled'), 'true') AS \"adminFilterEnabled\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_number_prefixes'), '905360') AS \"adminNumberPrefixes\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\"",
+        "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\"",
         "={{ [] }}",
         [1000, 160],
     ),

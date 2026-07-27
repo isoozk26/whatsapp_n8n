@@ -68,7 +68,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_filter_enabled'), 'true') AS \"adminFilterEnabled\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_number_prefixes'), '905360') AS \"adminNumberPrefixes\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\"",
+        "query": "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\"",
         "options": {
           "queryReplacement": "={{ [] }}"
         }
@@ -94,7 +94,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const source = $('Normalize Payload').item.json || {};\nconst settings = $json || {};\nconst enabled = String(settings.adminFilterEnabled ?? 'true').toLowerCase() !== 'false';\nconst prefixes = String(settings.adminNumberPrefixes || '905360')\n  .split(',')\n  .map(value => value.replace(/[^0-9]/g, ''))\n  .filter(Boolean);\nconst configuredAdminNumbers = [settings.adminPhoneA, settings.adminPhoneB]\n  .map(value => String(value || '').replace(/[^0-9]/g, ''))\n  .filter(Boolean);\nconst authorizedCommand = source.fromMe === true\n  && ['pause', 'resume', 'check_mode'].includes(source.command);\nconst senderNumber = String(source.senderNumber || '');\nconst isConfiguredAdminNumber = configuredAdminNumbers.includes(senderNumber);\nconst isAdminNumber = isConfiguredAdminNumber\n  || (enabled && !authorizedCommand && prefixes.some(prefix => senderNumber.startsWith(prefix)));\nreturn { json: {\n  ...source,\n  adminFilterEnabled: enabled,\n  adminNumberPrefixes: prefixes,\n  configuredAdminNumbers,\n  isAdminNumber\n} };"
+        "jsCode": "const source = $('Normalize Payload').item.json || {};\nconst settings = $json || {};\nconst configuredAdminNumbers = [settings.adminPhoneA, settings.adminPhoneB]\n  .map(value => String(value || '').replace(/[^0-9]/g, ''))\n  .filter(Boolean);\nconst authorizedCommand = source.fromMe === true\n  && ['pause', 'resume', 'check_mode'].includes(source.command);\nconst senderNumber = String(source.senderNumber || '');\nconst isAdminNumber = !authorizedCommand && configuredAdminNumbers.includes(senderNumber);\nreturn { json: {\n  ...source,\n  configuredAdminNumbers,\n  isAdminNumber\n} };"
       },
       "id": "2bd961f9-2ef6-58b3-a505-1df94e5b20bc",
       "name": "Apply Admin Number Filter",
