@@ -11,6 +11,8 @@ SQL = "\n".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "db"
 FINAL_SQL = (ROOT / "db" / "migrations" / "053_finalize_ai_retry_and_priority.sql").read_text(encoding="utf-8")
 SCHEMA_RECONCILE_SQL = (ROOT / "db" / "migrations" / "054_reconcile_delivery_priority_schema.sql").read_text(encoding="utf-8")
 STALE_MONITOR_SQL = (ROOT / "db" / "migrations" / "055_stale_batch_monitor.sql").read_text(encoding="utf-8")
+CHAT_MEMORY_SQL = (ROOT / "db" / "migrations" / "056_chat_memory.sql").read_text(encoding="utf-8")
+ADMIN_FILTER_SQL = (ROOT / "db" / "migrations" / "057_admin_number_filter.sql").read_text(encoding="utf-8")
 
 
 def node(name):
@@ -34,8 +36,13 @@ def main():
     assert targets("Webhook1") == ["Normalize Payload"]
     assert targets("Normalize Payload") == ["Validate Webhook Secret"]
     assert targets("Validate Webhook Secret") == ["Webhook Auth"]
-    assert targets("Webhook Auth", 0) == ["Valid Event?"]
+    assert targets("Webhook Auth", 0) == ["Load Admin Filter Settings"]
     assert targets("Webhook Auth", 1) == ["Respond Unauthorized"]
+    assert targets("Load Admin Filter Settings") == ["Apply Admin Number Filter"]
+    assert targets("Apply Admin Number Filter") == ["Is Admin Number?"]
+    assert targets("Is Admin Number?", 0) == ["Respond Admin Filtered"]
+    assert targets("Is Admin Number?", 1) == ["Valid Event?"]
+    assert node("Respond Admin Filtered")["parameters"]["options"]["responseCode"] == 202
     assert node("Respond Unauthorized")["parameters"]["options"]["responseCode"] == 401
 
     normalize = node("Normalize Payload")["parameters"]["jsCode"]
@@ -69,6 +76,11 @@ def main():
     store = node("Store Context")["parameters"]["jsCode"]
     assert ".normalize('NFKC')" in store
     assert ".replace(/<\\|im_start\\|>/gi, '')" in store
+    assert "chatMemoryText" in store
+    assert "chat_memory" in node("Claim Ready Batches")["parameters"]["query"]
+    admin_filter = node("Apply Admin Number Filter")["parameters"]["jsCode"]
+    assert "905360" in admin_filter
+    assert "authorizedCommand" in admin_filter
 
     assert targets("AI Agent", 0) == ["Parse AI Output"]
     assert targets("AI Agent", 1) == ["Prepare AI Failure"]
@@ -77,6 +89,8 @@ def main():
     assert targets("AI Output Valid?", 1) == ["Prepare AI Failure"]
     assert targets("Complete AI Batch") == ["AI Batch Completed?"]
     assert targets("AI Batch Completed?", 1) == ["Prepare Batch Completion Failure"]
+    assert targets("AI Batch Completed?", 0) == ["Persist Chat Memory"]
+    assert targets("Persist Chat Memory") == []
     assert targets("Prepare Batch Completion Failure") == ["Record AI Failure"]
     parse = node("Parse AI Output")["parameters"]["jsCode"]
     assert "vehicle_based_search" not in parse
@@ -117,7 +131,7 @@ def main():
     assert stale_monitor["type"] == "n8n-nodes-base.postgres"
     assert "run_stale_batch_monitor" in stale_monitor["parameters"]["query"]
 
-    for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events", "ooh_log"):
+    for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events", "ooh_log", "chat_memory"):
         assert f"whatsapp_ai.{table}" in SQL
     for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report", "run_batch_readiness_probe", "run_stale_batch_monitor"):
         assert f"FUNCTION whatsapp_ai.{function}" in SQL
@@ -168,6 +182,10 @@ def main():
     assert "STALE BATCH ALERT" in STALE_MONITOR_SQL
     assert "run_stale_batch_monitor" in STALE_MONITOR_SQL
     assert "stale_batch_monitor" in STALE_MONITOR_SQL
+    assert "source_key" in CHAT_MEMORY_SQL
+    assert "cleanup_chat_memory" in CHAT_MEMORY_SQL
+    assert "admin_number_prefixes" in ADMIN_FILTER_SQL
+    assert "admin_filter_enabled" in ADMIN_FILTER_SQL
     assert "state IN ('closed', 'open', 'half_open')" in SQL
     assert "run_batch_readiness_probe" in SQL
     assert "claimableCount" in SQL
@@ -192,7 +210,7 @@ def main():
     assert "schemaVersion: '13.6'" in parse
     assert "fingerprint: `${ctx.senderNumber}:" in parse
 
-    for retry_name in ("Ingest Message", "Claim Ready Batches", "Claim Deliveries", "Complete AI Batch", "Record AI Failure", "Record Delivery Result", "OpenAI Circuit Gate", "Evolution Circuit Gate"):
+    for retry_name in ("Ingest Message", "Claim Ready Batches", "Claim Deliveries", "Complete AI Batch", "Persist Chat Memory", "Load Admin Filter Settings", "Record AI Failure", "Record Delivery Result", "OpenAI Circuit Gate", "Evolution Circuit Gate"):
         retry_node = node(retry_name)
         assert retry_node["retryOnFail"] is True
         assert retry_node["maxTries"] == 3

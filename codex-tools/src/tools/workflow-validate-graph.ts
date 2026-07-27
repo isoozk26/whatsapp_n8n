@@ -14,7 +14,7 @@ interface WorkflowGraphData {
 }
 
 const requiredPaths: Array<[string, string[]]> = [
-  ["webhook", ["Webhook1", "Normalize Payload", "Validate Webhook Secret", "Webhook Auth", "Valid Event?", "Ingest Message", "Respond Accepted"]],
+  ["webhook", ["Webhook1", "Normalize Payload", "Validate Webhook Secret", "Webhook Auth", "Load Admin Filter Settings", "Apply Admin Number Filter", "Is Admin Number?", "Valid Event?", "Ingest Message", "Respond Accepted"]],
   ["aiWorker", ["Schedule Trigger", "OpenAI Circuit Gate", "OpenAI Circuit Open?", "Claim Ready Batches", "Store Context", "AI Agent", "Parse AI Output", "AI Output Valid?", "Complete AI Batch"]],
   ["deliveryWorker", ["Schedule Trigger", "Evolution Circuit Gate", "Evolution Circuit Open?", "Claim Deliveries", "Prepare Delivery", "Send Delivery", "Record Delivery Result"]],
 ];
@@ -123,6 +123,14 @@ export async function workflowValidateGraph(input: WorkflowGraphInput = {}): Pro
     id: "GRAPH_DELIVERY_ERROR_UNHANDLED", severity: "P0", category: "graph", title: "Delivery hata çıkışı işlenmiyor",
     evidence: "Send Delivery output[1] boş", location: { file: path, node: "Send Delivery" }, impact: "Başarısız gönderimler kayda alınmaz.",
     recommendation: "Hata çıkışını Tag Delivery Error ve Record Delivery Result yoluna bağlayın.",
+  });
+  const adminOutputs = workflow.connections["Is Admin Number?"]?.main || [];
+  if (!adminOutputs[0]?.some((target) => target.node === "Respond Admin Filtered")
+    || !adminOutputs[1]?.some((target) => target.node === "Valid Event?")) findings.push({
+    id: "GRAPH_ADMIN_FILTER_UNHANDLED", severity: "P0", category: "graph", title: "Admin numara filtresi webhook hattında eksik",
+    evidence: "Is Admin Number? true -> Respond Admin Filtered ve false -> Valid Event? bağlantısı bekleniyor",
+    location: { file: path, node: "Is Admin Number?" }, impact: "0536 hattından gelen mesajlar ingest veya delivery hattına sızabilir.",
+    recommendation: "Admin filtresini auth sonrasında, ingest öncesinde tutun ve true dalını sessiz response ile sonlandırın.",
   });
   const respondCount = workflow.nodes.filter((node) => node.type === "n8n-nodes-base.respondToWebhook").length;
   if (!byName.has("Webhook1") || respondCount === 0) findings.push({

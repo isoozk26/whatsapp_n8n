@@ -216,12 +216,35 @@ return { json: Object.assign({}, input, {
 """.strip()
 
 
+apply_admin_number_filter_js = r"""
+const source = $('Normalize Payload').item.json || {};
+const settings = $json || {};
+const enabled = String(settings.adminFilterEnabled ?? 'true').toLowerCase() !== 'false';
+const prefixes = String(settings.adminNumberPrefixes || '905360')
+  .split(',')
+  .map(value => value.replace(/[^0-9]/g, ''))
+  .filter(Boolean);
+const authorizedCommand = source.fromMe === true
+  && ['pause', 'resume', 'check_mode'].includes(source.command);
+const senderNumber = String(source.senderNumber || '');
+const isAdminNumber = enabled
+  && !authorizedCommand
+  && prefixes.some(prefix => senderNumber.startsWith(prefix));
+return { json: {
+  ...source,
+  adminFilterEnabled: enabled,
+  adminNumberPrefixes: prefixes,
+  isAdminNumber
+} };
+""".strip()
+
+
 store_context_js = r"""
 const row = $json || {};
 const messages = Array.isArray(row.messages) ? row.messages : [];
 const allMessagesText = String(row.all_messages_text || '');
 // Prompt injection koruması — tehlikeli komutları temizle (İngilizce + Türkçe)
-const sanitizedText = allMessagesText
+const sanitizePromptText = (value, limit = 1000) => String(value || '')
   // Unicode normalization (homoglyph bypass engelleme)
   .normalize('NFKC')
   // İngilizce injection kalıpları
@@ -263,7 +286,21 @@ const sanitizedText = allMessagesText
   .replace(/```user/gi, '')
   .replace(/<\|im_start\|>/gi, '')
   .replace(/<\/im_start>/gi, '')
-  .slice(0, 1000);
+  .slice(0, limit);
+const sanitizedText = sanitizePromptText(allMessagesText);
+let chatMemoryRows = row.chat_memory;
+if (typeof chatMemoryRows === 'string') {
+  try { chatMemoryRows = JSON.parse(chatMemoryRows); } catch (_) { chatMemoryRows = []; }
+}
+const chatMemoryText = (Array.isArray(chatMemoryRows) ? chatMemoryRows : [])
+  .slice(-20)
+  .map(item => {
+    const role = item?.role === 'assistant' ? 'Asistan' : 'Müşteri';
+    const content = sanitizePromptText(item?.content || '', 600);
+    return content ? `${role}: ${content}` : '';
+  })
+  .filter(Boolean)
+  .join('\\n');
 const _codePatterns = [
   /\b[A-Z]{1,4}\s?\d{2,6}(?:\/\d{1,4})?[A-Z]{0,3}\b/gi,
   /\b[A-Z0-9]{2,10}[.\/-][A-Z0-9]{1,10}\b/g,
@@ -284,7 +321,8 @@ return { json: {
   correlationId: String(row.correlation_id || row.correlationId || ''),
   isMediaMessage: Boolean(row.is_media_message || row.isMediaMessage),
   mediaType: String(row.media_type || row.mediaType || ''),
-  _prompt: `Müşteri mesajları:\n${sanitizedText}\n\n[Yalnız tanımlı JSON şemasında cevap ver. correlationId: ${correlationId}]`
+  chatMemoryText,
+  _prompt: `${chatMemoryText ? `Önceki sohbet belleği:\n${chatMemoryText}\n\n` : ''}Müşteri mesajları:\n${sanitizedText}\n\n[Yalnız tanımlı JSON şemasında cevap ver. correlationId: ${correlationId}]`
 } };
 """.strip()
 
@@ -297,6 +335,21 @@ Fiyat, stok, kargo veya uyumluluk doğrulanmış gibi gösterme. Müşterinin ya
 - complaint: müşteri memnuniyetsizliği, sorun bildiriyor
 - human_request: müşteri insan temsilci istiyor
 - other: diğer destek talepleri
+
+KRİTİK BİLGİ TEKRARI KURALI:
+- Bu sohbette veya önceki sohbet belleğinde VIN/şasi verildiyse bir daha ASLA isteme.
+- 17 haneli alfanümerik dizi VIN/şasi numarasıdır; otomatik kabul et.
+- Marka + model + yıl + motor bilgisi VIN olmadan da yeterlidir.
+- Önceki bilgileri kısa özetle ve doğrudan sonraki işleme geç.
+
+FİRMA BİLGİLERİ (yalnızca ilgili soru sorulursa kullan):
+- Denizli'den Aras Kargo ile gönderim yapılır; standart teslimat 2-3 iş günüdür ve 1-3 gün arası değişebilir.
+- Cumartesi teslimat garantisi verilmez.
+- N11, Trendyol ve Amazon gibi pazaryerlerinde satış yoktur; sipariş filtreoto.com üzerinden verilir.
+- 3D Secure ödeme vardır; Etbis'e kayıtlıyız ve talep edilirse distribütör faturası paylaşılabilir.
+- İade koşullarını kesinleştirmeden söz verme; gerektiğinde temsilciye aktar.
+- Stok, fiyat, uyumluluk ve kargo sonucunu veriyle doğrulanmadıysa kesinleştirme.
+- "Uzmanımız bakacak" gibi gereksiz devir cümleleri kurma; mevcut bilgilerle ilerle.
 
 Confidence rehberliği:
 - 0.9+: Tam kod bulundu, net talep
@@ -357,6 +410,8 @@ try {
 const allowed = new Set(['exact_code_price_stock','exact_code_compatibility','cross_reference','partial_code','non_product','greeting','unclear','other']);
 const originalText = String(ctx.allMessagesText || '');
 const plainText = originalText.replace(/^\s*\d+\.\s*(?:\[[^\]]+\]\s*)?/, '').trim();
+const historyText = String(ctx.chatMemoryText || '');
+const vehicleSourceText = `${plainText}\n${historyText}`;
 const textUpper = plainText.toUpperCase();
 let intent = String(parsed.intent || 'other');
 let caseType = String(parsed.caseType || 'other');
@@ -374,7 +429,7 @@ const BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18],
 const _window = HOLIDAYS.includes(_dateKey) ? null : BUSINESS_HOURS[_day];
 const isBusinessHours = Array.isArray(_window) && _hour >= _window[0] && _hour < _window[1];
 const SLA_LINE = isBusinessHours
-  ? `Uzmanımız ${SLA_TEXT} dönüş yapacak.`
+  ? `Mesai ${SLA_TEXT} dönüş yapacağız.`
   : 'Mesai dışındayız; talebiniz sıraya alındı, ilk iş saatinde dönüş yapılacak.';
 
 // --- Type validation & length limits ---
@@ -425,12 +480,12 @@ let retryAi = false;
 let fallbackType = null;
 
 const filterRequest = /\b(yağ|yag|hava|yakıt|yakit|polen|kabin|şanzıman|sanziman)\s+filtresi?\b|\bfiltre\b/i.test(plainText);
-const yearMatch = plainText.match(/\b(19\d{2}|20\d{2})\b/);
+const yearMatch = vehicleSourceText.match(/\b(19\d{2}|20\d{2})\b/);
 const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan'];
-const brand = brands.find(item => new RegExp(`\\b${item}\\b`, 'i').test(plainText));
+const brand = brands.find(item => new RegExp(`\\b${item}\\b`, 'i').test(vehicleSourceText));
 let extractedVehicle = '';
 if (brand) {
-  const afterBrand = plainText.slice(plainText.toLocaleLowerCase('tr-TR').indexOf(brand.toLocaleLowerCase('tr-TR')) + brand.length);
+  const afterBrand = vehicleSourceText.slice(vehicleSourceText.toLocaleLowerCase('tr-TR').indexOf(brand.toLocaleLowerCase('tr-TR')) + brand.length);
   const modelPart = afterBrand.split(/\b(?:19\d{2}|20\d{2})\b/)[0]
     .replace(/\b(?:yağ|yag|hava|yakıt|yakit|polen|kabin|filtre|filtresi|arıyorum|ariyorum|için|icin)\b/gi, ' ')
     .replace(/[^\p{L}\p{N}.-]+/gu, ' ').trim().split(/\s+/).slice(0, 3).join(' ');
@@ -458,7 +513,7 @@ const vehicleStrings = entities.vehicles.map(v => {
   if (typeof v === 'string') return v.trim();
   return String(v?.raw || [v?.brand, v?.model, v?.year, v?.engine].filter(Boolean).join(' ')).trim();
 }).filter(Boolean);
-const vehicleBlob = `${plainText} ${vehicleStrings.join(' ')}`;
+const vehicleBlob = `${vehicleSourceText} ${vehicleStrings.join(' ')}`;
 const hasVin = /\b[A-HJ-NPR-Z0-9]{17}\b/i.test(vehicleBlob);
 const hasEngine = /\b\d[.,]\d\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZİN|DİZEL)?\b/i.test(vehicleBlob);
 const hasPower = /\b\d{2,3}\s*(?:kw|hp|bg|beygir)\b/i.test(vehicleBlob);
@@ -537,12 +592,12 @@ if (caseType === 'exact_code_compatibility') {
     askVehicleInfo = true;
     reply = `Aracınıza uyan filtreyi net seçebilmemiz için tek bir bilgi yeterli: **ruhsattaki şasi (VIN) numarası**. Şasi ile motor tipini birebir eşleştirip yanlış parça riskini sıfırlıyoruz. Şasiyi paylaşabilir misiniz? Alternatif olarak marka, model, yıl ve motor hacmini de yazabilirsiniz.`;
   } else if (action !== 'handoff') {
-    reply = `Araç bilgileriniz tamam. Uzmanımız aracınıza uyan filtre setini çıkarıyor. Sadece bu filtreyi mi istersiniz, yoksa periyodik bakım setinin tamamını mı görelim? ${SLA_LINE}`;
+    reply = `Araç bilgilerinizi aldım; ${extractedVehicle || 'aracınız'} için uyumlu filtre setini kontrol ediyorum. Sadece bu filtreyi mi istersiniz, yoksa periyodik bakım setinin tamamını mı görelim? ${SLA_LINE}`;
   }
 } else if (caseType === 'exact_code_price_stock' && action !== 'handoff') {
   notifyAdmins = true;
   if (normalizedCodes.length === 1) {
-    reply = `Kodu aldık, ürün uzmanımız hemen kontrolüne alıyor. Doğru ürünü ilk seferde gönderebilmemiz için kaç adet düşündüğünüzü yazar mısınız? ${SLA_LINE}`;
+    reply = `Kodu aldık; güncel stok ve fiyatı kontrol ediyoruz. Doğru ürünü ilk seferde gönderebilmemiz için kaç adet düşündüğünüzü yazar mısınız? ${SLA_LINE}`;
   } else {
     let codeList;
     if (normalizedCodes.length <= 3) {
@@ -552,7 +607,7 @@ if (caseType === 'exact_code_compatibility') {
     } else {
       codeList = `${normalizedCodes.length} ürün kodu`;
     }
-    reply = `${codeList} için ürün uzmanımız kontrolü başlattı. Listeyi tek seferde toparlayabilmemiz için her bir üründen kaçar adet gerektiğini yazar mısınız? ${SLA_LINE}`;
+    reply = `${codeList} için güncel stok ve fiyat kontrolünü başlattık. Listeyi tek seferde toparlayabilmemiz için her bir üründen kaçar adet gerektiğini yazar mısınız? ${SLA_LINE}`;
   }
 } else if (caseType === 'cross_reference') {
   notifyAdmins = true;
@@ -566,7 +621,7 @@ if (caseType === 'exact_code_compatibility') {
     reply = 'Size en hızlı şekilde yardımcı olabilmemiz için iki yoldan biri yeterli: ürünün kodu ya da ruhsattaki şasi numarası. Hangisi elinizin altındaysa onu yazar mısınız? Gerisini biz halledelim.';
   }
 } else if (caseType === 'greeting') {
-  reply = `Merhaba, ${BRAND_LINE}'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü uzmanımız sizin için belirlesin. Hangi araç için bakıyorsunuz?`;
+  reply = `Merhaba, ${BRAND_LINE}'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü birlikte netleştirelim. Hangi araç için bakıyorsunuz?`;
 } else if (caseType === 'non_product' || intent === 'return_complaint') {
   action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
   if (intent === 'return_complaint') {
@@ -590,6 +645,21 @@ if (caseType === 'exact_code_compatibility') {
     handoffReason ||= 'Destek talebi';
     reply = `Talebinizi aldık ve ilgili ekibe yönlendirdik. ${SLA_LINE} Konuyla ilgili eklemek istediğiniz bir detay varsa şimdi yazabilirsiniz.`;
   }
+}
+
+const operationalQuestion = !['complaint', 'return_complaint', 'human_request'].includes(intent);
+const asksMarketplace = /\b(n11|trendyol|amazon|pazaryeri|pazar yeri)\b/i.test(plainText);
+const asksShipping = /\b(kargo|teslim|cumartesi|yarın|yarin|ne zaman gelir)\b/i.test(plainText);
+const asksAuthenticity = /\b(orijinal|fatura|etbis|3d\s*secure|güvenli ödeme|guvenli odeme)\b/i.test(plainText);
+if (operationalQuestion && asksMarketplace) {
+  reply = 'N11, Trendyol ve Amazon gibi pazaryerlerinde satışımız yoktur. Siparişinizi filtreoto.com üzerinden verebilirsiniz.';
+  action = 'reply'; pauseAutomation = false; notifyAdmins = false; handoffReason = '';
+} else if (operationalQuestion && asksShipping) {
+  reply = 'Denizli\'den Aras Kargo ile gönderiyoruz. Standart teslimat 2-3 iş günüdür; süre 1-3 gün arasında değişebilir. Cumartesi teslimat garantisi veremiyoruz.';
+  action = 'reply'; pauseAutomation = false; notifyAdmins = false; handoffReason = '';
+} else if (operationalQuestion && asksAuthenticity) {
+  reply = 'Ürünlerimiz orijinaldir. Talep ederseniz distribütör faturası paylaşabiliriz; firmamız Etbis\'e kayıtlıdır ve 3D Secure ile güvenli ödeme vardır.';
+  action = 'reply'; pauseAutomation = false; notifyAdmins = false; handoffReason = '';
 }
 
 const safetyText = String(reply || '')
@@ -1039,6 +1109,18 @@ nodes = [
     },
     code_node("Validate Webhook Secret", validate_webhook_secret_js, [560, 160]),
     if_node("Webhook Auth", "={{ $json.authorized === true }}", [780, 160]),
+    postgres_node(
+        "Load Admin Filter Settings",
+        "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_filter_enabled'), 'true') AS \"adminFilterEnabled\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_number_prefixes'), '905360') AS \"adminNumberPrefixes\"",
+        "={{ [] }}",
+        [1000, 160],
+    ),
+    code_node("Apply Admin Number Filter", apply_admin_number_filter_js, [1220, 160]),
+    if_node("Is Admin Number?", "={{ $json.isAdminNumber === true }}", [1440, 160]),
+    {
+        "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: true, ignored: true, adminFiltered: true, correlationId: $json.correlationId || '' } }}", "options": {"responseCode": 202}},
+        "id": node_id("Respond Admin Filtered"), "name": "Respond Admin Filtered", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [1660, 80],
+    },
     {
         "parameters": {"respondWith": "json", "responseBody": "={{ { accepted: false, error: 'unauthorized', correlationId: $json.correlationId || '' } }}", "options": {"responseCode": 401}},
         "id": node_id("Respond Unauthorized"), "name": "Respond Unauthorized", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [560, 440],
@@ -1145,7 +1227,22 @@ nodes = [
     },
     postgres_node("OpenAI Circuit Gate", "SELECT whatsapp_ai.circuit_allows('openai') AS allowed", "={{ [] }}", [340, 620]),
     if_node("OpenAI Circuit Open?", "={{ $json.allowed === true }}", [560, 620]),
-    postgres_node("Claim Ready Batches", "SELECT * FROM whatsapp_ai.claim_ready_batches(10)", "={{ [] }}", [780, 620]),
+    postgres_node(
+        "Claim Ready Batches",
+        """SELECT claimed.*, COALESCE((
+    SELECT jsonb_agg(jsonb_build_object('role', recent.role, 'content', recent.content) ORDER BY recent.created_at)
+    FROM (
+        SELECT role, content, created_at
+        FROM whatsapp_ai.chat_memory
+        WHERE session_id = claimed.sender_number
+        ORDER BY created_at DESC
+        LIMIT 20
+    ) recent
+), '[]'::jsonb) AS chat_memory
+FROM whatsapp_ai.claim_ready_batches(10) claimed""",
+        "={{ [] }}",
+        [780, 620],
+    ),
     code_node("Store Context", store_context_js, [1000, 620]),
     {
         "parameters": {"promptType": "define", "text": "={{ $json._prompt }}", "options": {"systemMessage": system_prompt}},
@@ -1166,6 +1263,32 @@ nodes = [
         [2760, 520],
     ),
     if_node("AI Batch Completed?", "={{ $json.completed === true }}", [2980, 520]),
+    postgres_node(
+        "Persist Chat Memory",
+        """WITH user_messages AS (
+    SELECT $1::text AS session_id, 'user'::text AS role,
+           left(COALESCE(message->>'text', ''), 4000) AS content,
+           COALESCE(NULLIF(message->>'id', ''), md5(message::text)) AS source_key
+    FROM jsonb_array_elements($2::jsonb) AS message
+    WHERE COALESCE(message->>'text', '') <> ''
+), assistant_message AS (
+    SELECT $1::text AS session_id, 'assistant'::text AS role,
+           left($4::text, 4000) AS content,
+           'assistant:' || $3::text AS source_key
+    WHERE COALESCE($4::text, '') <> ''
+), memory_rows AS (
+    SELECT * FROM user_messages
+    UNION ALL
+    SELECT * FROM assistant_message
+)
+INSERT INTO whatsapp_ai.chat_memory(session_id, role, content, source_key)
+SELECT session_id, role, content, source_key
+FROM memory_rows
+ON CONFLICT (session_id, role, source_key) DO NOTHING
+RETURNING id""",
+        "={{ [ $('Parse AI Output').item.json.senderNumber, JSON.stringify($('Store Context').item.json.messages || []), $('Parse AI Output').item.json.batchToken, $('Parse AI Output').item.json.cevap || '' ] }}",
+        [3200, 520],
+    ),
     code_node("Prepare AI Failure", prepare_ai_failure_js, [1880, 700]),
     code_node("Prepare Batch Completion Failure", prepare_batch_completion_failure_js, [3180, 700]),
     postgres_node(
@@ -1230,8 +1353,10 @@ for node in nodes:
         "OpenAI Circuit Gate",
         "Evolution Circuit Gate",
         "OOH Cooldown Check",
+        "Load Admin Filter Settings",
         "Log OOH Event",
         "Run Stale Batch Monitor",
+        "Persist Chat Memory",
     }:
         node["retryOnFail"] = True
         node["maxTries"] = 3
@@ -1269,7 +1394,10 @@ connections = {
     "Webhook1": {"main": [[edge("Normalize Payload")]]},
     "Normalize Payload": {"main": [[edge("Validate Webhook Secret")]]},
     "Validate Webhook Secret": {"main": [[edge("Webhook Auth")]]},
-    "Webhook Auth": {"main": [[edge("Valid Event?")], [edge("Respond Unauthorized")]]},
+    "Webhook Auth": {"main": [[edge("Load Admin Filter Settings")], [edge("Respond Unauthorized")]]},
+    "Load Admin Filter Settings": {"main": [[edge("Apply Admin Number Filter")] ]},
+    "Apply Admin Number Filter": {"main": [[edge("Is Admin Number?")]]},
+    "Is Admin Number?": {"main": [[edge("Respond Admin Filtered")], [edge("Valid Event?")]]},
     "Valid Event?": {"main": [[edge("Check Business Hours")], [edge("Respond Ignored")]]},
     "Check Business Hours": {"main": [[edge("OOH Cooldown Check")]]},
     "OOH Cooldown Check": {"main": [[edge("Is Off Hours?")]]},
@@ -1292,7 +1420,8 @@ connections = {
     "Parse AI Output": {"main": [[edge("AI Output Valid?")]]},
     "AI Output Valid?": {"main": [[edge("Complete AI Batch")], [edge("Prepare AI Failure")]]},
     "Complete AI Batch": {"main": [[edge("AI Batch Completed?")]]},
-    "AI Batch Completed?": {"main": [[], [edge("Prepare Batch Completion Failure")]]},
+    "AI Batch Completed?": {"main": [[edge("Persist Chat Memory")], [edge("Prepare Batch Completion Failure")]]},
+    "Persist Chat Memory": {"main": [[]]},
     "Prepare AI Failure": {"main": [[edge("Record AI Failure")]]},
     "Prepare Batch Completion Failure": {"main": [[edge("Record AI Failure")]]},
     "OpenAI Chat Model1": {"ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]},

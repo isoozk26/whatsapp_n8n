@@ -69,8 +69,37 @@ async function testNormalize() {
   assert.strictEqual((await execute(codeOf("Normalize Payload"), webhook(command), () => ({}), {})).json.command, "pause");
 }
 
-function context(text = "MANN W 712/95 fiyati nedir?") {
-  return { senderNumber: "905320000001", senderName: "Mann Filtre", batchToken: "00000000-0000-0000-0000-000000000001", allMessagesText: text };
+async function testAdminNumberFilter() {
+  const data = {
+    key: { remoteJid: "905360000001@s.whatsapp.net", fromMe: false, id: "admin-msg-1" },
+    pushName: "Admin",
+    message: { conversation: "Merhaba" },
+  };
+  const normalized = await execute(codeOf("Normalize Payload"), webhook(data), () => ({}), {});
+  const filtered = await execute(codeOf("Apply Admin Number Filter"), {
+    adminFilterEnabled: "true",
+    adminNumberPrefixes: "905360",
+  }, (name) => {
+    assert.strictEqual(name, "Normalize Payload");
+    return { item: { json: normalized.json } };
+  });
+  assert.strictEqual(filtered.json.isAdminNumber, true);
+
+  const normal = await execute(codeOf("Apply Admin Number Filter"), {
+    adminFilterEnabled: "true",
+    adminNumberPrefixes: "905360",
+  }, () => ({ item: { json: { ...normalized.json, senderNumber: "905320000001" } } }));
+  assert.strictEqual(normal.json.isAdminNumber, false);
+
+  const command = await execute(codeOf("Apply Admin Number Filter"), {
+    adminFilterEnabled: "true",
+    adminNumberPrefixes: "905360",
+  }, () => ({ item: { json: { ...normalized.json, fromMe: true, command: "pause" } } }));
+  assert.strictEqual(command.json.isAdminNumber, false);
+}
+
+function context(text = "MANN W 712/95 fiyati nedir?", chatMemoryText = "") {
+  return { senderNumber: "905320000001", senderName: "Mann Filtre", batchToken: "00000000-0000-0000-0000-000000000001", allMessagesText: text, chatMemoryText };
 }
 
 function normalizeText(value) {
@@ -237,7 +266,7 @@ async function testPolicy() {
   assert.strictEqual(directCode.json.caseType, "exact_code_price_stock");
   assert.strictEqual(directCode.json.pauseAutomation, false);
   assert(directCode.json.cevap.includes("kaç adet düşündüğünüzü"));
-  assert(directCode.json.cevap.includes("ürün uzmanımız"));
+  assert(directCode.json.cevap.includes("güncel stok"));
 
   const fingerprintA = await runParse({
     intent: "other",
@@ -275,6 +304,26 @@ async function testPolicy() {
   assert(missingCode.json.cevap.includes("şasi numarası"));
   assert(missingCode.json.bildirim.includes("ek bilgi bekleniyor"));
   assert(!missingCode.json.bildirim.includes("STOK/FIYAT SORGUSU"));
+
+  const vinMemory = await runParse({
+    intent: "compatibility", caseType: "exact_code_compatibility",
+    entities: { productCodes: [], vehicles: [] }, replyDraft: "", confidence: 0.9,
+  }, context("Polen filtresi", "Müşteri: WDB2100351A528399\nMüşteri: Mercedes E200 1998"));
+  assert.strictEqual(vinMemory.json.action, "reply");
+  assert(!normalizeText(vinMemory.json.cevap).toLowerCase().includes("sasi"));
+
+  const marketplace = await runParse({ ...base, intent: "other", caseType: "other", replyDraft: "" }, context("N11'de var mı?"));
+  assert(normalizeText(marketplace.json.cevap).toLowerCase().includes("pazaryerlerinde"));
+  assert(marketplace.json.cevap.includes("filtreoto.com"));
+
+  const shipping = await runParse({ ...base, intent: "other", caseType: "other", replyDraft: "" }, context("Bugün sipariş versem cumartesi gelir mi?"));
+  assert(normalizeText(shipping.json.cevap).toLowerCase().includes("aras kargo"));
+  assert(shipping.json.cevap.includes("2-3 iş günü"));
+  assert(!normalizeText(shipping.json.cevap).toLowerCase().includes("garantili"));
+
+  const authenticity = await runParse({ ...base, intent: "other", caseType: "other", replyDraft: "" }, context("Ürünler orijinal mi, fatura var mı?"));
+  assert(normalizeText(authenticity.json.cevap).toLowerCase().includes("etbis"));
+  assert(normalizeText(authenticity.json.cevap).toLowerCase().includes("3d secure"));
 }
 
 async function testOohMessages() {
@@ -390,6 +439,7 @@ async function testAiFailurePreparation() {
 
 (async () => {
   await testNormalize();
+  await testAdminNumberFilter();
   await testPolicy();
   await testBusinessHoursNextAttempt();
   await testOohMessages();
