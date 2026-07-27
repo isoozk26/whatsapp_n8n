@@ -40,6 +40,9 @@ def main():
     assert targets("Webhook Auth", 1) == ["Respond Unauthorized"]
     assert targets("Load Admin Filter Settings") == ["Apply Admin Number Filter"]
     assert targets("Apply Admin Number Filter") == ["Is Admin Number?"]
+    assert 'key = \'admin_phone_a\'' in node("Load Admin Filter Settings")["parameters"]["query"]
+    assert 'key = \'admin_phone_b\'' in node("Load Admin Filter Settings")["parameters"]["query"]
+    assert "configuredAdminNumbers.includes(senderNumber)" in node("Apply Admin Number Filter")["parameters"]["jsCode"]
     assert targets("Is Admin Number?", 0) == ["Respond Admin Filtered"]
     assert targets("Is Admin Number?", 1) == ["Valid Event?"]
     assert node("Respond Admin Filtered")["parameters"]["options"]["responseCode"] == 202

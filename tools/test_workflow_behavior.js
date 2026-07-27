@@ -79,6 +79,8 @@ async function testAdminNumberFilter() {
   const filtered = await execute(codeOf("Apply Admin Number Filter"), {
     adminFilterEnabled: "true",
     adminNumberPrefixes: "905360",
+    adminPhoneA: "111",
+    adminPhoneB: "222",
   }, (name) => {
     assert.strictEqual(name, "Normalize Payload");
     return { item: { json: normalized.json } };
@@ -88,14 +90,34 @@ async function testAdminNumberFilter() {
   const normal = await execute(codeOf("Apply Admin Number Filter"), {
     adminFilterEnabled: "true",
     adminNumberPrefixes: "905360",
+    adminPhoneA: "111",
+    adminPhoneB: "222",
   }, () => ({ item: { json: { ...normalized.json, senderNumber: "905320000001" } } }));
   assert.strictEqual(normal.json.isAdminNumber, false);
 
   const command = await execute(codeOf("Apply Admin Number Filter"), {
     adminFilterEnabled: "true",
     adminNumberPrefixes: "905360",
+    adminPhoneA: "111",
+    adminPhoneB: "222",
   }, () => ({ item: { json: { ...normalized.json, fromMe: true, command: "pause" } } }));
   assert.strictEqual(command.json.isAdminNumber, false);
+
+  const exactAdmin = await execute(codeOf("Apply Admin Number Filter"), {
+    adminFilterEnabled: "false",
+    adminNumberPrefixes: "905360",
+    adminPhoneA: "111",
+    adminPhoneB: "222",
+  }, () => ({ item: { json: { ...normalized.json, senderNumber: "111" } } }));
+  assert.strictEqual(exactAdmin.json.isAdminNumber, true);
+
+  const exactAdminCommand = await execute(codeOf("Apply Admin Number Filter"), {
+    adminFilterEnabled: "false",
+    adminNumberPrefixes: "905360",
+    adminPhoneA: "111",
+    adminPhoneB: "222",
+  }, () => ({ item: { json: { ...normalized.json, senderNumber: "222", fromMe: true, command: "pause" } } }));
+  assert.strictEqual(exactAdminCommand.json.isAdminNumber, true);
 }
 
 function context(text = "MANN W 712/95 fiyati nedir?", chatMemoryText = "") {
@@ -311,6 +333,14 @@ async function testPolicy() {
   }, context("Polen filtresi", "Müşteri: WDB2100351A528399\nMüşteri: Mercedes E200 1998"));
   assert.strictEqual(vinMemory.json.action, "reply");
   assert(!normalizeText(vinMemory.json.cevap).toLowerCase().includes("sasi"));
+  const vinDirect = await runParse({
+    intent: "compatibility", caseType: "exact_code_compatibility",
+    entities: { productCodes: [], vehicles: [] }, replyDraft: "", confidence: 0.9,
+  }, context("Polen filtresi WDB2100351A528399"));
+  assert(vinDirect.json.bildirim.includes("WDB2100351A528399"));
+  assert(vinDirect.json.bildirim.includes(vinDirect.json.senderNumber));
+  assert(!vinDirect.json.bildirim.includes("******"));
+  assert(!vinDirect.json.bildirim.includes("***"));
 
   const marketplace = await runParse({ ...base, intent: "other", caseType: "other", replyDraft: "" }, context("N11'de var mı?"));
   assert(normalizeText(marketplace.json.cevap).toLowerCase().includes("pazaryerlerinde"));
@@ -360,8 +390,10 @@ async function testOohMessages() {
   assert.deepStrictEqual(fresh.json.managerTargets, ["905052237182", "905306056066"]);
   assert.strictEqual(fresh.json.nextAiAttemptAt, "2026-07-28T06:00:00.000Z");
   assert(fresh.json.customerMsg.includes("Mesajınız için teşekkür ederiz."));
+  assert(!fresh.json.customerMsg.includes("Mann Filtre"));
   assert(fresh.json.customerMsg.includes("09:00 itibarıyla"));
   assert(fresh.json.managerMsg.includes("Mesai Dışı Müşteri Bildirimi"));
+  assert(fresh.json.managerMsg.includes("Mann Filtre"));
   assert(fresh.json.managerMsg.includes("gönderilecek."));
 
   const cooledLookup = (name) => {

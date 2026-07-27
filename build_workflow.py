@@ -224,16 +224,20 @@ const prefixes = String(settings.adminNumberPrefixes || '905360')
   .split(',')
   .map(value => value.replace(/[^0-9]/g, ''))
   .filter(Boolean);
+const configuredAdminNumbers = [settings.adminPhoneA, settings.adminPhoneB]
+  .map(value => String(value || '').replace(/[^0-9]/g, ''))
+  .filter(Boolean);
 const authorizedCommand = source.fromMe === true
   && ['pause', 'resume', 'check_mode'].includes(source.command);
 const senderNumber = String(source.senderNumber || '');
-const isAdminNumber = enabled
-  && !authorizedCommand
-  && prefixes.some(prefix => senderNumber.startsWith(prefix));
+const isConfiguredAdminNumber = configuredAdminNumbers.includes(senderNumber);
+const isAdminNumber = isConfiguredAdminNumber
+  || (enabled && !authorizedCommand && prefixes.some(prefix => senderNumber.startsWith(prefix)));
 return { json: {
   ...source,
   adminFilterEnabled: enabled,
   adminNumberPrefixes: prefixes,
+  configuredAdminNumbers,
   isAdminNumber
 } };
 """.strip()
@@ -827,26 +831,7 @@ const handoffLine = action === 'handoff'
 const messageCount = ctx.messageCount || 1;
 const batchLabel = messageCount > 1 ? `\n📋 ${messageCount} mesaj birleştirildi` : '';
 
-const maskPhone = (num) => {
-  const s = String(num || '');
-  if (s.length < 7) return s;
-  return s.slice(0, 4) + '***' + s.slice(-4);
-};
-const maskVin = (vin) => {
-  const s = String(vin || '');
-  if (s.length < 10) return s;
-  return s.slice(0, 6) + '******' + s.slice(-4);
-};
-
-let maskedOriginalText = originalText;
-const vinMatch = originalText.match(/\b[A-HJ-NPR-Z0-9]{17}\b/gi);
-if (vinMatch) {
-  vinMatch.forEach(vin => {
-    maskedOriginalText = maskedOriginalText.replace(vin, maskVin(vin));
-  });
-}
-
-const adminMessage = `${title}\n👤 ${ctx.senderName} · ${maskPhone(ctx.senderNumber)}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}${handoffLine}${upsellFlag}${bulkFlag}\n🎯 Funnel: ${funnelStage}\n\n💬 Müşteri\n"${maskedOriginalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
+const adminMessage = `${title}\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}${handoffLine}${upsellFlag}${bulkFlag}\n🎯 Funnel: ${funnelStage}\n\n💬 Müşteri\n"${originalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
 return { json: {
   ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,
   notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,
@@ -958,10 +943,10 @@ const scenarioLabel = {
 }[scenario] || 'Bilinmiyor';
 
 const templates = {
-  sunday: `Merhaba ${name} 👋\n\nPazar günü bizi tercih ettiğiniz için teşekkür ederiz.\n\nOtoFiltre olarak Pazar günleri işletmemiz kapalıdır. Mesajınız kayıt altına alınmıştır ve Pazartesi sabahı 09:00 itibarıyla uzmanlarımız tarafından değerlendirilecektir.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nAnlayışınız için teşekkür eder, iyi Pazarlar dileriz! 🙏\n— OtoFiltre Ekibi`,
-  holiday: `Merhaba ${name} 👋\n\nResmi tatil günü bizi tercih ettiğiniz için teşekkür ederiz.\n\nBugün işletmemiz resmi tatil nedeniyle kapalıdır. Mesajınız kayıt altına alınmıştır; bir sonraki iş günü sabahı 09:00 itibarıyla uzman ekibimiz tarafından değerlendirilecektir.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00 (Resmi tatiller hariç)\n\nAnlayışınız için teşekkür ederiz. 🙏\n— OtoFiltre Ekibi`,
-  early_morning: `Merhaba ${name} 👋\n\nSabahın erken saatinde bize ulaştığınız için teşekkür ederiz.\n\nMesajınız alınmıştır. Ekibimiz bugün saat 09:00'da göreve başlayacak ve size en kısa sürede dönüş yapacaktır.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nİyi günler dileriz! 🙏\n— OtoFiltre Ekibi`,
-  evening: `Merhaba ${name} 👋\n\nMesajınız için teşekkür ederiz.\n\nŞu an (${istanbulTime}) işletmemiz mesai saatleri dışındadır. Mesajınız kayıt altına alınmıştır; yarın sabah 09:00 itibarıyla uzman ekibimiz tarafından değerlendirilecek ve size dönüş yapılacaktır.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nBizi tercih ettiğiniz için teşekkür eder, anlayışınız için minnettarız. 🙏\n— OtoFiltre Ekibi`,
+  sunday: `Merhaba 👋\n\nPazar günü bizi tercih ettiğiniz için teşekkür ederiz.\n\nOtoFiltre olarak Pazar günleri işletmemiz kapalıdır. Mesajınız kayıt altına alınmıştır ve Pazartesi sabahı 09:00 itibarıyla uzmanlarımız tarafından değerlendirilecektir.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nAnlayışınız için teşekkür eder, iyi Pazarlar dileriz! 🙏\n— OtoFiltre Ekibi`,
+  holiday: `Merhaba 👋\n\nResmi tatil günü bizi tercih ettiğiniz için teşekkür ederiz.\n\nBugün işletmemiz resmi tatil nedeniyle kapalıdır. Mesajınız kayıt altına alınmıştır; bir sonraki iş günü sabahı 09:00 itibarıyla uzman ekibimiz tarafından değerlendirilecektir.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00 (Resmi tatiller hariç)\n\nAnlayışınız için teşekkür ederiz. 🙏\n— OtoFiltre Ekibi`,
+  early_morning: `Merhaba 👋\n\nSabahın erken saatinde bize ulaştığınız için teşekkür ederiz.\n\nMesajınız alınmıştır. Ekibimiz bugün saat 09:00'da göreve başlayacak ve size en kısa sürede dönüş yapacaktır.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nİyi günler dileriz! 🙏\n— OtoFiltre Ekibi`,
+  evening: `Merhaba 👋\n\nMesajınız için teşekkür ederiz.\n\nŞu an (${istanbulTime}) işletmemiz mesai saatleri dışındadır. Mesajınız kayıt altına alınmıştır; yarın sabah 09:00 itibarıyla uzman ekibimiz tarafından değerlendirilecek ve size dönüş yapılacaktır.\n\n🕘 Mesai saatlerimiz:\nPazartesi – Cumartesi: 09:00 – 18:00\n\nBizi tercih ettiğiniz için teşekkür eder, anlayışınız için minnettarız. 🙏\n— OtoFiltre Ekibi`,
 };
 
 const customerMsg = templates[scenario] || templates.evening;
@@ -1111,7 +1096,7 @@ nodes = [
     if_node("Webhook Auth", "={{ $json.authorized === true }}", [780, 160]),
     postgres_node(
         "Load Admin Filter Settings",
-        "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_filter_enabled'), 'true') AS \"adminFilterEnabled\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_number_prefixes'), '905360') AS \"adminNumberPrefixes\"",
+        "SELECT COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_filter_enabled'), 'true') AS \"adminFilterEnabled\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_number_prefixes'), '905360') AS \"adminNumberPrefixes\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\", COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\"",
         "={{ [] }}",
         [1000, 160],
     ),
