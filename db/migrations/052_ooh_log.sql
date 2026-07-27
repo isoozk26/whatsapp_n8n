@@ -15,5 +15,6 @@ CREATE TABLE IF NOT EXISTS whatsapp_ai.ooh_log (
 
 CREATE INDEX IF NOT EXISTS idx_ooh_log_created ON whatsapp_ai.ooh_log (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ooh_log_sender ON whatsapp_ai.ooh_log (sender_number);
+CREATE INDEX IF NOT EXISTS idx_ooh_log_sender_created ON whatsapp_ai.ooh_log (sender_number, created_at DESC);
 
 COMMIT;

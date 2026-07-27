@@ -273,6 +273,8 @@
         340
       ],
       "onError": "continueErrorOutput",
+      "continueOnFail": true,
+      "alwaysOutputData": true,
       "credentials": {
         "httpHeaderAuth": {
           "id": "evolution-api",
@@ -304,6 +306,8 @@
         420
       ],
       "onError": "continueErrorOutput",
+      "continueOnFail": true,
+      "alwaysOutputData": true,
       "credentials": {
         "httpHeaderAuth": {
           "id": "evolution-api",
@@ -335,6 +339,8 @@
         420
       ],
       "onError": "continueErrorOutput",
+      "continueOnFail": true,
+      "alwaysOutputData": true,
       "credentials": {
         "httpHeaderAuth": {
           "id": "evolution-api",

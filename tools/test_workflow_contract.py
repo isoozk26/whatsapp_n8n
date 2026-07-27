@@ -98,6 +98,11 @@ def main():
     tag_success = node("Tag Delivery Success")["parameters"]["jsCode"]
     assert "providerId.length > 0" in tag_success
     assert "missing_provider_message_id" in tag_success
+    for http_name in ("Send OOH to Customer", "Notify Managers A", "Notify Managers B"):
+        http_node = node(http_name)
+        assert http_node["type"] == "n8n-nodes-base.httpRequest"
+        assert http_node["continueOnFail"] is True
+        assert http_node["alwaysOutputData"] is True
 
     assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate"]
     for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "OOH Cooldown Check", "Log OOH Event"):
@@ -118,6 +123,7 @@ def main():
     assert "manager_sent boolean not null default false" in SQL.lower()
     assert "create index if not exists idx_ooh_log_created" in SQL.lower()
     assert "create index if not exists idx_ooh_log_sender" in SQL.lower()
+    assert "create index if not exists idx_ooh_log_sender_created" in SQL.lower()
     assert "interval '8 hours'" in node("OOH Cooldown Check")["parameters"]["query"].lower()
     ingest_query = node("Ingest Message")["parameters"]["options"]["queryReplacement"]
     assert "fromMe: $json.fromMe" in ingest_query

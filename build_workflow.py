@@ -1045,6 +1045,8 @@ nodes = [
         },
         "id": node_id("Send OOH to Customer"), "name": "Send OOH to Customer", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
         "position": [1880, 120], "onError": "continueErrorOutput",
+        "continueOnFail": True,
+        "alwaysOutputData": True,
         "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
     },
     {
@@ -1057,6 +1059,8 @@ nodes = [
         },
         "id": node_id("Notify Managers A"), "name": "Notify Managers A", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
         "position": [2100, 120], "onError": "continueErrorOutput",
+        "continueOnFail": True,
+        "alwaysOutputData": True,
         "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
     },
     {
@@ -1069,6 +1073,8 @@ nodes = [
         },
         "id": node_id("Notify Managers B"), "name": "Notify Managers B", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
         "position": [2320, 120], "onError": "continueErrorOutput",
+        "continueOnFail": True,
+        "alwaysOutputData": True,
         "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
     },
     postgres_node(
