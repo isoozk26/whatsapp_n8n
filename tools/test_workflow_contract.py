@@ -10,6 +10,7 @@ WORKFLOW = json.loads((ROOT / "workflow.json").read_text(encoding="utf-8"))
 SQL = "\n".join(path.read_text(encoding="utf-8") for path in sorted((ROOT / "db" / "migrations").glob("*.sql")))
 FINAL_SQL = (ROOT / "db" / "migrations" / "053_finalize_ai_retry_and_priority.sql").read_text(encoding="utf-8")
 SCHEMA_RECONCILE_SQL = (ROOT / "db" / "migrations" / "054_reconcile_delivery_priority_schema.sql").read_text(encoding="utf-8")
+STALE_MONITOR_SQL = (ROOT / "db" / "migrations" / "055_stale_batch_monitor.sql").read_text(encoding="utf-8")
 
 
 def node(name):
@@ -107,15 +108,18 @@ def main():
         assert http_node["continueOnFail"] is True
         assert http_node["alwaysOutputData"] is True
 
-    assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate"]
+    assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate", "Run Stale Batch Monitor"]
     for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "OOH Cooldown Check", "Log OOH Event"):
         pg = node(pg_name)
         assert pg["type"] == "n8n-nodes-base.postgres"
         assert pg["credentials"]["postgres"]["name"] == "WhatsApp State PostgreSQL"
+    stale_monitor = node("Run Stale Batch Monitor")
+    assert stale_monitor["type"] == "n8n-nodes-base.postgres"
+    assert "run_stale_batch_monitor" in stale_monitor["parameters"]["query"]
 
     for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events", "ooh_log"):
         assert f"whatsapp_ai.{table}" in SQL
-    for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report", "run_batch_readiness_probe"):
+    for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report", "run_batch_readiness_probe", "run_stale_batch_monitor"):
         assert f"FUNCTION whatsapp_ai.{function}" in SQL
     assert "p_correlation_id text DEFAULT ''" in SQL
     assert "correlationId', p_correlation_id" in SQL
@@ -161,6 +165,9 @@ def main():
     assert "ADD COLUMN IF NOT EXISTS priority integer NOT NULL DEFAULT 50" in SCHEMA_RECONCILE_SQL
     assert "ORDER BY d.priority DESC, d.created_at" in SCHEMA_RECONCILE_SQL
     assert "CREATE INDEX deliveries_ready_idx" in SCHEMA_RECONCILE_SQL
+    assert "STALE BATCH ALERT" in STALE_MONITOR_SQL
+    assert "run_stale_batch_monitor" in STALE_MONITOR_SQL
+    assert "stale_batch_monitor" in STALE_MONITOR_SQL
     assert "state IN ('closed', 'open', 'half_open')" in SQL
     assert "run_batch_readiness_probe" in SQL
     assert "claimableCount" in SQL

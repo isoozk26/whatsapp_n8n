@@ -1209,6 +1209,12 @@ return {
         "={{ [ $json.deliveryId, $json.success, $json.providerId || null, $json.errorMessage || null ] }}",
         [1220, 840],
     ),
+    postgres_node(
+        "Run Stale Batch Monitor",
+        "SELECT whatsapp_ai.run_stale_batch_monitor() AS result",
+        "={{ [] }}",
+        [340, 920],
+    ),
 ]
 
 
@@ -1225,6 +1231,7 @@ for node in nodes:
         "Evolution Circuit Gate",
         "OOH Cooldown Check",
         "Log OOH Event",
+        "Run Stale Batch Monitor",
     }:
         node["retryOnFail"] = True
         node["maxTries"] = 3
@@ -1241,6 +1248,7 @@ position_overrides = {
     "Notify Managers B": [2352, 420],
     "Log OOH Event": [2576, 420],
     "Evolution Circuit Gate": [352, 1040],
+    "Run Stale Batch Monitor": [340, 1040],
     "Evolution Circuit Open?": [560, 1040],
     "Claim Deliveries": [784, 1040],
     "Prepare Delivery": [1008, 1040],
@@ -1275,7 +1283,7 @@ connections = {
     "Rate Limit Exceeded?": {"main": [[edge("Respond Rate Limited")], [edge("Ingest Message")]]},
     "Ingest Message": {"main": [[edge("Respond Accepted")], [edge("Prepare Ingest Failure")]]},
     "Prepare Ingest Failure": {"main": [[edge("Respond 503")]]},
-    "Schedule Trigger": {"main": [[edge("OpenAI Circuit Gate"), edge("Evolution Circuit Gate")]]},
+    "Schedule Trigger": {"main": [[edge("OpenAI Circuit Gate"), edge("Evolution Circuit Gate"), edge("Run Stale Batch Monitor")]]},
     "OpenAI Circuit Gate": {"main": [[edge("OpenAI Circuit Open?")]]},
     "OpenAI Circuit Open?": {"main": [[edge("Claim Ready Batches")], []]},
     "Claim Ready Batches": {"main": [[edge("Store Context")]]},

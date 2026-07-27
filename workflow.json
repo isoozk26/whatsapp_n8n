@@ -1072,6 +1072,32 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT whatsapp_ai.run_stale_batch_monitor() AS result",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "id": "1a1672c4-d2c6-5f7f-8bf7-b4f1709ef7a3",
+      "name": "Run Stale Batch Monitor",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        340,
+        1040
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {
@@ -1335,6 +1361,11 @@
           },
           {
             "node": "Evolution Circuit Gate",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run Stale Batch Monitor",
             "type": "main",
             "index": 0
           }
