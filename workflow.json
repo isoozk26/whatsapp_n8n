@@ -365,8 +365,7 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ number: $json.senderNumber, text: $json.customerMsg }) }}",
         "options": {
-          "timeout": 15000,
-          "ignoreSslIssues": true
+          "timeout": 15000
         }
       },
       "id": "ae89c946-6f77-5369-a646-ce269565c1cf",
@@ -396,10 +395,9 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: $json.managerPhoneA, text: $json.managerMsg }) }}",
+        "body": "={{ JSON.stringify({ number: $('Build OOH Messages').item.json.managerPhoneA, text: $('Build OOH Messages').item.json.managerMsg }) }}",
         "options": {
-          "timeout": 15000,
-          "ignoreSslIssues": true
+          "timeout": 15000
         }
       },
       "id": "174e2507-43c7-58b0-ad23-824d929cb006",
@@ -429,10 +427,9 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ number: $json.managerPhoneB, text: $json.managerMsg }) }}",
+        "body": "={{ JSON.stringify({ number: $('Build OOH Messages').item.json.managerPhoneB, text: $('Build OOH Messages').item.json.managerMsg }) }}",
         "options": {
-          "timeout": 15000,
-          "ignoreSslIssues": true
+          "timeout": 15000
         }
       },
       "id": "0542bd34-6b70-5c3f-956c-3a8f1c48197d",
@@ -1116,8 +1113,7 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json.body) }}",
         "options": {
-          "timeout": 15000,
-          "ignoreSslIssues": true
+          "timeout": 15000
         }
       },
       "id": "9b6bc77e-3349-5cf5-b083-e28432ddc925",

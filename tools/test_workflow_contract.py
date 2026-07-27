@@ -136,6 +136,13 @@ def main():
         assert http_node["type"] == "n8n-nodes-base.httpRequest"
         assert http_node["continueOnFail"] is True
         assert http_node["alwaysOutputData"] is True
+        assert "ignoreSslIssues" not in http_node["parameters"].get("options", {})
+
+    assert "$('Build OOH Messages').item.json.managerPhoneA" in node("Notify Managers A")["parameters"]["body"]
+    assert "$('Build OOH Messages').item.json.managerMsg" in node("Notify Managers A")["parameters"]["body"]
+    assert "$('Build OOH Messages').item.json.managerPhoneB" in node("Notify Managers B")["parameters"]["body"]
+    assert "$('Build OOH Messages').item.json.managerMsg" in node("Notify Managers B")["parameters"]["body"]
+    assert "ignoreSslIssues" not in node("Send Delivery")["parameters"].get("options", {})
 
     assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate", "Run Stale Batch Monitor"]
     for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "Claim OOH Notification", "Log OOH Event"):
