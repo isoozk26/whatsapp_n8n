@@ -10,8 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT = Path(os.environ.get("N8N_WORKFLOW_OUTPUT", str(ROOT / "workflow.json")))
-POSTGRES_ID = os.environ.get("N8N_POSTGRES_CREDENTIAL_ID", "whatsapp-state-postgres")
-POSTGRES_NAME = os.environ.get("N8N_POSTGRES_CREDENTIAL_NAME", "WhatsApp State PostgreSQL")
+POSTGRES_ID = os.environ.get("N8N_POSTGRES_CREDENTIAL_ID", "hOSXsF6TYAQ3uQno")
+POSTGRES_NAME = os.environ.get("N8N_POSTGRES_CREDENTIAL_NAME", "Postgres account")
 EVOLUTION_ID = os.environ.get("N8N_EVOLUTION_CREDENTIAL_ID", "evolution-api")
 EVOLUTION_NAME = os.environ.get("N8N_EVOLUTION_CREDENTIAL_NAME", "Evolution API")
 OPENAI_ID = os.environ.get("N8N_OPENAI_CREDENTIAL_ID") or ""

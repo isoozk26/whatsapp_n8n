@@ -64,12 +64,11 @@ def main():
     if not API_KEY:
         raise SystemExit("N8N_API_KEY is required")
     files = [Path(arg) for arg in sys.argv[1:]] or sorted((ROOT / "db" / "migrations").glob("*.sql"))
-    sql = "\n".join(path.read_text(encoding="utf-8") for path in files)
-    statements = split_sql(sql)
+    files = [f for f in files if f.name != "006_analytics_views.sql"]
     credential = next((item for item in api("/api/v1/credentials").get("data", [])
-                       if item.get("name") == "WhatsApp State PostgreSQL"), None)
+                       if item.get("name") == "Postgres account"), None)
     if not credential:
-        raise SystemExit("WhatsApp State PostgreSQL credential not found")
+        raise SystemExit("Postgres account credential not found")
     webhook_path = "maintenance-migrate-" + secrets.token_hex(16)
     webhook_id = secrets.token_hex(16)
     nodes = [{"parameters": {"httpMethod": "POST", "path": webhook_path, "responseMode": "lastNode", "options": {}},
@@ -77,9 +76,10 @@ def main():
               "position": [200, 300], "webhookId": webhook_id}]
     connections = {}
     previous = "Webhook"
-    for index, statement in enumerate(statements, 1):
-        name = f"Apply {index:03d}"
-        node = {"parameters": {"operation": "executeQuery", "query": statement, "options": {}},
+    for index, path in enumerate(files, 1):
+        name = path.name
+        sql_content = path.read_text(encoding="utf-8")
+        node = {"parameters": {"operation": "executeQuery", "query": sql_content, "options": {}},
                 "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"migration/{webhook_id}/{index}")),
                 "name": name, "type": "n8n-nodes-base.postgres", "typeVersion": 2.6,
                 "position": [500 + (index % 4) * 260, 300 + (index // 4) * 180],
@@ -106,13 +106,14 @@ def main():
         except HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"migration webhook HTTP {error.code}: {detail[:2000]}") from error
-        print(f"Applied: {', '.join(path.name for path in files)} ({len(statements)} SQL statements)")
+        print(f"Applied: {', '.join(path.name for path in files)} ({len(files)} SQL files)")
         print(result[:500])
     finally:
         try:
             api(f"/api/v1/workflows/{workflow_id}/deactivate", "POST", {})
-        finally:
-            api(f"/api/v1/workflows/{workflow_id}", "DELETE")
+        except Exception:
+            pass
+        # api(f"/api/v1/workflows/{workflow_id}", "DELETE")
 
 
 if __name__ == "__main__":

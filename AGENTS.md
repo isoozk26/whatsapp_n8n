@@ -31,6 +31,12 @@ Evolution webhook → normalize → authenticate → validate event → PostgreS
 
 Inspect first, patch narrowly, run syntax/contract/behavior/security/outbound checks, then report exact results. Before production deployment, verify credentials, webhook headers, migration status, active workflow and execution settings. Do not declare success without evidence.
 
+Runbook standardı:
+
+- Canonical operasyon dokümanı `docs/runbook.md`'dir.
+- `docs/RUNBOOK.md` ile yapılan eski referanslar artık bu dosyayı kasteder.
+- Her deploy'da operasyon notları, evidence ve açık bulgular `docs/runbook.md` içinde güncellenir.
+
 ## Local deterministic tools
 
 The project MCP server is configured in `.codex/config.toml` and exposes read-only workflow checks. Before proposing a workflow deployment, run `release_gate`. A `BLOCKED` decision is a release blocker; do not bypass or weaken the failing check.

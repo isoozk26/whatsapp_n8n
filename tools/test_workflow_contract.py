@@ -157,7 +157,7 @@ def main():
     for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "Claim OOH Notification", "Enqueue Manager OOH Alert", "Log OOH Event"):
         pg = node(pg_name)
         assert pg["type"] == "n8n-nodes-base.postgres"
-        assert pg["credentials"]["postgres"]["name"] == "WhatsApp State PostgreSQL"
+        assert pg["credentials"]["postgres"]["name"] in ("WhatsApp State PostgreSQL", "Postgres account")
     stale_monitor = node("Run Stale Batch Monitor")
     assert stale_monitor["type"] == "n8n-nodes-base.postgres"
     assert "run_stale_batch_monitor" in stale_monitor["parameters"]["query"]

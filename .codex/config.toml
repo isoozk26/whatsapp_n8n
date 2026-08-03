@@ -1,7 +1,7 @@
 [mcp_servers.whatsapp_ai]
 command = "node"
 args = ["node_modules/tsx/dist/cli.mjs", "codex-tools/src/index.ts"]
-cwd = ".."
+cwd = "."
 enabled = true
 required = false
 startup_timeout_sec = 20

@@ -47,7 +47,7 @@ BEGIN
     
     RETURN result;
 END;
-$$ LANGUAGE sql;
+$$ LANGUAGE plpgsql;
 
 -- Dead Letter Queue Table
 CREATE TABLE IF NOT EXISTS whatsapp_ai.dead_letters (
@@ -124,7 +124,7 @@ BEGIN
     )
     SELECT r.id, r.batch_token, r.sender_number, r.channel, r.payload FROM recovered r;
 END;
-$$ LANGUAGE sql;
+$$ LANGUAGE plpgsql;
 
 -- Health Check Function
 -- Returns system health status for monitoring
@@ -173,4 +173,4 @@ BEGIN
     
     RETURN result;
 END;
-$$ LANGUAGE sql;
+$$ LANGUAGE plpgsql;
