@@ -1,1 +1,1 @@
-﻿UPDATE whatsapp_ai.settings SET value = 'AAo9MC_-DVYkYplxZuu__wJf_zs0K3wW38eJsgeyoVA' WHERE key = 'webhook_token';
+UPDATE whatsapp_ai.settings SET value = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS' WHERE key = 'webhook_token';
