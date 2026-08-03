@@ -2,12 +2,12 @@
 
 | Alan | Değer |
 | --- | --- |
-| Doküman sürümü | 3.1 |
-| Son güncelleme | 2026-07-29 |
+| Doküman sürümü | 3.2 |
+| Son güncelleme | 2026-08-04 |
 | Sistem | FiltreOto WhatsApp AI |
 | Workflow | `WhatsApp AI - v13 PostgreSQL Outbox` |
-| Node sayısı | 52 node / 44 connection source |
-| Migration kapsamı | `001` → `061` (paket 2026-08-03; `058` günlük rapor, `059` queue defer, `060` OOH manager outbox, `061` OOH settings hotfix) |
+| Node sayısı | 53 node / 44 connection source |
+| Migration kapsamı | `001` → `062` (rotate_webhook_token.sql eklendi) |
 | Timezone | `Europe/Istanbul` |
 | Sahiplik | Cemal Hasan / FiltreOto |
 | Canonical konum | `docs/runbook.md` (AGENTS.md kuralı; her deploy'da güncellenir) |
@@ -1350,13 +1350,13 @@ Bu altı vakanın hepsi `tools/test_workflow_behavior.js` içinde otomatik olmal
 ### C.7 İmza satırı
 
 ```
-Release: 4300820bb43c4f74d0e816a7f3b6a987d6543210 (webhook token update)
-Tarih ve saat (Europe/Istanbul): 2026-08-03 20:28
-Blok A: PASS   kanit: E2E check block ve npm run release:gate basariyla tamamlandi (100/100)
-Blok B: PASS   kanit: ops_drift_check ve canli n8n akis surumu dogrulandi
-Blok C: PASS   kanit: 36 migration dosyasi uygulandi; webhook token degeri maskeli olarak dogrulandi
-Blok D: PASS   kanit: secret literal taramasi temiz (wf_security.py, 036 haric tutuldu)
-Blok E: PASS   kanit: behavior testlerindeki tum politika kurallari dogrulandi
+Release: Sürüm 3.2 (webhook path parameters fix & token rotation)
+Tarih ve saat (Europe/Istanbul): 2026-08-04 00:51
+Blok A: PASS   kanit: npm run release:gate (100/100) ve npm run test:mcp basariyla tamamlandi
+Blok B: PASS   kanit: workflow.json ve canli n8n webhook path parametre eslesmesi dogrulandi
+Blok C: PASS   kanit: 37 migration uygulandi; settings webhook_token rotasyonu yapildi ve veri tabaninda dogrulandi
+Blok D: PASS   kanit: secret literal taramasi ve private environment validation basarili (allowlist disinda literal yok)
+Blok E: PASS   kanit: 905525922654 numarasina canli test mesaji ve OOH yonetici uyarilari basariyla gonderildi
 Karar: GO
 Karar veren: Antigravity AI
 ```

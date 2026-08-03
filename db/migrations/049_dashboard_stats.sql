@@ -22,8 +22,8 @@ BEGIN
             'dead', (SELECT count(*) FROM whatsapp_ai.deliveries WHERE status = 'dead')
         ),
         'circuit_breakers', jsonb_build_object(
-            'openai', (SELECT state FROM whatsapp_ai.circuit_breakers WHERE service_name = 'openai'),
-            'evolution', (SELECT state FROM whatsapp_ai.circuit_breakers WHERE service_name = 'evolution')
+            'openai', (SELECT state FROM whatsapp_ai.service_circuits WHERE service = 'openai'),
+            'evolution', (SELECT state FROM whatsapp_ai.service_circuits WHERE service = 'evolution')
         ),
         'today_events', jsonb_build_object(
             'total', (SELECT count(*) FROM whatsapp_ai.system_events WHERE created_at > date_trunc('day', now())),
@@ -145,8 +145,8 @@ BEGIN
     SELECT count(*) INTO v_processing_batches FROM whatsapp_ai.batches WHERE status = 'processing';
     SELECT count(*) INTO v_pending_deliveries FROM whatsapp_ai.deliveries WHERE status = 'pending';
     SELECT count(*) INTO v_dead_deliveries FROM whatsapp_ai.deliveries WHERE status = 'dead';
-    SELECT state INTO v_circuit_openai FROM whatsapp_ai.circuit_breakers WHERE service_name = 'openai';
-    SELECT state INTO v_circuit_evolution FROM whatsapp_ai.circuit_breakers WHERE service_name = 'evolution';
+    SELECT state INTO v_circuit_openai FROM whatsapp_ai.service_circuits WHERE service = 'openai';
+    SELECT state INTO v_circuit_evolution FROM whatsapp_ai.service_circuits WHERE service = 'evolution';
     SELECT MAX(updated_at) INTO v_last_processed FROM whatsapp_ai.batches WHERE status IN ('processing', 'pending');
     
     SELECT jsonb_build_object(
