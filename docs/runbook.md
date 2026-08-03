@@ -369,7 +369,29 @@ Aynı fonksiyon adı için birden fazla imza görünmesi **overload drift**'tir 
 python tools/wf_deploy.py        # veya python upload_to_n8n.py
 ```
 
-### 10.4 Deploy sonrası drift kontrolü
+### 10.4 Production webhook reconcile
+
+`tools/webhook_runtime_reconcile.py` varsayılan olarak dry-run çalışır. Canlı
+değişiklik için `--apply` ve operatör ortamından gelen n8n/Evolution bilgileri
+zorunludur. Araç, `evolution-webhook` yolunun sahiplerini listeler, aktif
+duplicate workflow'ları silmeden pasifleştirir, hedef workflow'u aktive eder
+ve Evolution'ı production `/webhook/` URL'sine `MESSAGES_UPSERT` ile bağlar.
+`webhookByEvents=false` kullanılır; böylece URL'ye `/messages-upsert` eki
+eklenmez. Secret değerleri hiçbir çıktıya yazılmaz.
+
+```powershell
+python tools/webhook_runtime_reconcile.py
+python tools/webhook_runtime_reconcile.py --apply
+```
+
+Webhook secret rotasyonu migration içine yazılmaz. PostgreSQL'e güvenli,
+parametreli operatör komutuyla uygulanır:
+
+```powershell
+psql "$env:WHATSAPP_POSTGRES_URL" -v webhook_token="$env:N8N_WEBHOOK_SECRET" -f db/ops/rotate_webhook.sql
+```
+
+### 10.5 Deploy sonrası drift kontrolü
 
 ```bash
 python tools/check_workflow_drift.py
@@ -1332,7 +1354,7 @@ Release: 4300820bb43c4f74d0e816a7f3b6a987d6543210 (webhook token update)
 Tarih ve saat (Europe/Istanbul): 2026-08-03 20:28
 Blok A: PASS   kanit: E2E check block ve npm run release:gate basariyla tamamlandi (100/100)
 Blok B: PASS   kanit: ops_drift_check ve canli n8n akis surumu dogrulandi
-Blok C: PASS   kanit: 36 migration dosyasi uygulandi, settings.webhook_token degeri 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS' olarak guncellendi
+Blok C: PASS   kanit: 36 migration dosyasi uygulandi; webhook token degeri maskeli olarak dogrulandi
 Blok D: PASS   kanit: secret literal taramasi temiz (wf_security.py, 036 haric tutuldu)
 Blok E: PASS   kanit: behavior testlerindeki tum politika kurallari dogrulandi
 Karar: GO

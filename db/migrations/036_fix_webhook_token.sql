@@ -1,1 +1,3 @@
-UPDATE whatsapp_ai.settings SET value = 'F9a2Km7Qx8LpN3vB7jR5wY2tH6dK4mS' WHERE key = 'webhook_token';
+-- Historical migration intentionally contains no credential value.
+-- Set whatsapp_ai.settings.webhook_token through the secure operator rotation
+-- procedure before enabling the production webhook.

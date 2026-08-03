@@ -14,6 +14,7 @@ HISTORICAL_SECRET_MIGRATIONS = {
 }
 
 SECRET_PATTERNS = [
+    (r'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}', 'JWT token'),
     (r'(?i)apikey["\x27]?\s*[:=]\s*["\x27][A-Z0-9-]{20,}["\x27]', 'API Key (genel)'),
     (r'(?i)password["\x27]?\s*[:=]\s*["\x27][^\x27"]{8,}["\x27]', 'Password'),
     (r'(?i)secret["\x27]?\s*[:=]\s*["\x27][^\x27"]{8,}["\x27]', 'Secret'),
@@ -26,16 +27,17 @@ SSL_PATTERNS = [
     (r'verify\s*=\s*False', 'SSL verify=False'),
 ]
 
-def scan_file(filepath, content):
+def scan_file(filepath, content, *, include_ssl=True):
     findings = []
     for pattern, desc in SECRET_PATTERNS:
         for m in re.finditer(pattern, content):
             line_num = content[:m.start()].count('\n') + 1
             findings.append({'file': str(filepath), 'line': line_num, 'type': 'SECRET', 'severity': 'CRITICAL', 'description': desc, 'match': m.group()[:50]})
-    for pattern, desc in SSL_PATTERNS:
-        for m in re.finditer(pattern, content):
-            line_num = content[:m.start()].count('\n') + 1
-            findings.append({'file': str(filepath), 'line': line_num, 'type': 'SSL', 'severity': 'MEDIUM', 'description': desc, 'match': m.group()})
+    if include_ssl:
+        for pattern, desc in SSL_PATTERNS:
+            for m in re.finditer(pattern, content):
+                line_num = content[:m.start()].count('\n') + 1
+                findings.append({'file': str(filepath), 'line': line_num, 'type': 'SSL', 'severity': 'MEDIUM', 'description': desc, 'match': m.group()})
     return findings
 
 def main():
@@ -44,6 +46,7 @@ def main():
     print(f"{'='*60}")
     all_findings = []
     active_files = [
+        ROOT / 'check_n8n.py',
         ROOT / 'build_workflow.py',
         ROOT / 'upload_to_n8n.py',
         ROOT / 'tools' / 'wf_deploy.py',
@@ -72,6 +75,12 @@ def main():
     wf_path = ROOT / 'workflow.json'
     if wf_path.exists():
         all_findings.extend(scan_file('workflow.json', wf_path.read_text(encoding='utf-8')))
+    # The canonical runbook is also addressed by docs/RUNBOOK.md on Windows;
+    # scan it once. Documentation may quote unsafe historical examples, so
+    # check it for credentials but not executable SSL behavior.
+    for doc_path in (ROOT / 'docs' / 'runbook.md',):
+        if doc_path.exists():
+            all_findings.extend(scan_file(doc_path.relative_to(ROOT), doc_path.read_text(encoding='utf-8', errors='replace'), include_ssl=False))
     critical = [f for f in all_findings if f['severity'] == 'CRITICAL']
     high = [f for f in all_findings if f['severity'] == 'HIGH']
     medium = [f for f in all_findings if f['severity'] == 'MEDIUM']

@@ -1,5 +1,6 @@
 # Ignore all temporary scripts
 *.py
+!check_n8n.py
 *.txt
 *.json
 
