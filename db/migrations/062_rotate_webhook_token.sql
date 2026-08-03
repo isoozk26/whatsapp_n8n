@@ -1,7 +1,7 @@
--- 062: webhook_token'i GUC 'app.webhook_token' uzerinden idempotent set eder.
--- Sabit/lekeli token dosyada tutulmaz. Runner GUC'u su sekilde verir:
---   psql -v ON_ERROR_STOP=1 -c "SET app.webhook_token = :'tok';" -f 062_...sql   (ayni oturumda)
--- veya: SELECT set_config('app.webhook_token', :'tok', false); \i 062_...sql
+-- 062: fresh-install/korumali operator senaryosu icin GUC 'app.webhook_token'
+-- uzerinden idempotent settings kurulumu. Canli token rotation icin bu migration
+-- kullanilmaz; db/ops/rotate_webhook.sql parametreli operator prosedurudur.
+-- GUC ve migration ayni psql oturumunda calistirilmalidir.
 DO $$
 DECLARE v_tok text := current_setting('app.webhook_token', true);
 BEGIN

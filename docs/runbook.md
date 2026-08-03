@@ -6,8 +6,8 @@
 | Son güncelleme | 2026-08-04 |
 | Sistem | FiltreOto WhatsApp AI |
 | Workflow | `WhatsApp AI - v13 PostgreSQL Outbox` |
-| Node sayısı | 53 node / 44 connection source |
-| Migration kapsamı | `001` → `062` (rotate_webhook_token.sql eklendi) |
+| Node sayısı | 52 node / 44 connection source (builder çıktısı; canlı sayı ayrıca doğrulanır) |
+| Migration kapsamı | `001` → `062` (062 yalnızca GUC verilmiş fresh-install/korumalı senaryo; canlı token rotation operatör SQL'iyle yapılır) |
 | Timezone | `Europe/Istanbul` |
 | Sahiplik | Cemal Hasan / FiltreOto |
 | Canonical konum | `docs/runbook.md` (AGENTS.md kuralı; her deploy'da güncellenir) |
@@ -180,7 +180,7 @@ Tüm nesneler `whatsapp_ai` şemasındadır. `public` şemaya ve n8n'in kendi ta
 | --- | --- | --- |
 | `admin_phone_a` | `90XXXXXXXXXX` | Yönetici A — no-reply filtresi + bildirim hedefi |
 | `admin_phone_b` | `90XXXXXXXXXX` | Yönetici B — no-reply filtresi + bildirim hedefi |
-| `webhook_token` | `[REDACTED]` | Webhook doğrulama değeri; migration ile **yazılmamalı** (Bölüm 17, F-09) |
+| `webhook_token` | `[REDACTED]` | Webhook doğrulama değeri; canlı rotation migration ile değil, parametreli operatör SQL'iyle yapılır |
 | `credentials_last_rotated_at` | timestamp | Rotasyon hatırlatması |
 
 > **2026-07-29 değişikliği:** `admin_filter_enabled` ve `admin_number_prefixes` artık okunmuyor. `Load Admin Filter Settings` yalnızca `admin_phone_a` / `admin_phone_b` çeker; `Apply Admin Number Filter` **tam eşleşme** yapar (`configuredAdminNumbers.includes(senderNumber)`), prefix mantığı kaldırıldı. Sözleşme testi prefix mantığının geri gelmesini engelliyor (`"startsWith" not in admin_filter`). Bu, F-01'i kapatır.
@@ -406,7 +406,7 @@ python tools/wf_diff.py          # commit <-> canlı published version
 ### 11.1 Canlı sürüm eşitliği (zorunlu)
 
 - [ ] n8n'de yayında olan workflow adı ve sürümü bekleneni gösteriyor
-- [ ] Node sayısı 53
+- [ ] Node sayısı 52 (builder çıktısı; canlı değer API'den doğrulanır)
 - [ ] `wf_diff.py` çıktısı boş
 
 ### 11.2 Runtime
@@ -710,7 +710,7 @@ Bu politika değiştirilirse Bölüm 9 komut zinciri baştan sona tekrar koşulu
 | F-09 | **P0** | Tarihsel migration dosyalarında literal secret/kişisel veri bulunuyor; yeni paketleme akışı bunları dışlıyor ve güvenlik taraması tarihsel allowlist'i görünür raporluyor | kısmen kapandı; rotasyon kanıtı bekleniyor |
 | F-10 | P1 | `commercialLead` deseni çok dar: yalnızca `isBulkOrder` veya birebir `fiyat almak istiyor(uz)` / `toplu sipariş` / `b2b`. `alım`, `sipariş`, `teklif`, `proforma`, `toptan`, `bayi`, `filo` ve 10 altı adet yakalanmıyor; ürün bağlamı koşulu yok (yanlış pozitif riski) | doğrulandı |
 | F-11 | P1 | Ticari talep artık yöneticiye düşüyor ama `caseType` `greeting` kalıyor: müşteri cevabı hâlâ genel selamlama metni, bildirim başlığı `👋 SELAMLAMA`, funnel `F1 Yakalama`, reason `customer_greeting`. Bölüm 15.5.3 politikası yarım uygulandı | doğrulandı |
-| F-12 | P2 | `E2E_RAPOR.md` ve `E2E_ANALIZ_RAPORU.md` v12.5 / 28-29 node / staticData mimarisini ve eski workflow ID'sini anlatıyor; canlı sistem v13 / 53 node / PostgreSQL outbox. Yanıltıcı ve eski P0 listesi taşıyor | doğrulandı |
+| F-12 | P2 | `E2E_RAPOR.md` ve `E2E_ANALIZ_RAPORU.md` v12.5 / 28-29 node / staticData mimarisini ve eski workflow ID'sini anlatıyor; canlı sistem v13 / builder çıktısı 52 node / PostgreSQL outbox. Yanıltıcı ve eski P0 listesi taşıyor | doğrulandı |
 | F-13 | P3 | Paket hijyeni: `tools/__pycache__` ve iç içe `opus5_analysis_package/` klasörü arşive girmiş | doğrulandı |
 
 Kapatma kriterleri:
@@ -1112,7 +1112,7 @@ if (caseType === 'partial_code') {
 2. Her ikisinin en başına şu bandı ekle:
 
 ```markdown
-> ⚠️ GEÇERSİZ — v12.5 dönemi (14 Tem 2026). Canlı sistem v13 PostgreSQL Outbox / 53 node.
+> ⚠️ GEÇERSİZ — v12.5 dönemi (14 Tem 2026). Güncel kaynak builder v13 PostgreSQL Outbox / 52 node üretir; canlı node sayısı ayrıca API'den doğrulanmalıdır.
 > Güncel operasyon dokümanı: `docs/runbook.md`.
 ```
 
@@ -1350,13 +1350,13 @@ Bu altı vakanın hepsi `tools/test_workflow_behavior.js` içinde otomatik olmal
 ### C.7 İmza satırı
 
 ```
-Release: Sürüm 3.2 (webhook path parameters fix & token rotation)
-Tarih ve saat (Europe/Istanbul): 2026-08-04 00:51
-Blok A: PASS   kanit: npm run release:gate (100/100) ve npm run test:mcp basariyla tamamlandi
-Blok B: PASS   kanit: workflow.json ve canli n8n webhook path parametre eslesmesi dogrulandi
-Blok C: PASS   kanit: 37 migration uygulandi; settings webhook_token rotasyonu yapildi ve veri tabaninda dogrulandi
-Blok D: PASS   kanit: secret literal taramasi ve private environment validation basarili (allowlist disinda literal yok)
-Blok E: PASS   kanit: 905525922654 numarasina canli test mesaji ve OOH yonetici uyarilari basariyla gonderildi
-Karar: GO
-Karar veren: Antigravity AI
+Release: Sürüm 3.2 (webhook path contract ve token güvenliği dokümantasyon düzeltmesi)
+Tarih ve saat (Europe/Istanbul): 2026-08-04
+Blok A: PASS   kanıt: local release gate ve MCP smoke test çıktıları ayrı saklanmalıdır
+Blok B: DOĞRULANMADI   canlı published version/active/path kanıtı bu çalışma alanında mevcut değil
+Blok C: DOĞRULANMADI   canlı migration ve webhook_token rotation kanıtı mevcut değil
+Blok D: KISMİ   local security scan temiz; indirilen runbook/paket redaksiyonu ayrıca doğrulanmalıdır
+Blok E: DOĞRULANMADI   canlı müşteri veya yönetici mesajı gönderilmedi
+Karar: NO-GO / canlı kanıt bekleniyor
+Karar veren: Codex
 ```

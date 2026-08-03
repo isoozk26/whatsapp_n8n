@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Migrations 058-061 icin regresyon testleri (yeniden yazim).
+"""Migrations 058-062 icin regresyon testleri (yeniden yazim).
 
 Kapsanan uc uretim duzeltmesi:
   058_daily_report_emoji.sql       -> gunluk rapor: kanal ayrimi + gercek latency + emoji
@@ -67,6 +67,7 @@ DAILY = _read("058_daily_report_emoji.sql")
 QUEUE = _read("059_queue_monitor_defer_fix.sql")
 OOH = _read("060_ooh_manager_outbox.sql")
 OOH_HOTFIX = _read("061_fix_ooh_manager_settings_key.sql")
+TOKEN_ROTATION = _read("062_rotate_webhook_token.sql")
 BASELINE = (MIG / "003_delivery_metrics.sql")
 BASELINE_SQL = BASELINE.read_text(encoding="utf-8") if BASELINE.exists() else ""
 
@@ -81,7 +82,7 @@ def test_syntax():
     except Exception:
         skip("sqlglot yok -> SQL parse dogrulamasi atlandi")
         return
-    for name, sql in (("058", DAILY), ("059", QUEUE), ("060", OOH), ("061", OOH_HOTFIX)):
+    for name, sql in (("058", DAILY), ("059", QUEUE), ("060", OOH), ("061", OOH_HOTFIX), ("062", TOKEN_ROTATION)):
         try:
             sqlglot.parse(sql, read="postgres")
             check(True, f"{name}: gecerli Postgres SQL olarak parse edildi")
@@ -210,6 +211,19 @@ def test_ooh_manager_hotfix():
           "061: eski phone_a/phone_b settings lookup'u yoktur")
 
 
+def test_token_rotation_migration():
+    print("\n[2/statik] 062 token rotation guard")
+    n = _norm(TOKEN_ROTATION)
+    check("current_setting('app.webhook_token', true)" in n,
+          "062: token yalnizca operator GUC'undan okunur")
+    check("length(trim(v_tok)) < 16" in n,
+          "062: kisa/eksik token yazilmasi engellenir")
+    check("ON CONFLICT (key) DO UPDATE" in n,
+          "062: settings upsert idempotenttir")
+    check(re.search(r"(?<![A-Za-z0-9])[A-Za-z0-9]{20,}(?![A-Za-z0-9])", TOKEN_ROTATION) is None,
+          "062: uzun sabit token bulunmaz")
+
+
 # ---------------------------------------------------------------------------
 # 3) BASELINE regresyon: eski anti-pattern gercekten degisti mi?
 # ---------------------------------------------------------------------------
@@ -266,13 +280,14 @@ def test_live_optional():
 
 
 def main():
-    print("migrations 058-061 test paketi (yeniden yazim)")
+    print("migrations 058-062 test paketi (yeniden yazim)")
     test_syntax()
     test_common_structure()
     test_daily_report()
     test_queue_monitor()
     test_ooh_manager_outbox()
     test_ooh_manager_hotfix()
+    test_token_rotation_migration()
     test_baseline_regression()
     test_live_optional()
     print("\n" + "-" * 60)
