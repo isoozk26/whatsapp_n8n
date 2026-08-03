@@ -225,6 +225,68 @@ async function testPolicy() {
   assert.strictEqual(quantityBulk.json.isBulkOrder, true);
   assert(quantityBulk.json.bildirim.includes("Toplu sipariş"));
 
+  const commercialLead = await runParse({
+    intent: "greeting",
+    caseType: "greeting",
+    entities: { productCodes: [], vehicles: [] },
+    replyDraft: "Merhaba, Filtre Oto'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü birlikte netleştirelim. Hangi araç için bakıyorsunuz?",
+    confidence: 0.92,
+  }, context("16 Kalem Filtre alımı için fiyat almak istiyoruz"));
+  assert.strictEqual(commercialLead.json.entities.quantity, 16);
+  assert.strictEqual(commercialLead.json.isBulkOrder, true);
+  assert.strictEqual(commercialLead.json.caseType, "partial_code");
+  assert.strictEqual(commercialLead.json.partialSubType, "bulk_request");
+  assert.strictEqual(commercialLead.json.intent, "price_stock");
+  assert.strictEqual(commercialLead.json.replyCustomer, true);
+  assert.strictEqual(commercialLead.json.pauseAutomation, false);
+  assert.strictEqual(commercialLead.json.reason, "bulk_purchase_intent");
+  assert.deepStrictEqual(commercialLead.json.missingFields, []);
+  assert.strictEqual(commercialLead.json.notifyAdmins, true);
+  assert(commercialLead.json.bildirim.includes("TOPLU ALIM TALEBİ"));
+
+  const smallCommercialLead = await runParse({
+    intent: "greeting",
+    caseType: "greeting",
+    entities: { productCodes: [], vehicles: [] },
+    replyDraft: "Merhaba, Filtre Oto'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü birlikte netleştirelim. Hangi araç için bakıyorsunuz?",
+    confidence: 0.92,
+  }, context("3 kalem filtre alacağız fiyat verir misiniz"));
+  assert.strictEqual(smallCommercialLead.json.entities.quantity, 3);
+  assert.strictEqual(smallCommercialLead.json.isBulkOrder, false);
+  assert.strictEqual(smallCommercialLead.json.caseType, "partial_code");
+  assert.strictEqual(smallCommercialLead.json.partialSubType, "bulk_request");
+  assert.strictEqual(smallCommercialLead.json.notifyAdmins, true);
+  assert.strictEqual(smallCommercialLead.json.pauseAutomation, false);
+  assert.strictEqual(smallCommercialLead.json.reason, "bulk_purchase_intent");
+  assert.deepStrictEqual(smallCommercialLead.json.missingFields, []);
+  assert(smallCommercialLead.json.bildirim.includes("TOPLU ALIM TALEBİ"));
+
+  const noisyB2B = await runParse({
+    intent: "greeting",
+    caseType: "greeting",
+    entities: { productCodes: [], vehicles: [] },
+    replyDraft: "Merhaba, Filtre Oto'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü birlikte netleştirelim. Hangi araç için bakıyorsunuz?",
+    confidence: 0.92,
+  }, context("b2b"));
+  assert.strictEqual(noisyB2B.json.caseType, "greeting");
+  assert.strictEqual(noisyB2B.json.notifyAdmins, false);
+  assert.strictEqual(noisyB2B.json.pauseAutomation, false);
+
+  const toptanBayi = await runParse({
+    intent: "greeting",
+    caseType: "greeting",
+    entities: { productCodes: [], vehicles: [] },
+    replyDraft: "Merhaba, Filtre Oto'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü birlikte netleştirelim. Hangi araç için bakıyorsunuz?",
+    confidence: 0.92,
+  }, context("Toptan filtre almak istiyoruz bayiyiz"));
+  assert.strictEqual(toptanBayi.json.caseType, "partial_code");
+  assert.strictEqual(toptanBayi.json.partialSubType, "bulk_request");
+  assert.strictEqual(toptanBayi.json.notifyAdmins, true);
+  assert.strictEqual(toptanBayi.json.pauseAutomation, false);
+  assert.strictEqual(toptanBayi.json.reason, "bulk_purchase_intent");
+  assert.deepStrictEqual(toptanBayi.json.missingFields, []);
+  assert(toptanBayi.json.bildirim.includes("TOPLU ALIM TALEBİ"));
+
   const media = await runParse({
     intent: "other",
     caseType: "other",

@@ -360,6 +360,10 @@ Confidence rehberliği:
 - 0.5-0.7: Belirsiz, ek bilgi gerekli
 - <0.5: Çok belirsiz, insan devri
 
+Kritik sınıflandırma kuralı:
+- Selamlama tek başına varsa `greeting` kullan.
+- Selamlama ile birlikte satın alma, teklif, toplu alım, miktar veya B2B sinyali varsa `greeting` yerine talebi sınıflandır.
+
 Örnekler:
 Input: "BOSCH F026400287 var mı fiyat ne kadar"
 Output: {"intent":"price_stock","caseType":"exact_code_price_stock","entities":{"productCodes":[{"code":"BOSCH F026400287"}],"preferredBrands":["BOSCH"],"quantity":"Belirtilmedi","vehicles":[]},"replyDraft":"","confidence":0.95,"expectsReply":false}
@@ -374,7 +378,10 @@ Input: "Merhaba"
 Output: {"intent":"greeting","caseType":"greeting","entities":{"productCodes":[],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[]},"replyDraft":"","confidence":0.95,"expectsReply":false}
 
 Input: "MN134 ve HU7012 filtre var mı"
-Output: {"intent":"price_stock","caseType":"exact_code_price_stock","entities":{"productCodes":[{"code":"MN134"},{"code":"HU7012"}],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[]},"replyDraft":"","confidence":0.92,"expectsReply":false}"""
+Output: {"intent":"price_stock","caseType":"exact_code_price_stock","entities":{"productCodes":[{"code":"MN134"},{"code":"HU7012"}],"preferredBrands":[],"quantity":"Belirtilmedi","vehicles":[]},"replyDraft":"","confidence":0.92,"expectsReply":false}
+
+Input: "Merhabalar. 16 Kalem Filtre alımı için fiyat almak istiyoruz"
+Output: {"intent":"price_stock","caseType":"partial_code","entities":{"productCodes":[],"preferredBrands":[],"quantity":16,"vehicles":[]},"replyDraft":"","confidence":0.80,"expectsReply":true}"""
 
 
 parse_ai_js = r"""
@@ -462,7 +469,7 @@ entities.preferredBrands = entities.preferredBrands.filter(b => typeof b === 'st
 if (typeof entities.quantity !== 'string' && typeof entities.quantity !== 'number') entities.quantity = 'Belirtilmedi';
 // Deterministik adet yakalama — LLM kaçırırsa metinden çıkar
 if (entities.quantity === 'Belirtilmedi') {
-  const qMatch = plainText.match(/(\d{1,4})\s*(?:adet|tane|ad\.|ad\b|x)\b/i)
+  const qMatch = plainText.match(/(\d{1,4})\s*(?:adet|tane|kalem|ad\.|ad\b|x)\b/i)
     || plainText.match(/\b(?:adet|tane)\s*[:=]?\s*(\d{1,4})\b/i);
   if (qMatch) {
     const q = parseInt(qMatch[1], 10);
@@ -578,6 +585,12 @@ if (caseType === 'partial_code') {
   }
 }
 
+const purchaseIntent = /\b(al[ıi]m|alacağ[ıi]z|almak istiy|sipariş\s*(?:ver|geç|oluştur)|teklif|proforma|fiyat\s*(?:al|listesi|ver|çalışma))/i.test(plainText);
+const quantitySignal = isBulkOrder || /\b\d{1,4}\s*(?:kalem|adet|tane|kutu|koli|palet|çeşit)\b/i.test(plainText);
+const b2bSignal = /\b(toptan|bayi|bayilik|filo|oto\s*sanayi|kurumsal|ihale)\b/i.test(plainText);
+const productContext = filterRequest || vehicleRequestDetected || normalizedCodes.length > 0;
+const commercialLead = (purchaseIntent || quantitySignal || b2bSignal) && productContext;
+
 if (parsed._parseError) {
   if (deterministicCase) {
     reply = '';
@@ -620,11 +633,20 @@ if (caseType === 'exact_code_compatibility') {
     reply = 'Kodun bir kısmını görüyoruz ama tam eşleşme için tamamı gerekli. En kolayı şu: eski filtrenin üzerindeki yazının fotoğrafını gönderebilir misiniz? Kodu biz okuyalım. Dilerseniz kodu yazarak da iletebilirsiniz.';
   } else if (partialSubType === 'vehicle_info_only') {
     reply = 'Aracınızı not aldık. Aynı modelde farklı motor seçenekleri farklı filtre kullanıyor; yanlış parça göndermemek için ruhsattaki şasi numarasını paylaşır mısınız? Motor hacmi ve yakıt türünü yazmanız da yeterli olur.';
+  } else if (partialSubType === 'bulk_request') {
+    reply = 'Merhaba, hoş geldiniz. Talebiniz için hemen fiyat çalışması yapalım. Ürün kodlarını yazabilir ya da mevcut listenizin fotoğrafını gönderebilirsiniz. Kodlar elinizde değilse araçların şasi numaraları da yeterli.';
   } else {
     reply = 'Size en hızlı şekilde yardımcı olabilmemiz için iki yoldan biri yeterli: ürünün kodu ya da ruhsattaki şasi numarası. Hangisi elinizin altındaysa onu yazar mısınız? Gerisini biz halledelim.';
   }
 } else if (caseType === 'greeting') {
-  reply = `Merhaba, ${BRAND_LINE}'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü birlikte netleştirelim. Hangi araç için bakıyorsunuz?`;
+  if (commercialLead) {
+    caseType = 'partial_code';
+    partialSubType = 'bulk_request';
+    intent = 'price_stock';
+    reply = 'Merhaba, hoş geldiniz. Talebiniz için hemen fiyat çalışması yapalım. Ürün kodlarını yazabilir ya da mevcut listenizin fotoğrafını gönderebilirsiniz. Kodlar elinizde değilse araçların şasi numaraları da yeterli.';
+  } else {
+    reply = `Merhaba, ${BRAND_LINE}'ya hoş geldiniz. Filtre kodunu ya da aracınızın şasi numarasını yazmanız yeterli — uygun ürünü birlikte netleştirelim. Hangi araç için bakıyorsunuz?`;
+  }
 } else if (caseType === 'non_product' || intent === 'return_complaint') {
   action = 'handoff'; pauseAutomation = true; notifyAdmins = true;
   if (intent === 'return_complaint') {
@@ -737,6 +759,9 @@ if (caseType === 'greeting' && action !== 'handoff') {
 if (caseType === 'unclear' && action !== 'handoff' && !pauseAutomation) {
   notifyAdmins = false;
 }
+if (commercialLead) {
+  notifyAdmins = true;
+}
 
 const replyStatusLabel = {
   'generated': '🤖 Yanıt Hazırlandı',
@@ -754,7 +779,9 @@ reply = reply.replace(/\s+/g, ' ').trim();
 
 let reason = '';
 if (action === 'handoff') reason = handoffReason || 'manual_review_required';
-else if (caseType === 'partial_code') reason = 'missing_product_code_or_vehicle';
+else if (caseType === 'partial_code') reason = partialSubType === 'bulk_request'
+  ? 'bulk_purchase_intent'
+  : 'missing_product_code_or_vehicle';
 else if (caseType === 'exact_code_price_stock') reason = 'product_code_identified';
 else if (caseType === 'exact_code_compatibility' && !vehicleComplete) reason = 'vehicle_info_incomplete';
 else if (caseType === 'exact_code_compatibility') reason = 'vehicle_and_code_ready';
@@ -763,9 +790,9 @@ else if (caseType === 'greeting') reason = 'customer_greeting';
 else reason = 'classified';
 
 const missingFields = [];
-if (caseType === 'partial_code' && normalizedCodes.length === 0) missingFields.push('productCode');
+if (caseType === 'partial_code' && partialSubType !== 'bulk_request' && normalizedCodes.length === 0) missingFields.push('productCode');
 if (caseType === 'exact_code_compatibility' && !vehicleComplete) missingFields.push(...missingVehicleFields);
-if (!yearMatch) missingFields.push('year');
+if (!yearMatch && !(caseType === 'partial_code' && partialSubType === 'bulk_request')) missingFields.push('year');
 
 const safetyFlags = [];
 if (invented.length > 0) safetyFlags.push('invented_code_blocked');
@@ -808,10 +835,12 @@ const titleMap = {
 title = titleMap[caseType] || '📩 YENİ TALEP';
 if (hasVin) title = '🚗 ŞASİ NO İLE UYUMLULUK SORGUSU';
 if (caseType === 'partial_code') {
-  title = partialSubType === 'incomplete_code' ? '🔎 EKSİK KOD'
+  title = partialSubType === 'bulk_request' ? '💰 TOPLU ALIM TALEBİ'
+    : partialSubType === 'incomplete_code' ? '🔎 EKSİK KOD'
     : partialSubType === 'vehicle_info_only' ? '🚗 ARAÇ BİLGİSİ GEREKLİ'
     : '🔎 EKSİK BİLGİ';
-  extraInfo = '🤖 Müşteriden bilgi istendi';
+  extraInfo = partialSubType === 'bulk_request' ? '🤖 Toplu fiyat çalışması'
+    : '🤖 Müşteriden bilgi istendi';
 }
 else if (action === 'handoff') extraInfo = handoffReason ? `⚠️ ${handoffReason}` : '';
 
@@ -820,7 +849,9 @@ if (caseType === 'exact_code_price_stock' && action !== 'handoff') actionLine = 
 else if (caseType === 'exact_code_compatibility' && !vehicleComplete) actionLine = '\n⏳ Eksik Bilgi: Araç detayı bekleniyor';
 else if (caseType === 'cross_reference') actionLine = '\n🎯 Beklenen Aksiyon: Muadil Çapraz Referans Kontrolü';
 else if (action === 'handoff') actionLine = '\n🎯 Beklenen Aksiyon: Manuel Müdahale';
-else if (caseType === 'partial_code') actionLine = '\n⏳ Müşteriden ek bilgi bekleniyor';
+else if (caseType === 'partial_code') actionLine = partialSubType === 'bulk_request'
+  ? '\n🎯 Beklenen Aksiyon: Toplu fiyat teklifi hazırla'
+  : '\n⏳ Müşteriden ek bilgi bekleniyor';
 else if (intent === 'return_complaint') actionLine = '\n🎯 Beklenen Aksiyon: Şikayet/İade İşlemi';
 
 const handoffLine = action === 'handoff'
@@ -1177,38 +1208,16 @@ SELECT EXISTS(SELECT 1 FROM claimed) AS claimed,
         "alwaysOutputData": True,
         "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
     },
-    {
-        "parameters": {
-            "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', 'https://evo.filtreoto.online')}/message/sendText/otofiltre",
-            "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
-            "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
-            "body": "={{ JSON.stringify({ number: $('Build OOH Messages').item.json.managerPhoneA, text: $('Build OOH Messages').item.json.managerMsg }) }}",
-            "options": {"timeout": 15000},
-        },
-        "id": node_id("Notify Managers A"), "name": "Notify Managers A", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
-        "position": [2100, 120], "onError": "continueErrorOutput",
-        "continueOnFail": True,
-        "alwaysOutputData": True,
-        "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
-    },
-    {
-        "parameters": {
-            "method": "POST", "url": f"{os.environ.get('EVOLUTION_API_URL', 'https://evo.filtreoto.online')}/message/sendText/otofiltre",
-            "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
-            "sendBody": True, "contentType": "raw", "rawContentType": "application/json",
-            "body": "={{ JSON.stringify({ number: $('Build OOH Messages').item.json.managerPhoneB, text: $('Build OOH Messages').item.json.managerMsg }) }}",
-            "options": {"timeout": 15000},
-        },
-        "id": node_id("Notify Managers B"), "name": "Notify Managers B", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
-        "position": [2320, 120], "onError": "continueErrorOutput",
-        "continueOnFail": True,
-        "alwaysOutputData": True,
-        "credentials": {"httpHeaderAuth": {"id": EVOLUTION_ID, "name": EVOLUTION_NAME}},
-    },
+    postgres_node(
+        "Enqueue Manager OOH Alert",
+        "SELECT whatsapp_ai.enqueue_ooh_manager_alert($1::uuid, $2) AS queued",
+        "={{ [ $('Build OOH Messages').item.json.oohLogId, $('Build OOH Messages').item.json.managerMsg ] }}",
+        [2100, 120],
+    ),
     postgres_node(
         "Log OOH Event",
-        "UPDATE whatsapp_ai.ooh_log SET customer_sent = $2, manager_sent = $3 WHERE id = $1::uuid RETURNING id",
-        "={{ [ $('Build OOH Messages').item.json.oohLogId, $('Build OOH Messages').item.json.customerSent, $('Build OOH Messages').item.json.managerSent ] }}",
+        "UPDATE whatsapp_ai.ooh_log SET customer_sent = $2 WHERE id = $1::uuid RETURNING id",
+        "={{ [ $('Build OOH Messages').item.json.oohLogId, $('Build OOH Messages').item.json.customerSent ] }}",
         [2540, 260],
     ),
     if_node("Rate Limit Exceeded?", "={{ $json.rateLimitExceeded === true }}", [780, 260]),
@@ -1276,7 +1285,7 @@ FROM whatsapp_ai.claim_ready_batches(10) claimed""",
         "position": [1220, 620], "onError": "continueErrorOutput",
     },
     {
-        "parameters": {"model": {"__rl": True, "value": "gpt-4o-mini", "mode": "list", "cachedResultName": "gpt-4o-mini"}, "builtInTools": {}, "options": {"temperature": 0.1, "maxTokens": 700}},
+        "parameters": {"model": {"__rl": True, "value": "gpt-5.4", "mode": "list", "cachedResultName": "gpt-5.4"}, "builtInTools": {}, "options": {"temperature": 0.1, "maxTokens": 700}},
         "id": node_id("OpenAI Chat Model1"), "name": "OpenAI Chat Model1", "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi", "typeVersion": 1.3,
         "position": [1140, 840], "credentials": {"openAiApi": {"id": OPENAI_ID, "name": OPENAI_NAME}},
     },
@@ -1396,8 +1405,7 @@ position_overrides = {
     "Build OOH Messages": [2128, 420],
     "OOH Claim Won?": [1904, 620],
     "Send OOH to Customer": [1904, 340],
-    "Notify Managers A": [2128, 420],
-    "Notify Managers B": [2352, 420],
+    "Enqueue Manager OOH Alert": [2128, 420],
     "Log OOH Event": [2576, 420],
     "Evolution Circuit Gate": [352, 1040],
     "Run Stale Batch Monitor": [340, 1040],
@@ -1432,9 +1440,8 @@ connections = {
     "Claim OOH Notification": {"main": [[edge("OOH Claim Won?")]]},
     "OOH Claim Won?": {"main": [[edge("Build OOH Messages")], []]},
     "Build OOH Messages": {"main": [[edge("Send OOH to Customer")]]},
-    "Send OOH to Customer": {"main": [[edge("Notify Managers A")], [edge("Notify Managers A")]]},
-    "Notify Managers A": {"main": [[edge("Notify Managers B")], [edge("Notify Managers B")]]},
-    "Notify Managers B": {"main": [[edge("Log OOH Event")], [edge("Log OOH Event")]]},
+    "Send OOH to Customer": {"main": [[edge("Enqueue Manager OOH Alert")], [edge("Enqueue Manager OOH Alert")]]},
+    "Enqueue Manager OOH Alert": {"main": [[edge("Log OOH Event")]]},
     "Log OOH Event": {"main": [[]]},
     "Rate Limit Exceeded?": {"main": [[edge("Respond Rate Limited")], [edge("Ingest Message")]]},
     "Ingest Message": {"main": [[edge("Respond Accepted"), edge("Is Off Hours?")], [edge("Prepare Ingest Failure")]]},

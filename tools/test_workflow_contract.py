@@ -68,12 +68,9 @@ def main():
     assert targets("OOH Claim Won?", 0) == ["Build OOH Messages"]
     assert targets("OOH Claim Won?", 1) == []
     assert targets("Build OOH Messages") == ["Send OOH to Customer"]
-    assert targets("Send OOH to Customer", 0) == ["Notify Managers A"]
-    assert targets("Send OOH to Customer", 1) == ["Notify Managers A"]
-    assert targets("Notify Managers A", 0) == ["Notify Managers B"]
-    assert targets("Notify Managers A", 1) == ["Notify Managers B"]
-    assert targets("Notify Managers B", 0) == ["Log OOH Event"]
-    assert targets("Notify Managers B", 1) == ["Log OOH Event"]
+    assert targets("Send OOH to Customer", 0) == ["Enqueue Manager OOH Alert"]
+    assert targets("Send OOH to Customer", 1) == ["Enqueue Manager OOH Alert"]
+    assert targets("Enqueue Manager OOH Alert") == ["Log OOH Event"]
     assert targets("Log OOH Event") == []
     assert targets("Rate Limit Exceeded?", 0) == ["Respond Rate Limited"]
     assert targets("Rate Limit Exceeded?", 1) == ["Ingest Message"]
@@ -124,6 +121,12 @@ def main():
     assert "HOLIDAYS" in parse and "BUSINESS_HOURS" in parse
     assert "Sat: [9, 18]" in parse
     assert "const isBulkOrder" in parse
+    assert "const purchaseIntent =" in parse
+    assert "const quantitySignal =" in parse
+    assert "const b2bSignal =" in parse
+    assert "const productContext =" in parse
+    assert "bulk_request" in parse
+    assert "TOPLU ALIM TALEBİ" in parse
     assert "Toplu sipariş" in parse
 
     assert targets("Send Delivery", 0) == ["Tag Delivery Success"]
@@ -136,21 +139,22 @@ def main():
     tag_success = node("Tag Delivery Success")["parameters"]["jsCode"]
     assert "providerId.length > 0" in tag_success
     assert "missing_provider_message_id" in tag_success
-    for http_name in ("Send OOH to Customer", "Notify Managers A", "Notify Managers B"):
+    for http_name in ("Send OOH to Customer",):
         http_node = node(http_name)
         assert http_node["type"] == "n8n-nodes-base.httpRequest"
         assert http_node["continueOnFail"] is True
         assert http_node["alwaysOutputData"] is True
         assert "ignoreSslIssues" not in http_node["parameters"].get("options", {})
 
-    assert "$('Build OOH Messages').item.json.managerPhoneA" in node("Notify Managers A")["parameters"]["body"]
-    assert "$('Build OOH Messages').item.json.managerMsg" in node("Notify Managers A")["parameters"]["body"]
-    assert "$('Build OOH Messages').item.json.managerPhoneB" in node("Notify Managers B")["parameters"]["body"]
-    assert "$('Build OOH Messages').item.json.managerMsg" in node("Notify Managers B")["parameters"]["body"]
+    enqueue = node("Enqueue Manager OOH Alert")
+    assert enqueue["type"] == "n8n-nodes-base.postgres"
+    assert "enqueue_ooh_manager_alert" in enqueue["parameters"]["query"]
+    assert "$('Build OOH Messages').item.json.oohLogId" in enqueue["parameters"]["options"]["queryReplacement"]
+    assert "$('Build OOH Messages').item.json.managerMsg" in enqueue["parameters"]["options"]["queryReplacement"]
     assert "ignoreSslIssues" not in node("Send Delivery")["parameters"].get("options", {})
 
     assert targets("Schedule Trigger") == ["OpenAI Circuit Gate", "Evolution Circuit Gate", "Run Stale Batch Monitor"]
-    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "Claim OOH Notification", "Log OOH Event"):
+    for pg_name in ("Ingest Message", "OpenAI Circuit Gate", "Claim Ready Batches", "Complete AI Batch", "Record AI Failure", "Evolution Circuit Gate", "Claim Deliveries", "Record Delivery Result", "Claim OOH Notification", "Enqueue Manager OOH Alert", "Log OOH Event"):
         pg = node(pg_name)
         assert pg["type"] == "n8n-nodes-base.postgres"
         assert pg["credentials"]["postgres"]["name"] == "WhatsApp State PostgreSQL"
@@ -158,9 +162,9 @@ def main():
     assert stale_monitor["type"] == "n8n-nodes-base.postgres"
     assert "run_stale_batch_monitor" in stale_monitor["parameters"]["query"]
 
-    for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events", "ooh_log", "chat_memory"):
+    for table in ("settings", "batches", "messages", "manual_modes", "admin_notifications", "unclear_counts", "deliveries", "system_events", "ooh_log", "ooh_manager_dispatch", "chat_memory"):
         assert f"whatsapp_ai.{table}" in SQL
-    for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report", "run_batch_readiness_probe", "run_stale_batch_monitor"):
+    for function in ("ingest_message", "claim_ready_batches", "complete_ai_batch", "record_ai_failure", "claim_deliveries", "record_delivery_result", "cleanup_expired_state", "recover_stale_deliveries", "run_queue_monitor", "run_daily_report", "run_batch_readiness_probe", "run_stale_batch_monitor", "enqueue_ooh_manager_alert"):
         assert f"FUNCTION whatsapp_ai.{function}" in SQL
     assert "p_correlation_id text DEFAULT ''" in SQL
     assert "correlationId', p_correlation_id" in SQL
@@ -169,6 +173,10 @@ def main():
     assert "manual_check" in SQL
     assert "customer_sent boolean not null default false" in SQL.lower()
     assert "manager_sent boolean not null default false" in SQL.lower()
+    assert "deferred" in SQL.lower()
+    assert "channel = 'customer'" in SQL.lower()
+    assert "kind', 'ooh_manager'" in SQL.lower()
+    assert "primary key (ooh_log_id, channel)" in SQL.lower()
     assert "create index if not exists idx_ooh_log_created" in SQL.lower()
     assert "create index if not exists idx_ooh_log_sender" in SQL.lower()
     assert "create index if not exists idx_ooh_log_sender_created" in SQL.lower()
