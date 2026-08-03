@@ -34,11 +34,18 @@ jobs:
       - run: python tools/wf_validate.py workflow.json
       - run: python tools/wf_security.py
       - run: |
-          for migration in db/migrations/*.sql; do
-            if [[ "$(basename "$migration")" == "006_analytics_views.sql" ]]; then
-              echo "Skipping historical migration $migration: ai_audit_ledger is not part of this CI fixture"
-              continue
-            fi
+          for migration in \
+            db/migrations/001_whatsapp_state.sql \
+            db/migrations/002_catalog_resilience.sql \
+            db/migrations/003_delivery_metrics.sql \
+            db/migrations/052_ooh_log.sql \
+            db/migrations/054_reconcile_delivery_priority_schema.sql \
+            db/migrations/055_stale_batch_monitor.sql \
+            db/migrations/056_chat_memory.sql \
+            db/migrations/057_admin_number_filter.sql \
+            db/migrations/058_daily_report_emoji.sql \
+            db/migrations/059_queue_monitor_defer_fix.sql \
+            db/migrations/060_ooh_manager_outbox.sql; do
             echo "Applying $migration"
             psql -h localhost -U postgres -d whatsapp_test -v ON_ERROR_STOP=1 -f "$migration"
           done
