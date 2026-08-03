@@ -7,7 +7,7 @@
 | Sistem | FiltreOto WhatsApp AI |
 | Workflow | `WhatsApp AI - v13 PostgreSQL Outbox` |
 | Node sayısı | 52 node / 44 connection source |
-| Migration kapsamı | `001` → `060` (paket 2026-08-03; `058` günlük rapor, `059` queue defer, `060` OOH manager outbox) |
+| Migration kapsamı | `001` → `061` (paket 2026-08-03; `058` günlük rapor, `059` queue defer, `060` OOH manager outbox, `061` OOH settings hotfix) |
 | Timezone | `Europe/Istanbul` |
 | Sahiplik | Cemal Hasan / FiltreOto |
 | Canonical konum | `docs/runbook.md` (AGENTS.md kuralı; her deploy'da güncellenir) |
@@ -685,7 +685,7 @@ Bu politika değiştirilirse Bölüm 9 komut zinciri baştan sona tekrar koşulu
 | F-06 | P1 | `Parse AI Output`: greeting bildirim bastırması istisnasız; selamlama ile birlikte gelen ticari talep yönetici kuyruğuna hiç düşmüyor | **kısmen kapandı** → devamı F-10, F-11 |
 | F-07 | P2 | Adet yakalama regex'inde `kalem/çeşit/kutu/koli` birimleri yok; `isBulkOrder` pratikte tetiklenmiyor | **KAPANDI** (`kalem` eklendi) |
 | F-08 | P2 | `isBulkOrder` yalnızca yönetici mesajında kozmetik etiket; `notifyAdmins` politikasını etkilemiyor | **KAPANDI** (`commercialLead` → `notifyAdmins = true`) |
-| F-09 | **P0** | Paylaşılan pakette gerçek secret ve kişisel veri: `010_set_webhook_token.sql` (zayıf token), `036_fix_webhook_token.sql` (**canlı webhook token'ı**), `024_set_admin_phones.sql` (gerçek yönetici numaraları). `wf_security.py` `.sql` dosyalarını taramıyor | doğrulandı |
+| F-09 | **P0** | Tarihsel migration dosyalarında literal secret/kişisel veri bulunuyor; yeni paketleme akışı bunları dışlıyor ve güvenlik taraması tarihsel allowlist'i görünür raporluyor | kısmen kapandı; rotasyon kanıtı bekleniyor |
 | F-10 | P1 | `commercialLead` deseni çok dar: yalnızca `isBulkOrder` veya birebir `fiyat almak istiyor(uz)` / `toplu sipariş` / `b2b`. `alım`, `sipariş`, `teklif`, `proforma`, `toptan`, `bayi`, `filo` ve 10 altı adet yakalanmıyor; ürün bağlamı koşulu yok (yanlış pozitif riski) | doğrulandı |
 | F-11 | P1 | Ticari talep artık yöneticiye düşüyor ama `caseType` `greeting` kalıyor: müşteri cevabı hâlâ genel selamlama metni, bildirim başlığı `👋 SELAMLAMA`, funnel `F1 Yakalama`, reason `customer_greeting`. Bölüm 15.5.3 politikası yarım uygulandı | doğrulandı |
 | F-12 | P2 | `E2E_RAPOR.md` ve `E2E_ANALIZ_RAPORU.md` v12.5 / 28-29 node / staticData mimarisini ve eski workflow ID'sini anlatıyor; canlı sistem v13 / 53 node / PostgreSQL outbox. Yanıltıcı ve eski P0 listesi taşıyor | doğrulandı |
@@ -701,7 +701,7 @@ Kapatma kriterleri:
 - **F-06:** Bölüm 15.5 politikası kodda uygulanır + sistem prompt'una "selamlama + talep" kuralı ve few-shot örneği eklenir + 15.5.4 testleri geçer.
 - **F-07:** Adet regex'i genişletilir; `16 Kalem` girdisi `quantity=16` üretir.
 - **F-08:** `isBulkOrder` bildirim önceliği ve başlık seçimine bağlanır; davranış testi ile kanıtlanır.
-- **F-09:** Webhook token rotasyonu yapılır; `010`, `024`, `036` migration'larındaki literal değerler kaldırılır (env/parametre ile beslenir); paylaşılan pakette `[REDACTED]` bırakılır; `wf_security.py` `db/**/*.sql` taramasına genişletilir ve regresyon testi eklenir.
+- **F-09:** Webhook ve yönetici credential rotasyonu operatör ortamında yapılır. Uygulanmış `010`, `024`, `036` migration tarihçesi değiştirilmez; yeni secret kaynak koda yazılmaz, güvenli paketlemeden dışlanır ve `wf_security.py` tarihsel dosyaları ayrı raporlar.
 - **F-10:** Genişletilmiş desen + ürün bağlamı koşulu uygulanır; 4 davranış testi (10 altı adet, `teklif`, `toptan`, ürün bağlamsız `b2b` yanlış pozitifi) geçer.
 - **F-11:** `greeting + commercialLead` durumunda `caseType` → `partial_code` / `bulk_request`, müşteri cevabı nitelendirici metin, bildirim başlığı toplu alım başlığı olur; davranış testi bunu doğrular.
 - **F-12:** İki rapor `archive/` altına taşınır veya başlığına "GEÇERSİZ — v12.5 dönemi" bandı eklenir; `AGENTS.md` canonical doküman kuralına atıf verilir.
@@ -1102,7 +1102,7 @@ if (caseType === 'partial_code') {
 
 ### T-09 · F-13 · Paket hijyeni (Sıra 9, Efor 1)
 
-Paketleme scriptine exclude listesi: `__pycache__`, `*.pyc`, `.git`, `node_modules`, `.env*`, iç içe `opus5_analysis_package/`. Paket oluştuktan sonra `unzip -l` çıktısında bu desenlerin bulunmadığı doğrulanır.
+Paketleme: `python tools/package_core.py`. Araç `__pycache__`, `*.pyc`, `.git`, `node_modules`, `.env*`, nested `opus5_analysis_package/` ve tarihsel secret migration'larını dışlar; paket manifestini kendisi doğrular.
 
 ---
 
@@ -1199,9 +1199,10 @@ SELECT whatsapp_ai.cleanup_expired_state();
 | `058_daily_report_emoji.sql` | Günlük raporda müşteri/yönetici kanal ayrımı ve gerçek müşteri latency |
 | `059_queue_monitor_defer_fix.sql` | Ertelenmiş batch’leri alarm hesabından çıkarır |
 | `060_ooh_manager_outbox.sql` | Yönetici OOH bildirimini idempotent transactional outbox’a alır |
-| `010_set_webhook_token.sql` | Webhook token'ı literal yazıyor — F-09 kapsamında temizlenecek |
-| `024_set_admin_phones.sql` | Gerçek yönetici numaralarını literal yazıyor — F-09 kapsamında temizlenecek |
-| `036_fix_webhook_token.sql` | Canlı webhook token'ını literal yazıyor — **P0**, F-09 |
+| `061_fix_ooh_manager_settings_key.sql` | OOH yöneticilerini `admin_phone_a` / `admin_phone_b` ayarlarından kuyruğa alır |
+| `010_set_webhook_token.sql` | Tarihsel literal içerik — değiştirilmez, güvenli pakete alınmaz |
+| `024_set_admin_phones.sql` | Tarihsel literal içerik — değiştirilmez, güvenli pakete alınmaz |
+| `036_fix_webhook_token.sql` | Tarihsel literal içerik — değiştirilmez, güvenli pakete alınmaz |
 
 ---
 

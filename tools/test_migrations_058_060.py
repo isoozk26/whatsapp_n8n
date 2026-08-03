@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Migrations 058-060 icin regresyon testleri (yeniden yazim).
+"""Migrations 058-061 icin regresyon testleri (yeniden yazim).
 
 Kapsanan uc uretim duzeltmesi:
   058_daily_report_emoji.sql       -> gunluk rapor: kanal ayrimi + gercek latency + emoji
@@ -66,6 +66,7 @@ def _norm(text):
 DAILY = _read("058_daily_report_emoji.sql")
 QUEUE = _read("059_queue_monitor_defer_fix.sql")
 OOH = _read("060_ooh_manager_outbox.sql")
+OOH_HOTFIX = _read("061_fix_ooh_manager_settings_key.sql")
 BASELINE = (MIG / "003_delivery_metrics.sql")
 BASELINE_SQL = BASELINE.read_text(encoding="utf-8") if BASELINE.exists() else ""
 
@@ -80,7 +81,7 @@ def test_syntax():
     except Exception:
         skip("sqlglot yok -> SQL parse dogrulamasi atlandi")
         return
-    for name, sql in (("058", DAILY), ("059", QUEUE), ("060", OOH)):
+    for name, sql in (("058", DAILY), ("059", QUEUE), ("060", OOH), ("061", OOH_HOTFIX)):
         try:
             sqlglot.parse(sql, read="postgres")
             check(True, f"{name}: gecerli Postgres SQL olarak parse edildi")
@@ -93,7 +94,7 @@ def test_syntax():
 # ---------------------------------------------------------------------------
 def test_common_structure():
     print("\n[2/statik] ortak migration yapisi")
-    for name, sql in (("058", DAILY), ("059", QUEUE), ("060", OOH)):
+    for name, sql in (("058", DAILY), ("059", QUEUE), ("060", OOH), ("061", OOH_HOTFIX)):
         check("BEGIN;" in sql and "COMMIT;" in sql, f"{name}: BEGIN/COMMIT transaction ile sarili")
     check("CREATE OR REPLACE FUNCTION whatsapp_ai.run_daily_report()" in DAILY,
           "058: run_daily_report CREATE OR REPLACE ile guncellenir")
@@ -194,6 +195,21 @@ def test_ooh_manager_outbox():
           "060: eski fail-open (managerTargets.length>0) mantigi kullanilmaz")
 
 
+def test_ooh_manager_hotfix():
+    print("\n[2/statik] 061 OOH settings hotfix")
+    n = _norm(OOH_HOTFIX)
+    check("CREATE OR REPLACE FUNCTION whatsapp_ai.enqueue_ooh_manager_alert" in n,
+          "061: OOH enqueue fonksiyonu idempotent olarak yenilenir")
+    check("v_settings_key := 'admin_' || v_channel" in n,
+          "061: phone_a/phone_b kanallari admin_phone_a/admin_phone_b ayarlarina map edilir")
+    check("WHERE key = v_settings_key" in n,
+          "061: manager hedefi admin settings anahtarindan okunur")
+    check("SET manager_sent = v_queued" in n,
+          "061: manager_sent gercek kuyruklama sonucunu yansitir")
+    check("WHERE key = v_channel" not in n,
+          "061: eski phone_a/phone_b settings lookup'u yoktur")
+
+
 # ---------------------------------------------------------------------------
 # 3) BASELINE regresyon: eski anti-pattern gercekten degisti mi?
 # ---------------------------------------------------------------------------
@@ -250,12 +266,13 @@ def test_live_optional():
 
 
 def main():
-    print("migrations 058-060 test paketi (yeniden yazim)")
+    print("migrations 058-061 test paketi (yeniden yazim)")
     test_syntax()
     test_common_structure()
     test_daily_report()
     test_queue_monitor()
     test_ooh_manager_outbox()
+    test_ooh_manager_hotfix()
     test_baseline_regression()
     test_live_optional()
     print("\n" + "-" * 60)

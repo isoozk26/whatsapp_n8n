@@ -1,3 +1,5 @@
+> ⚠️ GEÇERSİZ — v12.5 dönemi. Güncel operasyon dokümanı: `docs/runbook.md`.
+
 # WhatsApp n8n Workflow — End-to-End (E2E) Rapor
 
 **Rapor Tarihi:** 14 Temmuz 2026  

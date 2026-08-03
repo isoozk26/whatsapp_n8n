@@ -7,6 +7,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+HISTORICAL_SECRET_MIGRATIONS = {
+    'db/migrations/010_set_webhook_token.sql',
+    'db/migrations/024_set_admin_phones.sql',
+    'db/migrations/036_fix_webhook_token.sql',
+}
+
 SECRET_PATTERNS = [
     (r'(?i)apikey["\x27]?\s*[:=]\s*["\x27][A-Z0-9-]{20,}["\x27]', 'API Key (genel)'),
     (r'(?i)password["\x27]?\s*[:=]\s*["\x27][^\x27"]{8,}["\x27]', 'Password'),
@@ -49,6 +55,20 @@ def main():
         if py_file.exists():
             content = py_file.read_text(encoding='utf-8', errors='replace')
             all_findings.extend(scan_file(py_file.relative_to(ROOT), content))
+    # Scan current SQL sources, while keeping applied migration history immutable.
+    # Historical files are reported as an explicit packaging/review exception,
+    # never silently treated as clean and never emitted into core packages.
+    historical = []
+    for sql_file in sorted((ROOT / 'db').rglob('*.sql')):
+        relative = sql_file.relative_to(ROOT).as_posix()
+        if relative in HISTORICAL_SECRET_MIGRATIONS:
+            historical.append(relative)
+            continue
+        all_findings.extend(scan_file(Path(relative), sql_file.read_text(encoding='utf-8', errors='replace')))
+    if historical:
+        print("  HISTORICAL MIGRATIONS EXCLUDED FROM PACKAGE SCAN:")
+        for relative in historical:
+            print(f"    - {relative}")
     wf_path = ROOT / 'workflow.json'
     if wf_path.exists():
         all_findings.extend(scan_file('workflow.json', wf_path.read_text(encoding='utf-8')))

@@ -1,3 +1,5 @@
+> ⚠️ GEÇERSİZ — v12.5 dönemi. Güncel operasyon dokümanı: `docs/runbook.md`.
+
 # WhatsApp n8n Workflow — Uçtan Uca (E2E) Analiz Raporu
 
 **Workflow ID:** MbJkVXLDCOZ5umpp  

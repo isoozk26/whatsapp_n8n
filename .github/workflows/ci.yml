@@ -45,7 +45,8 @@ jobs:
             db/migrations/057_admin_number_filter.sql \
             db/migrations/058_daily_report_emoji.sql \
             db/migrations/059_queue_monitor_defer_fix.sql \
-            db/migrations/060_ooh_manager_outbox.sql; do
+            db/migrations/060_ooh_manager_outbox.sql \
+            db/migrations/061_fix_ooh_manager_settings_key.sql; do
             echo "Applying $migration"
             psql -h localhost -U postgres -d whatsapp_test -v ON_ERROR_STOP=1 -f "$migration"
           done
