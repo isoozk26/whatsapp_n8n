@@ -32,6 +32,8 @@ def main():
         assert removed not in names, f"legacy node remains: {removed}"
 
     webhook = node("Webhook1")
+    assert webhook["parameters"]["httpMethod"] == "POST"
+    assert webhook["parameters"]["path"] == "evolution-webhook", "webhook path must not contain a query token"
     assert webhook["parameters"]["responseMode"] == "responseNode"
     assert targets("Webhook1") == ["Normalize Payload"]
     assert targets("Normalize Payload") == ["Validate Webhook Secret"]

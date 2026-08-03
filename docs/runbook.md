@@ -1278,7 +1278,7 @@ Kapsam uyarısı 2: A1 bir commit ile commit karşılaştırmasıdır, commit il
 
 | # | Kontrol | Beklenen |
 | --- | --- | --- |
-| C1 | Migration izleme tablosunda en yüksek sürüm | `060` uygulanmış |
+| C1 | Migration izleme tablosunda en yüksek sürüm | `061` uygulanmış |
 | C2 | `settings` içinde `admin_phone_a`, `admin_phone_b`, `webhook_token` | üçü de dolu, değer ekrana basılmaz |
 | C3 | Aynı tabloda `admin_filter_enabled` ve `admin_number_prefixes` | varsa deprecated notu düşülmüş, silinmemiş |
 | C4 | `complete_ai_batch` overload sayısı | tam 1 |
