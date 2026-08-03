@@ -1,5 +1,6 @@
 BEGIN;
 
+-- Emoji output uses chr() so the migration remains encoding-safe on every psql client.
 CREATE OR REPLACE FUNCTION whatsapp_ai.run_daily_report() RETURNS jsonb
 LANGUAGE plpgsql
 AS $$
@@ -61,53 +62,54 @@ BEGIN
       AND latency_ms IS NOT NULL;
 
     v_health := CASE
-        WHEN v_customer_dead > 0 OR v_customer_failed > 0 OR v_ai_dead > 0 THEN '🔴 Sağlık: sorun var'
-        WHEN v_pending > 0 OR v_recovered > 0 THEN '🟡 Sağlık: izlem gerekli'
-        ELSE '🟢 Sağlıklı'
+        WHEN v_customer_dead > 0 OR v_customer_failed > 0 OR v_ai_dead > 0
+            THEN chr(128308) || ' Saglik: sorun var'
+        WHEN v_pending > 0 OR v_recovered > 0
+            THEN chr(128993) || ' Saglik: izlem gerekli'
+        ELSE chr(128994) || ' Saglikli'
     END;
 
     v_text := array_to_string(ARRAY[
         v_health,
-        format(
-        E'📊 *GÜNLÜK OTOMASYON RAPORU*\n'
-        E'🕘 Son 24 saat\n'
-        E'🟢 Sağlıklı\n'
-        E'━━━━━━━━━━━━━━━━━━━━\n'
-        E'💬 *Müşteri Trafiği*\n'
-        E'   📥 Gelen mesaj: %s\n'
-        E'   ✅ Yanıt gönderildi: %s\n'
-        E'   🔁 Yeniden denenen: %s\n'
-        E'   ⛔ Başarısız (dead): %s\n'
-        E'━━━━━━━━━━━━━━━━━━━━\n'
-        E'🤖 *Yapay Zekâ*\n'
-        E'   ⚠️ AI hatası: %s\n'
-        E'   ✋ Manuel moda düşen: %s\n'
-        E'━━━━━━━━━━━━━━━━━━━━\n'
-        E'🛡️ *Sistem Sağlığı*\n'
-        E'   🔄 Otomatik kurtarma: %s\n'
-        E'   🔐 Auth reddi: %s\n'
-        E'   📬 Yöneticiye giden bildirim: %s\n'
-        E'   ⏳ İşlenmeyi bekleyen: %s\n'
-        E'   ⚡ Ortalama yanıt: %s sn\n'
-        E'   📈 P95 yanıt: %s sn\n'
-        E'━━━━━━━━━━━━━━━━━━━━\n'
-        E'— OtoFiltre Otomatik Sistem',
-        v_received,
-        v_customer_sent,
-        v_customer_failed,
-        v_customer_dead,
-        v_ai_dead,
-        v_ai_dead,
-        v_recovered,
-        v_auth_failures,
-        v_manager_sent,
-        v_pending,
-        round(COALESCE(v_avg, 0) / 1000, 1),
-        round(COALESCE(v_p95, 0) / 1000, 1)
+        format($report$
+%s GUNLUK OTOMASYON RAPORU
+%s Son 24 saat
+--------------------
+%s Musteri Trafigi
+   %s Gelen mesaj: %s
+   %s Yanit gonderildi: %s
+   %s Yeniden denenen: %s
+   %s Basarisiz (dead): %s
+--------------------
+%s Yapay Zeka
+   %s AI hatasi: %s
+   %s Manuel moda dusen: %s
+--------------------
+%s Sistem Sagligi
+   %s Otomatik kurtarma: %s
+   %s Auth reddi: %s
+   %s Yoneticiye giden bildirim: %s
+   %s Islenmeyi bekleyen: %s
+   %s Ortalama yanit: %s sn
+   %s P95 yanit: %s sn
+--------------------
+OtoFiltre Otomatik Sistem
+$report$,
+            chr(128202), chr(128336), chr(128172), chr(128229), v_received,
+            chr(9989), v_customer_sent, chr(128260), v_customer_failed,
+            chr(9940), v_customer_dead, chr(129302), chr(9888), v_ai_dead,
+            chr(9995), v_ai_dead, chr(128737) || chr(65039), chr(9851), v_recovered,
+            chr(128274), v_auth_failures, chr(128233), v_manager_sent,
+            chr(9203), v_pending, chr(9889), round(COALESCE(v_avg, 0) / 1000, 1),
+            chr(128200), round(COALESCE(v_p95, 0) / 1000, 1)
         )
     ], E'\n');
 
-    PERFORM whatsapp_ai.enqueue_admin_alert('daily_report:' || current_date::text, v_text, interval '23 hours');
+    PERFORM whatsapp_ai.enqueue_admin_alert(
+        'daily_report:' || current_date::text,
+        v_text,
+        interval '23 hours'
+    );
 
     RETURN jsonb_build_object(
         'received', v_received,

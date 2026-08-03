@@ -120,9 +120,13 @@ def test_daily_report():
     check("latency_ms IS NOT NULL" in n, "058: NULL latency degerleri haric tutulur")
     check("next_ai_attempt_at IS NULL OR next_ai_attempt_at <= clock_timestamp()" in n,
           "058: 'bekleyen' sayimi mesai disina ertelenmisleri haric tutar")
-    for emoji in ("📊", "📥", "✅", "🤖", "🛡️"):
-        check(emoji in DAILY, f"058: rapor emoji icerir ({emoji})")
-    check(all(badge in DAILY for badge in ("🟢", "🟡", "🔴")),
+    emoji_markers = {
+        "📊": "chr(128202)", "📥": "chr(128229)", "✅": "chr(9989)",
+        "🤖": "chr(129302)", "🛡️": "chr(128737)",
+    }
+    for emoji, marker in emoji_markers.items():
+        check(emoji in DAILY or marker in DAILY, f"058: rapor emoji icerir ({emoji})")
+    check(all(badge in DAILY for badge in ("chr(128994)", "chr(128993)", "chr(128308)")),
           "058: saglik rozeti (yesil/sari/kirmizi) mevcut")
     check("array_to_string(ARRAY[" in n and r"E'\n')" in DAILY,
           "058: satirlar array_to_string(ARRAY[...], E'\\n') ile gercek newline uretir")
