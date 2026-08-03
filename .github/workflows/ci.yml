@@ -33,7 +33,10 @@ jobs:
       - run: python tools/test_outbound_guard.py
       - run: python tools/wf_validate.py workflow.json
       - run: python tools/wf_security.py
-      - run: psql -h localhost -U postgres -d whatsapp_test -f db/migrations/001_whatsapp_state.sql
-      - run: psql -h localhost -U postgres -d whatsapp_test -f db/migrations/002_catalog_resilience.sql
-      - run: psql -h localhost -U postgres -d whatsapp_test -f db/migrations/003_delivery_metrics.sql
+      - run: |
+          for migration in db/migrations/*.sql; do
+            echo "Applying $migration"
+            psql -h localhost -U postgres -d whatsapp_test -v ON_ERROR_STOP=1 -f "$migration"
+          done
       - run: psql -h localhost -U postgres -d whatsapp_test -f db/tests/catalog_resilience.sql
+      - run: python tools/test_migrations_058_060.py
