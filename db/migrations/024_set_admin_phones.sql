@@ -1,1 +1,1 @@
-INSERT INTO whatsapp_ai.settings(key, value) VALUES ('admin_phone_a', '905052237182'), ('admin_phone_b', '905306056066') ON CONFLICT (key) DO NOTHING;
+INSERT INTO whatsapp_ai.settings(key, value) VALUES ('admin_phone_a', '05052237182'), ('admin_phone_b', '905306056066') ON CONFLICT (key) DO NOTHING;
