@@ -903,7 +903,14 @@ const hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12: 
 const minute = Number(new Intl.DateTimeFormat('tr-TR', { minute: 'numeric', timeZone: tz }).format(now));
 const dayShort = now.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
 const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
-const HOLIDAYS = ['2026-01-01','2026-03-20','2026-03-21','2026-03-22','2026-04-23','2026-05-01','2026-05-19','2026-05-27','2026-05-28','2026-05-29','2026-07-15','2026-08-30','2026-10-28','2026-10-29'];
+const year = dateKey.slice(0, 4);
+
+// Load holidays from settings (jsonb)
+const holidaysSetting = $('Load Holiday Settings').item.json || {};
+const holidaysJson = holidaysSetting.holidays || {};
+const holidaysForYear = holidaysJson[year] || [];
+const HOLIDAYS = Array.isArray(holidaysForYear) ? holidaysForYear : [];
+
 const BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18], Fri: [9, 18], Sat: [9, 18], Sun: null };
 const window = HOLIDAYS.includes(dateKey) ? null : BUSINESS_HOURS[dayShort];
 const offHours = !Array.isArray(window) || hour < window[0] || hour >= window[1];
@@ -913,7 +920,9 @@ const nextBusinessOpenIso = (() => {
   for (let i = 0; i < 14; i += 1) {
     const candidateDateKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(cursor);
     const candidateDayShort = cursor.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
-    const candidateWindow = HOLIDAYS.includes(candidateDateKey) ? null : BUSINESS_HOURS[candidateDayShort];
+    const candidateYear = candidateDateKey.slice(0, 4);
+    const candidateHolidays = holidaysJson[candidateYear] || [];
+    const candidateWindow = candidateHolidays.includes(candidateDateKey) ? null : BUSINESS_HOURS[candidateDayShort];
     if (Array.isArray(candidateWindow)) {
       if (candidateDateKey === dateKey && hour < candidateWindow[0]) {
         return new Date(`${candidateDateKey}T${String(candidateWindow[0]).padStart(2, '0')}:00:00+03:00`).toISOString();
@@ -1144,6 +1153,12 @@ nodes = [
     },
     code_node("Normalize Payload", normalize_js, [340, 260]),
     if_node("Valid Event?", "={{ $json.valid === true }}", [560, 260]),
+    postgres_node(
+        "Load Holiday Settings",
+        "SELECT value_jsonb AS holidays FROM whatsapp_ai.settings WHERE key = 'holidays'",
+        "={{ [] }}",
+        [780, 160],
+    ),
     code_node("Check Business Hours", check_business_hours_js, [780, 260]),
     postgres_node(
         "Claim OOH Notification",
@@ -1175,6 +1190,7 @@ nodes = [
     INSERT INTO whatsapp_ai.ooh_log(sender_number, sender_name, scenario, istanbul_day, istanbul_time, customer_sent, manager_sent, correlation_id)
     SELECT $1, $2, $3, $4, $5, false, false, $6
     FROM candidate
+    ON CONFLICT (sender_number) DO NOTHING
     RETURNING id
 )
 SELECT EXISTS(SELECT 1 FROM claimed) AS claimed,
@@ -1389,6 +1405,7 @@ for node in nodes:
         "Evolution Circuit Gate",
         "Claim OOH Notification",
         "Load Admin Filter Settings",
+        "Load Holiday Settings",
         "Log OOH Event",
         "Run Stale Batch Monitor",
         "Persist Chat Memory",
@@ -1399,6 +1416,7 @@ for node in nodes:
 
 position_overrides = {
     "Check Business Hours": [784, 420],
+    "Load Holiday Settings": [780, 160],
     "Claim OOH Notification": [1680, 620],
     "Is Off Hours?": [1232, 420],
     "Wait OOH 120 Seconds": [1456, 620],
@@ -1433,7 +1451,8 @@ connections = {
     "Load Admin Filter Settings": {"main": [[edge("Apply Admin Number Filter")] ]},
     "Apply Admin Number Filter": {"main": [[edge("Is Admin Number?")]]},
     "Is Admin Number?": {"main": [[edge("Respond Admin Filtered")], [edge("Valid Event?")]]},
-    "Valid Event?": {"main": [[edge("Check Business Hours")], [edge("Respond Ignored")]]},
+    "Valid Event?": {"main": [[edge("Load Holiday Settings")], [edge("Respond Ignored")]]},
+    "Load Holiday Settings": {"main": [[edge("Check Business Hours")]]},
     "Check Business Hours": {"main": [[edge("Rate Limit Exceeded?")]]},
     "Is Off Hours?": {"main": [[edge("Wait OOH 120 Seconds")], []]},
     "Wait OOH 120 Seconds": {"main": [[edge("Claim OOH Notification")]]},

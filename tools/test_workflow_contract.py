@@ -57,8 +57,9 @@ def main():
     normalize = node("Normalize Payload")["parameters"]["jsCode"]
     assert "body?.body?.data || root.body?.data" in normalize
     assert "isGroup" in normalize and "isBroadcast" in normalize
-    assert targets("Valid Event?", 0) == ["Check Business Hours"]
+    assert targets("Valid Event?", 0) == ["Load Holiday Settings"]
     assert targets("Valid Event?", 1) == ["Respond Ignored"]
+    assert targets("Load Holiday Settings") == ["Check Business Hours"]
     assert targets("Check Business Hours") == ["Rate Limit Exceeded?"]
     assert "$('Check Business Hours').item.json.offHours === true" in node("Is Off Hours?")["parameters"]["conditions"]["conditions"][0]["leftValue"]
     assert targets("Ingest Message", 0) == ["Respond Accepted", "Is Off Hours?"]

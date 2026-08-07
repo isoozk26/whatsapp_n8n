@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_ai.settings (
 );
 
 INSERT INTO whatsapp_ai.settings(key, value)
-VALUES ('webhook_legacy_query_enabled', 'true')
+VALUES ('webhook_legacy_query_enabled', 'false')
 ON CONFLICT (key) DO NOTHING;
 
 UPDATE whatsapp_ai.settings

@@ -221,8 +221,34 @@
     },
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT value_jsonb AS holidays FROM whatsapp_ai.settings WHERE key = 'holidays'",
+        "options": {
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "id": "89e82c9c-0ae0-54df-80fb-ee0905d4396a",
+      "name": "Load Holiday Settings",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        780,
+        160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "hOSXsF6TYAQ3uQno",
+          "name": "Postgres account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const ctx = $json || {};\nconst tz = 'Europe/Istanbul';\nconst now = ctx.overrideNow ? new Date(ctx.overrideNow) : new Date();\nconst hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12: false, timeZone: tz }).format(now));\nconst minute = Number(new Intl.DateTimeFormat('tr-TR', { minute: 'numeric', timeZone: tz }).format(now));\nconst dayShort = now.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });\nconst dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);\nconst HOLIDAYS = ['2026-01-01','2026-03-20','2026-03-21','2026-03-22','2026-04-23','2026-05-01','2026-05-19','2026-05-27','2026-05-28','2026-05-29','2026-07-15','2026-08-30','2026-10-28','2026-10-29'];\nconst BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18], Fri: [9, 18], Sat: [9, 18], Sun: null };\nconst window = HOLIDAYS.includes(dateKey) ? null : BUSINESS_HOURS[dayShort];\nconst offHours = !Array.isArray(window) || hour < window[0] || hour >= window[1];\nconst nextBusinessOpenIso = (() => {\n  if (!offHours) return null;\n  const cursor = new Date(now.getTime());\n  for (let i = 0; i < 14; i += 1) {\n    const candidateDateKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(cursor);\n    const candidateDayShort = cursor.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });\n    const candidateWindow = HOLIDAYS.includes(candidateDateKey) ? null : BUSINESS_HOURS[candidateDayShort];\n    if (Array.isArray(candidateWindow)) {\n      if (candidateDateKey === dateKey && hour < candidateWindow[0]) {\n        return new Date(`${candidateDateKey}T${String(candidateWindow[0]).padStart(2, '0')}:00:00+03:00`).toISOString();\n      }\n      if (candidateDateKey !== dateKey) {\n        return new Date(`${candidateDateKey}T${String(candidateWindow[0]).padStart(2, '0')}:00:00+03:00`).toISOString();\n      }\n    }\n    cursor.setUTCDate(cursor.getUTCDate() + 1);\n  }\n  return null;\n})();\nconst scenario = HOLIDAYS.includes(dateKey)\n  ? 'holiday'\n  : dayShort === 'Sun'\n    ? 'sunday'\n    : hour < 9\n      ? 'early_morning'\n      : 'evening';\nconst istanbulDay = { Mon: 'Pazartesi', Tue: 'Salı', Wed: 'Çarşamba', Thu: 'Perşembe', Fri: 'Cuma', Sat: 'Cumartesi', Sun: 'Pazar' }[dayShort] || dayShort;\nconst istanbulTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;\nreturn { json: {\n  ...ctx,\n  offHours,\n  isHoliday: HOLIDAYS.includes(dateKey),\n  scenario,\n  istanbulDay,\n  istanbulTime,\n  nextAiAttemptAt: nextBusinessOpenIso,\n  senderName: String(ctx.senderName || ctx.pushName || 'Değerli Müşterimiz'),\n  senderNumber: String(ctx.senderNumber || ''),\n  businessWindow: window,\n} };"
+        "jsCode": "const ctx = $json || {};\nconst tz = 'Europe/Istanbul';\nconst now = ctx.overrideNow ? new Date(ctx.overrideNow) : new Date();\nconst hour = Number(new Intl.DateTimeFormat('tr-TR', { hour: 'numeric', hour12: false, timeZone: tz }).format(now));\nconst minute = Number(new Intl.DateTimeFormat('tr-TR', { minute: 'numeric', timeZone: tz }).format(now));\nconst dayShort = now.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });\nconst dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);\nconst year = dateKey.slice(0, 4);\n\n// Load holidays from settings (jsonb)\nconst holidaysSetting = $('Load Holiday Settings').item.json || {};\nconst holidaysJson = holidaysSetting.holidays || {};\nconst holidaysForYear = holidaysJson[year] || [];\nconst HOLIDAYS = Array.isArray(holidaysForYear) ? holidaysForYear : [];\n\nconst BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18], Fri: [9, 18], Sat: [9, 18], Sun: null };\nconst window = HOLIDAYS.includes(dateKey) ? null : BUSINESS_HOURS[dayShort];\nconst offHours = !Array.isArray(window) || hour < window[0] || hour >= window[1];\nconst nextBusinessOpenIso = (() => {\n  if (!offHours) return null;\n  const cursor = new Date(now.getTime());\n  for (let i = 0; i < 14; i += 1) {\n    const candidateDateKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(cursor);\n    const candidateDayShort = cursor.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });\n    const candidateYear = candidateDateKey.slice(0, 4);\n    const candidateHolidays = holidaysJson[candidateYear] || [];\n    const candidateWindow = candidateHolidays.includes(candidateDateKey) ? null : BUSINESS_HOURS[candidateDayShort];\n    if (Array.isArray(candidateWindow)) {\n      if (candidateDateKey === dateKey && hour < candidateWindow[0]) {\n        return new Date(`${candidateDateKey}T${String(candidateWindow[0]).padStart(2, '0')}:00:00+03:00`).toISOString();\n      }\n      if (candidateDateKey !== dateKey) {\n        return new Date(`${candidateDateKey}T${String(candidateWindow[0]).padStart(2, '0')}:00:00+03:00`).toISOString();\n      }\n    }\n    cursor.setUTCDate(cursor.getUTCDate() + 1);\n  }\n  return null;\n})();\nconst scenario = HOLIDAYS.includes(dateKey)\n  ? 'holiday'\n  : dayShort === 'Sun'\n    ? 'sunday'\n    : hour < 9\n      ? 'early_morning'\n      : 'evening';\nconst istanbulDay = { Mon: 'Pazartesi', Tue: 'Salı', Wed: 'Çarşamba', Thu: 'Perşembe', Fri: 'Cuma', Sat: 'Cumartesi', Sun: 'Pazar' }[dayShort] || dayShort;\nconst istanbulTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;\nreturn { json: {\n  ...ctx,\n  offHours,\n  isHoliday: HOLIDAYS.includes(dateKey),\n  scenario,\n  istanbulDay,\n  istanbulTime,\n  nextAiAttemptAt: nextBusinessOpenIso,\n  senderName: String(ctx.senderName || ctx.pushName || 'Değerli Müşterimiz'),\n  senderNumber: String(ctx.senderNumber || ''),\n  businessWindow: window,\n} };"
       },
       "id": "228cb56e-e8b1-5183-b585-94781117e912",
       "name": "Check Business Hours",
@@ -236,7 +262,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH candidate AS (\n    SELECT b.sender_number\n    FROM whatsapp_ai.batches b\n    WHERE b.sender_number = $1\n      AND b.status = 'pending'\n      AND jsonb_array_length(b.pending_messages) > 0\n      AND b.first_message_at <= clock_timestamp() - INTERVAL '120 seconds'\n      AND NOT EXISTS (\n          SELECT 1\n          FROM whatsapp_ai.ooh_log l\n          WHERE l.sender_number = b.sender_number\n            AND l.created_at > clock_timestamp() - INTERVAL '8 hours'\n            AND l.customer_sent = true\n      )\n      AND NOT EXISTS (\n          SELECT 1\n          FROM whatsapp_ai.ooh_log l\n          WHERE l.sender_number = b.sender_number\n            AND l.created_at > clock_timestamp() - INTERVAL '10 minutes'\n            AND l.customer_sent = false\n      )\n    ORDER BY b.first_message_at\n    LIMIT 1\n    FOR UPDATE SKIP LOCKED\n), claimed AS (\n    INSERT INTO whatsapp_ai.ooh_log(sender_number, sender_name, scenario, istanbul_day, istanbul_time, customer_sent, manager_sent, correlation_id)\n    SELECT $1, $2, $3, $4, $5, false, false, $6\n    FROM candidate\n    RETURNING id\n)\nSELECT EXISTS(SELECT 1 FROM claimed) AS claimed,\n       (SELECT id FROM claimed LIMIT 1) AS \"oohLogId\",\n       $1::text AS \"senderNumber\",\n       $2::text AS \"senderName\",\n       $3::text AS scenario,\n       $4::text AS \"istanbulDay\",\n       $5::text AS \"istanbulTime\",\n       $6::text AS \"correlationId\",\n       COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\",\n       COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\"",
+        "query": "WITH candidate AS (\n    SELECT b.sender_number\n    FROM whatsapp_ai.batches b\n    WHERE b.sender_number = $1\n      AND b.status = 'pending'\n      AND jsonb_array_length(b.pending_messages) > 0\n      AND b.first_message_at <= clock_timestamp() - INTERVAL '120 seconds'\n      AND NOT EXISTS (\n          SELECT 1\n          FROM whatsapp_ai.ooh_log l\n          WHERE l.sender_number = b.sender_number\n            AND l.created_at > clock_timestamp() - INTERVAL '8 hours'\n            AND l.customer_sent = true\n      )\n      AND NOT EXISTS (\n          SELECT 1\n          FROM whatsapp_ai.ooh_log l\n          WHERE l.sender_number = b.sender_number\n            AND l.created_at > clock_timestamp() - INTERVAL '10 minutes'\n            AND l.customer_sent = false\n      )\n    ORDER BY b.first_message_at\n    LIMIT 1\n    FOR UPDATE SKIP LOCKED\n), claimed AS (\n    INSERT INTO whatsapp_ai.ooh_log(sender_number, sender_name, scenario, istanbul_day, istanbul_time, customer_sent, manager_sent, correlation_id)\n    SELECT $1, $2, $3, $4, $5, false, false, $6\n    FROM candidate\n    ON CONFLICT (sender_number) DO NOTHING\n    RETURNING id\n)\nSELECT EXISTS(SELECT 1 FROM claimed) AS claimed,\n       (SELECT id FROM claimed LIMIT 1) AS \"oohLogId\",\n       $1::text AS \"senderNumber\",\n       $2::text AS \"senderName\",\n       $3::text AS scenario,\n       $4::text AS \"istanbulDay\",\n       $5::text AS \"istanbulTime\",\n       $6::text AS \"correlationId\",\n       COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_a'), '') AS \"adminPhoneA\",\n       COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'admin_phone_b'), '') AS \"adminPhoneB\"",
         "options": {
           "queryReplacement": "={{ [ $('Normalize Payload').item.json.senderNumber, $('Normalize Payload').item.json.senderName, $('Check Business Hours').item.json.scenario, $('Check Business Hours').item.json.istanbulDay, $('Check Business Hours').item.json.istanbulTime, $('Normalize Payload').item.json.correlationId || '' ] }}"
         }
@@ -1282,7 +1308,7 @@
       "main": [
         [
           {
-            "node": "Check Business Hours",
+            "node": "Load Holiday Settings",
             "type": "main",
             "index": 0
           }
@@ -1290,6 +1316,17 @@
         [
           {
             "node": "Respond Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Holiday Settings": {
+      "main": [
+        [
+          {
+            "node": "Check Business Hours",
             "type": "main",
             "index": 0
           }
