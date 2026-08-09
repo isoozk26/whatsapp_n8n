@@ -1,0 +1,52 @@
+{
+  "name": "WhatsApp AI - Read-only Diagnostics",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "7f3f3f6f-2a3d-4b6a-9d3d-1f7e2a1c9b01",
+      "name": "Manual Diagnostics Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT jsonb_build_object(\n  'readOnly', true,\n  'checkedAt', clock_timestamp(),\n  'n8nExecutions24h', (SELECT count(*) FROM public.execution_entity WHERE \"startedAt\" >= now() - interval '24 hours'),\n  'n8nUnfinishedExecutions', (SELECT count(*) FROM public.execution_entity WHERE \"stoppedAt\" IS NULL),\n  'executionDataBytes', pg_total_relation_size('public.execution_data'),\n  'executionEntityBytes', pg_total_relation_size('public.execution_entity'),\n  'whatsappHealth', whatsapp_ai.get_health_status(),\n  'deadDeliveries', (SELECT count(*) FROM whatsapp_ai.deliveries WHERE status = 'dead'),\n  'pendingDeliveries', (SELECT count(*) FROM whatsapp_ai.deliveries WHERE status = 'pending'),\n  'sendingDeliveries', (SELECT count(*) FROM whatsapp_ai.deliveries WHERE status = 'sending'),\n  'pendingBatches', (SELECT count(*) FROM whatsapp_ai.batches WHERE status = 'pending'),\n  'processingBatches', (SELECT count(*) FROM whatsapp_ai.batches WHERE status = 'processing'),\n  'opsDryRun', COALESCE((SELECT value = 'true' FROM whatsapp_ai.settings WHERE key = 'ops_dry_run'), true)\n) AS diagnostics",
+        "options": {}
+      },
+      "id": "9c1d8e2f-6b4a-4f0c-8e1d-3a7b5c9d2e02",
+      "name": "Read-only Diagnostics Query",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [520, 300],
+      "credentials": {
+        "postgres": {
+          "id": "whatsapp-state-postgres",
+          "name": "WhatsApp State PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Diagnostics Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read-only Diagnostics Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false,
+    "timezone": "Europe/Istanbul"
+  },
+  "staticData": {}
+}
