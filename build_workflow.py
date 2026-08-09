@@ -93,9 +93,14 @@ const remoteJidAlt = String(key.remoteJidAlt || key.senderPn || '');
 const effectiveJid = remoteJid.endsWith('@lid')
   ? (remoteJidAlt || remoteJid)
   : remoteJid;
-const senderNumber = effectiveJid
-  .replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/g, '')
-  .replace(/[^0-9]/g, '');
+// Preserve opaque WhatsApp LID addresses when Evolution did not provide
+// remoteJidAlt/senderPn. Stripping @lid turns the LID into a false phone
+// number and makes Evolution reject the later sendText request with 400.
+const senderNumber = effectiveJid.endsWith('@lid')
+  ? effectiveJid.replace(/[^0-9@a-zA-Z._-]/g, '')
+  : effectiveJid
+      .replace(/@s\.whatsapp\.net$|@g\.us$/g, '')
+      .replace(/[^0-9]/g, '');
 const rawJid = remoteJid;
 
 const fromMe = payload?.key?.fromMe === true;
@@ -1074,15 +1079,18 @@ const deliveryId = String(row.id || '');
 const batchToken = String(row.batch_token || row.batchToken || '');
 const correlationId = String(row.correlation_id || row.correlationId || '');
 const channel = String(row.channel || '');
-const destination = String(row.destination || payload.number || '')
-  .replace(/[^0-9]/g, '');
+const rawDestination = String(row.destination || payload.number || '').trim();
+const destination = rawDestination.endsWith('@lid')
+  ? rawDestination.replace(/[^0-9@a-zA-Z._-]/g, '')
+  : rawDestination.replace(/[^0-9]/g, '');
 const text = String(payload.text || '').trim();
 
 const uuidOk =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     .test(deliveryId);
 
-const destinationOk = /^[1-9][0-9]{9,14}$/.test(destination);
+const destinationOk = /^[1-9][0-9]{9,14}$/.test(destination)
+  || /^[0-9]+@lid$/.test(destination);
 const textOk = text.length > 0 && text.length <= 4096;
 const channelOk = ['customer', 'phone_a', 'phone_b'].includes(channel);
 

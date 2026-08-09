@@ -55,6 +55,11 @@ async function testNormalize() {
   assert.strictEqual(normal.json.senderNumber, "905320000001");
   assert.strictEqual(normal.json.rateLimitExceeded, false);
   assert.strictEqual(rateLimited.json.rateLimitExceeded, true);
+  const lid = structuredClone(data);
+  lid.key.remoteJid = "11149818998846@lid";
+  const lidNormalized = await execute(codeOf("Normalize Payload"), webhook(lid), () => ({}), {});
+  assert.strictEqual(lidNormalized.json.valid, true);
+  assert.strictEqual(lidNormalized.json.senderNumber, "11149818998846@lid");
   const header = await execute(codeOf("Normalize Payload"), headerWebhook(data), () => ({}), {});
   assert.strictEqual(header.json.webhookToken, "header-token");
   assert.strictEqual(header.json.authSource, "header");
