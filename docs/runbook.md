@@ -7,7 +7,7 @@
 | Sistem | FiltreOto WhatsApp AI |
 | Workflow | `WhatsApp AI - v13 PostgreSQL Outbox` |
 | Node sayısı | 52 node / 44 connection source (builder çıktısı; canlı sayı ayrıca doğrulanır) |
-| Migration kapsamı | `001` → `062` (062 yalnızca GUC verilmiş fresh-install/korumalı senaryo; canlı token rotation operatör SQL'iyle yapılır) |
+| Migration kapsamı | `001` → `068` (062 yalnızca GUC verilmiş fresh-install/korumalı senaryo; canlı token rotation operatör SQL'iyle yapılır) |
 | Timezone | `Europe/Istanbul` |
 | Sahiplik | Cemal Hasan / FiltreOto |
 | Canonical konum | `docs/runbook.md` (AGENTS.md kuralı; her deploy'da güncellenir) |
@@ -701,7 +701,7 @@ Bu politika değiştirilirse Bölüm 9 komut zinciri baştan sona tekrar koşulu
 | --- | --- | --- | --- |
 | F-01 | P1 | Admin filtresi: prefix ayarı vs exact-match politikası tek kaynaktan beslenmiyor olabilir | **KAPANDI** (2026-07-29) |
 | F-02 | P0 (deploy öncesi) | Commit ↔ canlı published version drift kanıtı yok | doğrulanamadı |
-| F-03 | P1 | `ops_workflow` cron'ları ve `ops_drift_check.py` doğrulanmamış | doğrulanamadı |
+| F-03 | P1 | `ops_workflow` cron'ları ve `ops_drift_check.py` doğrulanmamış | inactive + dry-run guard kuruldu; execution kanıtı bekleniyor |
 | F-04 | P1 | 120 sn batch, OOH cooldown, duplicate/stuck `sending` yalnızca statik test edildi | kısmen doğrulandı |
 | F-05 | P2 | Migration'ların canlı DB'de uygulanma durumu ve function overload kontrolü rutin değil | doğrulanamadı |
 | F-06 | P1 | `Parse AI Output`: greeting bildirim bastırması istisnasız; selamlama ile birlikte gelen ticari talep yönetici kuyruğuna hiç düşmüyor | **kısmen kapandı** → devamı F-10, F-11 |
@@ -712,6 +712,8 @@ Bu politika değiştirilirse Bölüm 9 komut zinciri baştan sona tekrar koşulu
 | F-11 | P1 | Ticari talep artık yöneticiye düşüyor ama `caseType` `greeting` kalıyor: müşteri cevabı hâlâ genel selamlama metni, bildirim başlığı `👋 SELAMLAMA`, funnel `F1 Yakalama`, reason `customer_greeting`. Bölüm 15.5.3 politikası yarım uygulandı | doğrulandı |
 | F-12 | P2 | `E2E_RAPOR.md` ve `E2E_ANALIZ_RAPORU.md` v12.5 / 28-29 node / staticData mimarisini ve eski workflow ID'sini anlatıyor; canlı sistem v13 / builder çıktısı 52 node / PostgreSQL outbox. Yanıltıcı ve eski P0 listesi taşıyor | doğrulandı |
 | F-13 | P3 | Paket hijyeni: `tools/__pycache__` ve iç içe `opus5_analysis_package/` klasörü arşive girmiş | doğrulandı |
+| F-14 | P0 | 4 customer delivery Evolution API'den HTTP 400 ile dead oldu | kök neden: `Bad request - please check your parameters`; replay yapılmadı |
+| F-15 | P1 | Paylaşılan SSH/n8n/Coolify secret'ları rotate edilmedi | kullanıcı/operatör rotasyonu bekleniyor |
 
 Kapatma kriterleri:
 
@@ -728,6 +730,8 @@ Kapatma kriterleri:
 - **F-11:** `greeting + commercialLead` durumunda `caseType` → `partial_code` / `bulk_request`, müşteri cevabı nitelendirici metin, bildirim başlığı toplu alım başlığı olur; davranış testi bunu doğrular.
 - **F-12:** İki rapor `archive/` altına taşınır veya başlığına "GEÇERSİZ — v12.5 dönemi" bandı eklenir; `AGENTS.md` canonical doküman kuralına atıf verilir.
 - **F-13:** Paketleme scriptine exclude listesi eklenir (`__pycache__`, iç içe paket, `.git`).
+- **F-14:** Evolution request/instance/numara formatı canlı mesaj göndermeden doğrulanır; kök neden kanıtlanmadan replay veya outbound değişikliği yapılmaz.
+- **F-15:** SSH, n8n ve Coolify erişim secret'ları rotate edilir; yeni değerler sohbete veya repoya yazılmaz.
 
 **2026-07-29 itibarıyla kapanan bulguların kanıtı:**
 

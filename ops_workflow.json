@@ -24,7 +24,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.recover_stale_deliveries() AS result",
+        "query": "SELECT CASE\n    WHEN COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'ops_dry_run'), 'true') = 'true'\n        THEN jsonb_build_object('dryRun', true, 'job', 'Recover Stale Deliveries', 'wouldCall', 'whatsapp_ai.recover_stale_deliveries()')\n    ELSE whatsapp_ai.recover_stale_deliveries()\nEND AS result",
         "options": {}
       },
       "id": "93c853d1-26d3-580f-a214-6f24ba848979",
@@ -65,7 +65,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.run_queue_monitor() AS result",
+        "query": "SELECT CASE\n    WHEN COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'ops_dry_run'), 'true') = 'true'\n        THEN jsonb_build_object('dryRun', true, 'job', 'Run Queue Monitor', 'wouldCall', 'whatsapp_ai.run_queue_monitor()')\n    ELSE whatsapp_ai.run_queue_monitor()\nEND AS result",
         "options": {}
       },
       "id": "02abc362-8fdd-539c-a02e-02274c5f5936",
@@ -106,7 +106,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.run_daily_report() AS result",
+        "query": "SELECT CASE\n    WHEN COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'ops_dry_run'), 'true') = 'true'\n        THEN jsonb_build_object('dryRun', true, 'job', 'Run Daily Report', 'wouldCall', 'whatsapp_ai.run_daily_report()')\n    ELSE whatsapp_ai.run_daily_report()\nEND AS result",
         "options": {}
       },
       "id": "4ee3e530-1dfb-5a4d-aefd-d61836d030ed",
@@ -147,7 +147,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.run_retention() AS result",
+        "query": "SELECT CASE\n    WHEN COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'ops_dry_run'), 'true') = 'true'\n        THEN jsonb_build_object('dryRun', true, 'job', 'Run Retention', 'wouldCall', 'whatsapp_ai.run_retention()')\n    ELSE whatsapp_ai.run_retention()\nEND AS result",
         "options": {}
       },
       "id": "3aaeac28-3b38-50ff-be2d-a04c5276ab3d",
@@ -188,7 +188,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT whatsapp_ai.run_rotation_reminder() AS result",
+        "query": "SELECT CASE\n    WHEN COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'ops_dry_run'), 'true') = 'true'\n        THEN jsonb_build_object('dryRun', true, 'job', 'Run Rotation Reminder', 'wouldCall', 'whatsapp_ai.run_rotation_reminder()')\n    ELSE whatsapp_ai.run_rotation_reminder()\nEND AS result",
         "options": {}
       },
       "id": "b43ac942-e1a1-58c8-b4e6-aafb54b7840a",

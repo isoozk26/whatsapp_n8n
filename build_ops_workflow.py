@@ -26,17 +26,26 @@ def postgres(name, query, position):
             "position": position, "credentials": {"postgres": {"id": POSTGRES_ID, "name": POSTGRES_NAME}}}
 
 
+def guarded_query(job_name, function_call):
+    """Keep maintenance schedules side-effect-free until the dry-run flag is disabled."""
+    return f"""SELECT CASE
+    WHEN COALESCE((SELECT value FROM whatsapp_ai.settings WHERE key = 'ops_dry_run'), 'true') = 'true'
+        THEN jsonb_build_object('dryRun', true, 'job', '{job_name}', 'wouldCall', '{function_call}')
+    ELSE {function_call}
+END AS result"""
+
+
 jobs = [
     ("Delivery Recovery Every Minute", {"field": "minutes", "minutesInterval": 1},
-     "Recover Stale Deliveries", "SELECT whatsapp_ai.recover_stale_deliveries() AS result", 40),
+     "Recover Stale Deliveries", guarded_query("Recover Stale Deliveries", "whatsapp_ai.recover_stale_deliveries()"), 40),
     ("Queue Monitor Every Minute", {"field": "minutes", "minutesInterval": 1},
-     "Run Queue Monitor", "SELECT whatsapp_ai.run_queue_monitor() AS result", 120),
+     "Run Queue Monitor", guarded_query("Run Queue Monitor", "whatsapp_ai.run_queue_monitor()"), 120),
     ("Daily Report 0830", {"field": "cronExpression", "expression": "30 8 * * *"},
-     "Run Daily Report", "SELECT whatsapp_ai.run_daily_report() AS result", 320),
+     "Run Daily Report", guarded_query("Run Daily Report", "whatsapp_ai.run_daily_report()"), 320),
     ("Retention 0410", {"field": "cronExpression", "expression": "10 4 * * *"},
-     "Run Retention", "SELECT whatsapp_ai.run_retention() AS result", 520),
+     "Run Retention", guarded_query("Run Retention", "whatsapp_ai.run_retention()"), 520),
     ("Rotation Reminder 0900", {"field": "cronExpression", "expression": "0 9 * * *"},
-     "Run Rotation Reminder", "SELECT whatsapp_ai.run_rotation_reminder() AS result", 720),
+     "Run Rotation Reminder", guarded_query("Run Rotation Reminder", "whatsapp_ai.run_rotation_reminder()"), 720),
 ]
 nodes = []
 connections = {}
