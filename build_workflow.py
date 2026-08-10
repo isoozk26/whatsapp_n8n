@@ -90,16 +90,18 @@ const webhookToken = headerSecret || queryToken;
 const key = payload?.key || {};
 const remoteJid = String(key.remoteJid || '');
 const remoteJidAlt = String(key.remoteJidAlt || key.senderPn || '');
-const effectiveJid = remoteJid.endsWith('@lid')
+const isRemoteLid = remoteJid.toLowerCase().endsWith('@lid');
+const effectiveJid = isRemoteLid
   ? (remoteJidAlt || remoteJid)
   : remoteJid;
 // Preserve opaque WhatsApp LID addresses when Evolution did not provide
 // remoteJidAlt/senderPn. Stripping @lid turns the LID into a false phone
 // number and makes Evolution reject the later sendText request with 400.
-const senderNumber = effectiveJid.endsWith('@lid')
+const isLid = effectiveJid.toLowerCase().endsWith('@lid');
+const senderNumber = isLid
   ? effectiveJid.replace(/[^0-9@a-zA-Z._-]/g, '')
   : effectiveJid
-      .replace(/@s\.whatsapp\.net$|@g\.us$/g, '')
+      .replace(/@s\.whatsapp\.net$|@g\.us$/gi, '')
       .replace(/[^0-9]/g, '');
 const rawJid = remoteJid;
 
@@ -1080,11 +1082,12 @@ const batchToken = String(row.batch_token || row.batchToken || '');
 const correlationId = String(row.correlation_id || row.correlationId || '');
 const channel = String(row.channel || '');
 const rawDestination = String(row.destination || payload.number || '').trim();
-let destination = rawDestination.endsWith('@lid')
-  ? rawDestination.replace(/[^0-9@a-zA-Z._-]/g, '')
+const isLid = rawDestination.toLowerCase().endsWith('@lid');
+let destination = isLid
+  ? rawDestination.replace(/[^0-9@a-zA-Z._-]/g, '').replace(/@lid$/i, '@lid')
   : rawDestination.replace(/[^0-9]/g, '');
 
-if (!destination.endsWith('@lid')) {
+if (!isLid) {
   if (destination.startsWith('0090') && destination.length === 14) {
     destination = destination.slice(2);
   } else if (destination.startsWith('0') && destination.length === 11 && destination[1] === '5') {
@@ -1101,7 +1104,7 @@ const uuidOk =
     .test(deliveryId);
 
 const destinationOk = /^[1-9][0-9]{9,14}$/.test(destination)
-  || /^[0-9]+@lid$/.test(destination);
+  || /^[0-9]{5,20}@lid$/i.test(destination);
 const textOk = text.length > 0 && text.length <= 4096;
 const channelOk = ['customer', 'phone_a', 'phone_b'].includes(channel);
 

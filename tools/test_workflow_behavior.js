@@ -526,6 +526,32 @@ async function testAiFailurePreparation() {
   assert.strictEqual(result.json.senderNumber, "905320000001");
 }
 
+async function testPrepareDeliveryNormalization() {
+  const rowUuid = "12345678-1234-4234-8234-123456789012";
+  const makeRow = (dest) => ({
+    id: rowUuid,
+    channel: "customer",
+    destination: dest,
+    payload: JSON.stringify({ text: "Hello" }),
+  });
+
+  const res1 = await execute(codeOf("Prepare Delivery"), makeRow("05361234567"));
+  assert.strictEqual(res1.json.destination, "905361234567");
+  assert.strictEqual(res1.json.validDelivery, true);
+
+  const res2 = await execute(codeOf("Prepare Delivery"), makeRow("5361234567"));
+  assert.strictEqual(res2.json.destination, "905361234567");
+  assert.strictEqual(res2.json.validDelivery, true);
+
+  const res3 = await execute(codeOf("Prepare Delivery"), makeRow("123456789@LID"));
+  assert.strictEqual(res3.json.destination, "123456789@lid");
+  assert.strictEqual(res3.json.validDelivery, true);
+
+  const res4 = await execute(codeOf("Prepare Delivery"), makeRow("123456789@lid"));
+  assert.strictEqual(res4.json.destination, "123456789@lid");
+  assert.strictEqual(res4.json.validDelivery, true);
+}
+
 (async () => {
   await testNormalize();
   await testAdminNumberFilter();
@@ -535,5 +561,6 @@ async function testAiFailurePreparation() {
   await testDeliveryTags();
   await testBatchCompletionFailure();
   await testAiFailurePreparation();
+  await testPrepareDeliveryNormalization();
   console.log("[PASS] normalize, policy, guardrail and delivery behaviors");
 })().catch((error) => { console.error("[FAIL]", error.stack || error); process.exit(1); });
