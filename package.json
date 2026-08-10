@@ -13,6 +13,7 @@
     "tool": "tsx codex-tools/src/cli.ts",
     "audit:workflow": "tsx codex-tools/src/cli.ts workflow_validate_json",
     "release:gate": "tsx codex-tools/src/cli.ts release_gate",
+    "export:report": "python tools/export_rapor.py",
     "mcp:start": "tsx codex-tools/src/index.ts"
   },
   "dependencies": {

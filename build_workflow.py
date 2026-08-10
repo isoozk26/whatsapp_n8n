@@ -1080,9 +1080,20 @@ const batchToken = String(row.batch_token || row.batchToken || '');
 const correlationId = String(row.correlation_id || row.correlationId || '');
 const channel = String(row.channel || '');
 const rawDestination = String(row.destination || payload.number || '').trim();
-const destination = rawDestination.endsWith('@lid')
+let destination = rawDestination.endsWith('@lid')
   ? rawDestination.replace(/[^0-9@a-zA-Z._-]/g, '')
   : rawDestination.replace(/[^0-9]/g, '');
+
+if (!destination.endsWith('@lid')) {
+  if (destination.startsWith('0090') && destination.length === 14) {
+    destination = destination.slice(2);
+  } else if (destination.startsWith('0') && destination.length === 11 && destination[1] === '5') {
+    destination = '90' + destination.slice(1);
+  } else if (destination.length === 10 && destination.startsWith('5')) {
+    destination = '90' + destination;
+  }
+}
+
 const text = String(payload.text || '').trim();
 
 const uuidOk =
