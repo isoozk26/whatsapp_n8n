@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
 Export tool for rapor.md.
-Converts markdown report into structured JSON (rapor_export.json) and standalone text (rapor_export.txt).
+Converts markdown report into:
+- rapor_export.md (Standalone Markdown Export)
+- rapor_export.json (Structured JSON Export)
+- rapor_export.txt (Standalone Plain-Text Export)
 """
 
 import json
 import os
 import re
+import shutil
 import sys
 
 
@@ -75,13 +79,20 @@ def parse_rapor_md(file_path):
         "metadata": metadata,
         "section_count": len(sections),
         "sections": sections,
-        "raw_text_length": len(content),
+        "raw_content": content,
     }
 
 
+def export_md(input_path, output_path):
+    shutil.copyfile(input_path, output_path)
+    print(f"[EXPORT SUCCESS] Markdown report exported to: {output_path}")
+
+
 def export_json(parsed_data, output_path):
+    # Save structured JSON without raw content to keep it clean
+    json_data = {k: v for k, v in parsed_data.items() if k != "raw_content"}
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(parsed_data, f, ensure_ascii=False, indent=2)
+        json.dump(json_data, f, ensure_ascii=False, indent=2)
     print(f"[EXPORT SUCCESS] JSON report exported to: {output_path}")
 
 
@@ -121,6 +132,7 @@ def export_txt(parsed_data, output_path):
 def main():
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     rapor_md = os.path.join(repo_root, "rapor.md")
+    md_out = os.path.join(repo_root, "rapor_export.md")
     json_out = os.path.join(repo_root, "rapor_export.json")
     txt_out = os.path.join(repo_root, "rapor_export.txt")
 
@@ -128,13 +140,14 @@ def main():
         print(f"Error: {rapor_md} does not exist.")
         sys.exit(1)
 
-    print("Parsing rapor.md...")
+    print("Parsing and exporting rapor.md...")
     parsed = parse_rapor_md(rapor_md)
 
+    export_md(rapor_md, md_out)
     export_json(parsed, json_out)
     export_txt(parsed, txt_out)
 
-    print("\nExport completed successfully!")
+    print("\nExport completed successfully for all 3 formats (.md, .json, .txt)!")
 
 
 if __name__ == "__main__":
