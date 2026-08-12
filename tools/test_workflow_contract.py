@@ -175,6 +175,12 @@ def main():
     assert "manual_pause" in SQL
     assert "manual_resume" in SQL
     assert "manual_check" in SQL
+    command_notify_sql = (ROOT / "db" / "migrations" / "067_command_admin_notifications.sql").read_text(encoding="utf-8")
+    assert "p_next_ai_attempt_at timestamptz DEFAULT NULL" in command_notify_sql
+    assert "v_admin_phone_a" in command_notify_sql and "v_admin_phone_b" in command_notify_sql
+    assert "cmd:pause:" in command_notify_sql and "cmd:resume:" in command_notify_sql
+    assert "channel, destination, payload" in command_notify_sql
+    assert "manual_pause" in command_notify_sql and "manual_resume" in command_notify_sql
     assert "customer_sent boolean not null default false" in SQL.lower()
     assert "manager_sent boolean not null default false" in SQL.lower()
     assert "deferred" in SQL.lower()
