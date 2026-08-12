@@ -80,10 +80,15 @@ def wait_node(name, amount, unit, position):
 
 normalize_js = r"""
 const root = $json || {};
-const payload = root.body?.body?.data || root.body?.data || null;
-const headers = root.headers || {};
+const payload = root.body?.body?.data
+  || root.body?.data
+  || root.data
+  || root.body?.body
+  || root.body
+  || (root.key ? root : null);
+const headers = root.headers || root.body?.headers || {};
 const headerSecret = String(headers['x-webhook-secret'] || headers['x-evolution-webhook-secret'] || '');
-const queryToken = String(root.query?.token || root.queryToken || root.token || '');
+const queryToken = String(root.query?.token || root.queryToken || root.token || root.body?.query?.token || '');
 const webhookToken = headerSecret || queryToken;
 
 // @lid normalizasyonu — gerçek telefon numarası için remoteJidAlt/senderPn fallback

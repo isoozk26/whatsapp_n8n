@@ -60,6 +60,9 @@ async function testNormalize() {
   const lidNormalized = await execute(codeOf("Normalize Payload"), webhook(lid), () => ({}), {});
   assert.strictEqual(lidNormalized.json.valid, true);
   assert.strictEqual(lidNormalized.json.senderNumber, "11149818998846@lid");
+  const evoV2Direct = await execute(codeOf("Normalize Payload"), { query: { token: "test" }, data }, () => ({}), {});
+  assert.strictEqual(evoV2Direct.json.valid, true);
+  assert.strictEqual(evoV2Direct.json.senderNumber, "905320000001");
   const header = await execute(codeOf("Normalize Payload"), headerWebhook(data), () => ({}), {});
   assert.strictEqual(header.json.webhookToken, "header-token");
   assert.strictEqual(header.json.authSource, "header");
