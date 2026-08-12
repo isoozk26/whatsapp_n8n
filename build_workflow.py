@@ -922,7 +922,10 @@ const year = dateKey.slice(0, 4);
 
 // Load holidays from settings (jsonb)
 const holidaysSetting = $('Load Holiday Settings').item.json || {};
-const holidaysJson = holidaysSetting.holidays || {};
+let holidaysJson = holidaysSetting.holidays || {};
+if (typeof holidaysJson === 'string') {
+  try { holidaysJson = JSON.parse(holidaysJson); } catch (_) { holidaysJson = {}; }
+}
 const holidaysForYear = holidaysJson[year] || [];
 const HOLIDAYS = Array.isArray(holidaysForYear) ? holidaysForYear : [];
 
@@ -1185,7 +1188,7 @@ nodes = [
     if_node("Valid Event?", "={{ $json.valid === true }}", [560, 260]),
     postgres_node(
         "Load Holiday Settings",
-        "SELECT value_jsonb AS holidays FROM whatsapp_ai.settings WHERE key = 'holidays'",
+        "SELECT value AS holidays FROM whatsapp_ai.settings WHERE key = 'holidays'",
         "={{ [] }}",
         [780, 160],
     ),

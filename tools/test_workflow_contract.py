@@ -55,7 +55,8 @@ def main():
     assert node("Respond Unauthorized")["parameters"]["options"]["responseCode"] == 401
 
     normalize = node("Normalize Payload")["parameters"]["jsCode"]
-    assert "body?.body?.data || root.body?.data" in normalize
+    assert "root.body?.body?.data" in normalize
+    assert "root.data" in normalize
     assert "isGroup" in normalize and "isBroadcast" in normalize
     assert targets("Valid Event?", 0) == ["Load Holiday Settings"]
     assert targets("Valid Event?", 1) == ["Respond Ignored"]
