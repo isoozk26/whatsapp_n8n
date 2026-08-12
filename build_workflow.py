@@ -83,7 +83,7 @@ const root = $json || {};
 const payload = root.body?.body?.data || root.body?.data || null;
 const headers = root.headers || {};
 const headerSecret = String(headers['x-webhook-secret'] || headers['x-evolution-webhook-secret'] || '');
-const queryToken = String(root.query?.token || '');
+const queryToken = String(root.query?.token || root.queryToken || root.token || '');
 const webhookToken = headerSecret || queryToken;
 
 // @lid normalizasyonu — gerçek telefon numarası için remoteJidAlt/senderPn fallback
