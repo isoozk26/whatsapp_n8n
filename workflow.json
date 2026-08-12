@@ -94,7 +94,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const source = $('Normalize Payload').item.json || {};\nconst settings = $json || {};\nconst configuredAdminNumbers = [settings.adminPhoneA, settings.adminPhoneB]\n  .map(value => String(value || '').replace(/[^0-9]/g, ''))\n  .filter(Boolean);\nconst authorizedCommand = source.fromMe === true\n  && ['pause', 'resume', 'check_mode'].includes(source.command);\nconst senderNumber = String(source.senderNumber || '');\nconst isAdminNumber = !authorizedCommand && configuredAdminNumbers.includes(senderNumber);\nreturn { json: {\n  ...source,\n  configuredAdminNumbers,\n  isAdminNumber\n} };"
+        "jsCode": "const source = $('Normalize Payload').item.json || {};\nconst settings = $json || {};\nconst configuredAdminNumbers = [settings.adminPhoneA, settings.adminPhoneB]\n  .map(value => String(value || '').replace(/[^0-9]/g, ''))\n  .filter(Boolean);\nconst senderNumber = String(source.senderNumber || '');\nconst authorizedCommand = source.fromMe === true\n  && configuredAdminNumbers.includes(senderNumber)\n  && ['pause', 'resume', 'check_mode'].includes(source.command);\nconst isAdminNumber = !authorizedCommand && configuredAdminNumbers.includes(senderNumber);\nreturn { json: {\n  ...source,\n  configuredAdminNumbers,\n  isAdminNumber\n} };"
       },
       "id": "2bd961f9-2ef6-58b3-a505-1df94e5b20bc",
       "name": "Apply Admin Number Filter",

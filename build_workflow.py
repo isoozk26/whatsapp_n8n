@@ -237,9 +237,10 @@ const settings = $json || {};
 const configuredAdminNumbers = [settings.adminPhoneA, settings.adminPhoneB]
   .map(value => String(value || '').replace(/[^0-9]/g, ''))
   .filter(Boolean);
-const authorizedCommand = source.fromMe === true
-  && ['pause', 'resume', 'check_mode'].includes(source.command);
 const senderNumber = String(source.senderNumber || '');
+const authorizedCommand = source.fromMe === true
+  && configuredAdminNumbers.includes(senderNumber)
+  && ['pause', 'resume', 'check_mode'].includes(source.command);
 const isAdminNumber = !authorizedCommand && configuredAdminNumbers.includes(senderNumber);
 return { json: {
   ...source,
