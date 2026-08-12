@@ -10,7 +10,7 @@ import { workflowValidateGraph } from "./tools/workflow-validate-graph.js";
 import { workflowValidateJson } from "./tools/workflow-validate-json.js";
 
 const server = new McpServer(
-  { name: "whatsapp-ai-mcp", version: "0.1.0" },
+  { name: "whatsapp-ai-mcp", version: "2.1.0" },
   {
     instructions:
       "Read-only static validation tools for the FiltreOto n8n workflow. Run release_gate before proposing a deploy. These tools never deploy, mutate production data, or send messages.",

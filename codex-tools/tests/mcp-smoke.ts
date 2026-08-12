@@ -10,7 +10,7 @@ const transport = new StdioClientTransport({
   cwd: root,
   stderr: "pipe",
 });
-const client = new Client({ name: "whatsapp-ai-mcp-smoke", version: "0.1.0" });
+const client = new Client({ name: "whatsapp-ai-mcp-smoke", version: "2.1.0" });
 
 try {
   await client.connect(transport);
