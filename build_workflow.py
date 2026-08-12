@@ -397,7 +397,10 @@ const ctx = $('Store Context').item.json;
 
 // Media message auto-handoff: skip AI, handoff to admin
 const isMediaMessage = ctx.isMediaMessage === true;
-const hasText = Boolean(String(ctx.allMessagesText || '').replace(/^\s*\[Medya\]\s*$/, '').trim());
+const mediaTextCleaned = String(ctx.allMessagesText || '')
+  .replace(/^\s*(?:\[Medya\]|Görsel mesajınız alındı.*|Sesli mesajınızı.*|Belge mesajınız alındı.*|Video mesajınız alındı.*)\s*$/i, '')
+  .trim();
+const hasText = Boolean(mediaTextCleaned);
 if (isMediaMessage && !hasText) {
   const mediaLabels = { image: 'Görsel', audio: 'Ses', document: 'Belge', video: 'Video' };
   const mediaLabel = mediaLabels[ctx.mediaType] || 'Medya';
@@ -533,14 +536,13 @@ const vehicleStrings = entities.vehicles.map(v => {
 const vehicleBlob = `${vehicleSourceText} ${vehicleStrings.join(' ')}`;
 const hasVin = /\b[A-HJ-NPR-Z0-9]{17}\b/i.test(vehicleBlob);
 const hasEngine = /\b\d[.,]\d\s*(?:TDI|TSI|DCI|HDI|MPI|CDTI|CRDI|BENZİN|DİZEL)?\b/i.test(vehicleBlob);
-const hasPower = /\b\d{2,3}\s*(?:kw|hp|bg|beygir)\b/i.test(vehicleBlob);
+const hasPower = /\b\d{1,3}\s*(?:kw|hp|bg|beygir)\b/i.test(vehicleBlob);
 const hasModel = Boolean(brand && extractedVehicle.replace(new RegExp(`^${brand === 'VW' ? 'Volkswagen' : brand}\\s*`, 'i'), '').replace(/\s+(?:19\d{2}|20\d{2})$/, '').trim());
 const missingVehicleFields = [];
 if (!brand) missingVehicleFields.push('marka');
 if (!hasModel) missingVehicleFields.push('model');
 if (!yearMatch) missingVehicleFields.push('üretim yılı');
-if (!hasVin && !hasEngine) missingVehicleFields.push('motor hacmi (CC)');
-if (!hasVin && !hasPower) missingVehicleFields.push('motor gücü (kW/HP)');
+if (!hasVin && !hasEngine && !hasPower) missingVehicleFields.push('motor bilgisi (CC/kW/HP)');
 const vehicleComplete = hasVin || missingVehicleFields.length === 0;
 
 let codes = Array.isArray(entities.productCodes) ? entities.productCodes : [];
