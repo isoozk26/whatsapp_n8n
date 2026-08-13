@@ -981,7 +981,8 @@ build_ooh_messages_js = r"""
 const ctx = $('Check Business Hours').item.json || {};
 const claim = $('Claim OOH Notification').item.json || {};
 const senderName = String(claim.senderName || ctx.senderName || 'Değerli Müşterimiz');
-const senderNumber = String(claim.senderNumber || ctx.senderNumber || '');
+const senderNumberRaw = String(claim.senderNumber || ctx.senderNumber || '');
+const senderNumber = senderNumberRaw.replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/gi, '').replace(/[^0-9]/g, '');
 const scenario = String(claim.scenario || ctx.scenario || 'evening');
 const istanbulDay = String(claim.istanbulDay || ctx.istanbulDay || '');
 const istanbulTime = String(claim.istanbulTime || ctx.istanbulTime || '');
@@ -1266,7 +1267,7 @@ SELECT EXISTS(SELECT 1 FROM claimed) AS claimed,
     postgres_node(
         "Log OOH Event",
         "UPDATE whatsapp_ai.ooh_log SET customer_sent = $2 WHERE id = $1::uuid RETURNING id",
-        "={{ [ $('Build OOH Messages').item.json.oohLogId, $('Build OOH Messages').item.json.customerSent ] }}",
+        "={{ [ $('Build OOH Messages').item.json.oohLogId, Boolean(($('Send OOH to Customer').item.json.key || $('Send OOH to Customer').item.json.status === 'SENT' || $('Send OOH to Customer').item.json.status === 'PENDING') && !$('Send OOH to Customer').item.json.error && (!$('Send OOH to Customer').item.json.statusCode || $('Send OOH to Customer').item.json.statusCode < 400)) ] }}",
         [2540, 260],
     ),
     if_node("Rate Limit Exceeded?", "={{ $json.rateLimitExceeded === true }}", [780, 260]),
