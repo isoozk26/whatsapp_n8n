@@ -3,36 +3,27 @@
 **Doküman:** `rapor.md`  
 **Sistem:** FiltreOto WhatsApp AI (v13 PostgreSQL Outbox Mimari)  
 **Tarih:** 28 Ağustos 2026  
-**Kapsam:** 4 Gerçek Müşteri Sohbeti Analizi (`+90 555 532 83 40`, `+90 506 061 08 25`, `@resatcemalugur`, `+90 546 667 05 22`) ve Codex 5.4 için 12 Düzeltme Görev Kartı (`docs/runbook.md`).
+**Kapsam:** Gerçek Müşteri Sohbetleri Analizi (`Murat`, `+90 531 555 07 11`, `+90 543 737 62 47`, `+90 546 667 05 22`, vb.) ve Codex 5.4 için 14 Düzeltme Görev Kartı (`docs/runbook.md`).
 
 ---
 
-## 1. YÖNETİCİ ÖZETİ
+## 1. YÖNETİCİ ÖZETİ VE YENİ SOHBET ANALİZLERİ
 
-İletilen 4. gerçek müşteri sohbetinde (`+90 546 667 05 22` - Subaru / W 6019) sistemin yaşadığı kritik mantık kazaları:
-1. **URL Slug / Query String Sızıntısı:** Müşteri ürün web sitesi linki paylaştığında botun linkteki `srsltid=...` parametresini araç modeli sanıp *"Toyota -gt86 srsltid AfmBOoqcZ5Gk2UQF2fga9jql8xS6-fcDqBTfwRB3jdtBxh1hvxgSi"* şeklinde araç üretmesi.
-2. **Olumsuz İfade Algılayamama:** Müşteri *"Toyota gt86 değil"* dediğinde botun aracı *"Toyota gt86 değil 2."* olarak modellemesi.
-3. **Geçmiş Şasi Numarasını (VIN) Unutma:** Müşteri 17 haneli geçerli şasiyi (`JF1SH5LW49G010132`) verdiği halde sonraki mesajda fiyat sorunca sistemin hafızayı unutup tekrar şasi istemesi.
-4. **Müşterinin İsyanı:** Müşterinin *"İnsan yok mu orada, yapay zekaya dert anlatamıyorum"* diyerek temsilci istemesi.
+### 📱 Sohbet: `Murat` (27.07.2026 - Mercedes E 200 / Şasi Kaybı Faciası)
+- **Olay:** Müşteri 16:07'de `WDB2100351A528399` şasi numarasını verdi. Bot araç bilgilerini aldı. Ancak 16:10'da bot talebi çözemediğini söyledi. Müşteri polen filtresi istediğini belirtti. Bot 16:13'te **şasiyi unutup tekrar şasi istedi**. Müşteri 16:14'te şasiyi **ikinci kez** yazdı. Bot 16:16'da **üçüncü kez şasi istedi**! Müşteri *"Tşk ederim iyi çalışmalar"* diyerek sistemi terk etti.
+- **Kök Neden:** Chat memory'de VIN olmasına rağmen `askVehicleInfo` bayrağının tekrar tetiklenmesi ve hafızanın ezilmesi.
 
----
+### 📱 Sohbet: `+90 531 555 07 11` (15.08.2026 - Cumartesi Gece)
+- **Olay:** Müşteri Cumartesi 20:38'de `MANN-FILTER HU 712/10 X` istedi. Pazartesi 09:01'e kadar yanıt gitmedi.
 
-## 2. 4 MÜŞTERİ SOHBETİNİN KARŞILAŞTIRMALI ANOMALİ TABLOSU
-
-| Müşteri / Numara | Müşteri Talebi | Botun Hatalı Davranışı | Koddaki Kök Neden | Codex 5.4 Çözüm Kartı |
-|---|---|---|---|---|
-| **+90 555 532 83 40** | `Suzuki Swift 1.2 2012` + `W 67/2` | Marka+model+yıl+motor verildiği halde tekrar VIN istedi; VIN verilince ilgisiz kutu fotosu istedi. | `brands` içinde `Suzuki` yok; VIN sonrası alakasız şablon. | **K-01**, **K-12** |
-| **+90 506 061 08 25** | `Mini Cooper R50` + `WMWRC3...` | *"Sadece filtre"* cevabına rağmen 3 kez üst üste *"Sadece bu filtreyi mi istersiniz..."* sordu. | Papağan döngüsü; tekrarlayan yanıt guard'ı yok. | **K-02** |
-| **@resatcemalugur** | `MANN CUK 2430` + `VF1JMO...` | Kargo süresini söyledi ama parçanın uyumluluğunu söylemeden kesti. | Kargo kuralının uyumluluk cevabını ezmesi. | **K-12** |
-| **+90 546 667 05 22** | `Subaru` + `W 6019` + `JF1SH5...` | URL'deki `srsltid` parametresini araç modeli yaptı; *"Toyota değil"* lafını araç yaptı; verilen VIN'i unuttu. | URL temizliği yok; negation yok; `Subaru` eksik; chat memory VIN kaybı. | **K-01, K-09, K-10, K-11, K-12** |
+### 📱 Sohbet: `+90 543 737 62 47` (02.08.2026 - Pazar Gece / Başarılı OOH Örneği)
+- **Olay:** Müşteri Pazar 23:17'de `Clio 4 1.2 TCe` için yağ filtresi sordu. Bot 23:19'da Pazar OOH şablonunu başarıyla gönderdi. Pazartesi sabah 10:16'da temsilci onay verdi.
 
 ---
 
-## 3. CODEX 5.4 İÇİN 12 ADET KOD DÜZELTME GÖREV KARTI ÖZETİ
+## 2. CODEX 5.4 İÇİN 14 ADET KOD DÜZELTME GÖREV KARTI (K-01 - K-14)
 
-Tüm bu hataları Codex 5.4'ün sırayla düzeltebilmesi için **[docs/runbook.md](file:///C:/ILAN/WHATSAPP_N8N/docs/runbook.md)** içerisinde 12 Görev Kartı (K-01 - K-12) oluşturulmuştur:
-
-- **K-01:** Marka kataloğuna `Suzuki`, `Mini`, `Subaru`, `BMW`, `Volvo`, `Mitsubishi`, `Jeep` ekleme.
+- **K-01:** Marka kataloğuna `Suzuki`, `Mini`, `Subaru`, `BMW`, `Volvo`, `Mitsubishi`, `Jeep`, `Porsche` ekleme.
 - **K-02:** Papağan döngüsünü engelleme (`reply === lastReplyText` ise handoff).
 - **K-03:** `"Mesai mesai saatleri..."` typo düzeltmesi.
 - **K-04:** Ingress event filtresi (`messages.upsert` zorunluluğu).
@@ -44,6 +35,8 @@ Tüm bu hataları Codex 5.4'ün sırayla düzeltebilmesi için **[docs/runbook.m
 - **K-10:** Olumsuz İfade Modellemesi (`"Toyota gt86 değil"` filtresi).
 - **K-11:** Chat Memory ve geçmiş mesajlardaki VIN'in korunması.
 - **K-12:** Tam ürün kodunda fuzuli VIN istemeden fiyat/stok sorgusu.
+- **K-13:** **Zaten Şasi Verilmişse Asla Tekrar Şasi İstememe Guard'ı (Murat Sohbeti Çözümü).**
+- **K-14:** **Müşteri Terk / Vazgeçiş Algılama ("Tşk ederim iyi çalışmalar" yanıtı).**
 
 ---
 

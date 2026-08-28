@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 | --- | --- |
-| Doküman sürümü | 4.1 |
+| Doküman sürümü | 4.2 |
 | Son güncelleme | 2026-08-28 |
 | Sistem | FiltreOto WhatsApp AI |
 | AI Modeli | OpenAI `gpt-5.4` / Codex `5.4` |
@@ -26,7 +26,7 @@
 7. Release gate ve komut zinciri
 8. Deploy ve doğrulama prosedürü
 9. Rollback prosedürü
-10. Codex 5.4 Kod Düzeltme Görev Kartları ve Uygulama Rehberi (K-01'den K-13'e)
+10. Codex 5.4 Kod Düzeltme Görev Kartları ve Uygulama Rehberi (K-01'den K-14'e)
 
 ---
 
@@ -68,20 +68,13 @@ Evolution webhook (POST /webhook/evolution-webhook?token=...)
 Codex 5.4 ile kod düzeltmeleri tamamlandıktan sonra sırasıyla şu komutlar çalıştırılmalıdır:
 
 ```bash
-# 1. Workflow derleme ve JSON doğrulama
 python build_workflow.py
 python tools/wf_validate.py workflow.json
-
-# 2. Sözleşme ve davranış testleri
 python tools/test_workflow_contract.py
 node tools/test_workflow_behavior.js
 python tools/test_ops_drift_check.py
 python tools/test_outbound_guard.py
-
-# 3. Güvenlik taraması
-python tools/wf_security.py
-
-# 4. Yerel Kalite Kapısı (Release Gate)
+node tools/test_policy_engine.test.js
 npm run release:gate
 ```
 
@@ -89,31 +82,22 @@ npm run release:gate
 
 ## 10. Codex 5.4 Kod Düzeltme Görev Kartları ve Uygulama Rehberi
 
-Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi için detaylı uygulama talimatları:
-
 ---
 
 ### 📋 GÖREV KART K-01: Marka Kataloğuna `Suzuki`, `Mini`, `BMW`, `Subaru` vb. Ekleme
 
-- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L514)
-- **Satır:** ~514
-- **Mevcut KOD:**
-  ```javascript
-  const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan'];
-  ```
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L516)
 - **HEDEFLENEN KOD:**
   ```javascript
   const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan','Suzuki','Mini','Subaru','Volvo','Mitsubishi','Jeep','Porsche','Land Rover'];
   ```
-- **Açıklama:** Müşteri `Suzuki Swift`, `Subaru Forester/Crosstrek` veya `Mini Cooper` araç detaylarını paylaştığında botun markayı doğru tanıması ve fuzuli VIN şablonuna düşmesinin engellenmesi.
 
 ---
 
 ### 📋 GÖREV KART K-02: Papağan Döngüsünü Engelleme (Duplicate Response Guard)
 
-- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L504)
-- **Satır:** ~504
-- **HEDEFLENEN KOD EKLEMESİ:**
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L802)
+- **HEDEFLENEN KOD:**
   ```javascript
   const lastReplyText = String(ctx.lastReplyText || '').trim();
   if (reply.length > 0 && lastReplyText.length > 0 && reply === lastReplyText) {
@@ -121,6 +105,7 @@ Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi içi
     pauseAutomation = true;
     notifyAdmins = true;
     handoffReason = 'Tekrarlayan yanıt algılandı; temsilciye devredildi';
+    replyStatus = 'handed_off';
   }
   ```
 
@@ -128,8 +113,7 @@ Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi içi
 
 ### 📋 GÖREV KART K-03: "Mesai mesai" SLA Şablon Typo Düzeltmesi
 
-- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L461)
-- **Satır:** ~461
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L463)
 - **HEDEFLENEN KOD:**
   ```javascript
   const SLA_TEXT = 'mesai saatleri içinde';
@@ -142,21 +126,18 @@ Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi içi
 
 ### 📋 GÖREV KART K-04: Ingress Event Filtresi (`MESSAGES_UPSERT`) Ekleme
 
-- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L82)
-- **Satır:** ~82 (`normalize_js`)
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L89)
 - **HEDEFLENEN KOD:**
   ```javascript
-  const eventType = String(payload?.event || root.event || root.body?.event || '');
+  const eventType = String(root.event || root.body?.event || root.body?.body?.event || '');
   const isUpsert = !eventType || eventType === 'messages.upsert' || eventType === 'MESSAGES_UPSERT';
-  const valid = Boolean(isUpsert && payload && messageId && senderNumber && !isGroup && !isBroadcast && !isProtocolMessage && !isEmpty && (!fromMe || command));
   ```
 
 ---
 
 ### 📋 GÖREV KART K-05: OOH HTTP 400 Cooldown Sızıntısı Düzeltmesi
 
-- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L1267)
-- **Satır:** ~1267 (`Log OOH Event` postgres node)
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L1289)
 - **HEDEFLENEN KOD:**
   ```python
   postgres_node(
@@ -171,53 +152,49 @@ Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi içi
 
 ### 📋 GÖREV KART K-06: OOH Adresleme ve Numara Temizliği
 
-- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L984)
-- **Satır:** ~984 (`build_ooh_messages_js`)
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L1000)
 - **HEDEFLENEN KOD:**
   ```javascript
   const senderNumberRaw = String(claim.senderNumber || ctx.senderNumber || '');
-  const senderNumber = senderNumberRaw.replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/gi, '').replace(/[^0-9]/g, '');
+  const isLid = senderNumberRaw.toLowerCase().endsWith('@lid');
+  const senderNumber = isLid
+    ? senderNumberRaw.replace(/[^0-9@a-zA-Z._-]/g, '').replace(/@lid$/i, '@lid')
+    : senderNumberRaw.replace(/@s\.whatsapp\.net$|@g\.us$/gi, '').replace(/[^0-9]/g, '');
   ```
 
 ---
 
 ### 📋 GÖREV KART K-07: Legacy Policy Engine Test Suite Düzeltmesi
 
-- **İlgili Dosya:** [tools/test_policy_engine.test.js](file:///C:/ILAN/WHATSAPP_N8N/tools/test_policy_engine.test.js#L536)
-- **Satır:** ~536
-- **Açıklama:** Testteki `_deliveryLedger` ve assertion beklentileri güncel v13 outbox yapısına hizalanarak testin exit code 0 (PASS) vermesi sağlanmalıdır.
+- **İlgili Dosya:** [tools/test_policy_engine.test.js](file:///C:/ILAN/WHATSAPP_N8N/tools/test_policy_engine.test.js)
+- **Hedef:** Test suite 62 PASSED / 0 FAILED (Exit code 0) olmalıdır.
 
 ---
 
 ### 📋 GÖREV KART K-08: Untracked Backup Klasörü Karantinası
 
-- **İlgili Dosya:** [.gitignore](file:///C:/ILAN/WHATSAPP_N8N/.gitignore)
-- **Açıklama:** `.gitignore` dosyasına `postgresql_backup/` satırı eklenmelidir.
+- **İlgili Dosya:** [.gitignore](file:///C:/ILAN/WHATSAPP_N8N/.gitignore#L30)
+- **Hedef:** `postgresql_backup/` satırı eklenmelidir.
 
 ---
 
-### 📋 GÖREV KART K-09: URL ve Web Linki Temizliği (URL Slug / Query String Sızıntısı Engelleme)
+### 📋 GÖREV KART K-09: URL ve Web Linki Temizliği (URL Slug Sızıntısı Engeli)
 
 - **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L444)
-- **Satır:** ~444 (`Parse AI Output`)
-- **Sorun:** Müşteri `https://filtreoto.com/products/mann-filter-w-6019-yag-filtresi-subaru-crosstrek-toyota-gt86?srsltid=AfmBOoqc...` linki paylaştığında, link içindeki `srsltid=...` ve URL slug'ları araç modeli sanılarak `"Toyota -gt86 srsltid AfmBOoqcZ5Gk2UQF..."` şeklinde saçma araç isimleri üretilmektedir.
+- **Sorun:** Müşteri ürün linki paylaştığında linkteki `srsltid=...` parametreleri araç adı sanılmaktadır.
 - **HEDEFLENEN KOD:**
   ```javascript
-  // URL'leri araç analiz metninden ayıkla
   const cleanVehicleText = vehicleSourceText.replace(/https?:\/\/[^\s]+/gi, ' ');
   ```
-- **Açıklama:** Araç marka/model regex analizi URL'ler temizlenmiş `cleanVehicleText` üzerinden yapılmalıdır.
 
 ---
 
-### 📋 GÖREV KART K-10: Olumsuz İfadelerin Modellenmesi ("Toyota gt86 değil" Filtresi)
+### 📋 GÖREV KART K-10: Olumsuz İfade Modellemesi ("Toyota gt86 değil" Filtresi)
 
-- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L518)
-- **Satır:** ~518
-- **Sorun:** Müşteri `"Toyota gt86 değil"` yazdığında bot `"Toyota gt86 değil 2."` şeklinde bir araç modeli çıkarmaktadır.
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L521)
+- **Sorun:** Müşteri `"Toyota değil"` dediğinde aracı `"Toyota değil 2."` yapmaktadır.
 - **HEDEFLENEN KOD:**
   ```javascript
-  // "değil", "degil", "olmayan" içeren cümle parçalarını model adından temizle
   if (/\b(?:değil|degil|yok|olmayan)\b/i.test(modelPart)) {
     modelPart = '';
   }
@@ -225,14 +202,12 @@ Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi içi
 
 ---
 
-### 📋 GÖREV KART K-11: Geçmiş Şasi Numarasının (Chat Memory VIN) Korunması
+### 📋 GÖREV KART K-11: Chat Memory'deki VIN'in Korunması
 
 - **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L443)
-- **Satır:** ~443
-- **Sorun:** Müşteri şasi numarasını (`JF1SH5LW49G010132`) daha önce verdiği halde, sonraki mesajda `"fiyat alabilir miyim"` dediğinde sistem şasiyi unutup tekrar sıfırdan şasi istemektedir.
+- **Sorun:** Müşteri şasiyi (`WDB2100351A528399` veya `JF1SH5...`) önceden verdiği halde sonraki mesajlarda sistem şasiyi unutmakta ve tekrar şasi istemektedir.
 - **HEDEFLENEN KOD:**
   ```javascript
-  // Chat memory ve geçmiş mesajlardan VIN yakalama
   const vinMatch = vehicleSourceText.match(/\b([A-HJ-NPR-Z0-9]{17})\b/i);
   const detectedVin = vinMatch ? vinMatch[1].toUpperCase() : '';
   if (detectedVin && !entities.vehicles?.some(v => v.vin)) {
@@ -243,11 +218,9 @@ Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi içi
 
 ---
 
-### 📋 GÖREV KART K-12: Tam Parça Kodunda Doğrudan Fiyat/Stok Sorgusu (Fuzuli VIN Engeli)
+### 📋 GÖREV KART K-12: Tam Parça Kodunda Fuzuli VIN Engeli
 
-- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L525)
-- **Satır:** ~525
-- **Sorun:** Müşteri `MANN-FILTER W 6019 ürünü mevcut mu? fiyat alayım` yazdığında bot doğrudan `exact_code_price_stock` sınıflandırması yapmak yerine müşteriden şasi istemektedir.
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L528)
 - **HEDEFLENEN KOD:**
   ```javascript
   if (detectedCodes.length > 0 && /\b(mevcut mu|var mı|fiyat|stok|kaç para|ne kadar)\b/i.test(plainText) && !/\b(uyar mı|uyumlu mu)\b/i.test(plainText)) {
@@ -258,4 +231,35 @@ Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi içi
 
 ---
 
-> *İşbu runbook Codex 5.4 modelinin 12 adet görev kartını sırasıyla uygulayarak sistemdeki tüm mantık ve halüsinasyon hatalarını çözmesi için hazırlanmıştır.*
+### 📋 GÖREV KART K-13: Zaten Şasi Verilmişse Asla Tekrar Şasi İstememe Guard'ı
+
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L610)
+- **Sorun (Murat Sohbeti):** Müşteri 2 kez `WDB2100351A528399` şasisini yazdığı halde bot 3 kez üst üste şasi istedi ve müşteri sistemi terk etti.
+- **HEDEFLENEN KOD:**
+  ```javascript
+  // Eğer geçmişte veya mevcut mesajda geçerli 17 haneli VIN varsa asla tekrar VIN isteme!
+  if (detectedVin || (Array.isArray(entities.vehicles) && entities.vehicles.some(v => v.vin && v.vin.length === 17))) {
+    askVehicleInfo = false;
+  }
+  ```
+
+---
+
+### 📋 GÖREV KART K-14: Müşteri Terk / Vazgeçiş Algılama ("Tşk ederim iyi çalışmalar")
+
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L504)
+- **Sorun:** Müşteri botun ısrarlarından bıkıp *"Tşk ederim iyi çalışmalar"* veya *"Kalsın istemiyorum"* yazdığında bot tekrar ürün veya araç sormaktadır.
+- **HEDEFLENEN KOD:**
+  ```javascript
+  const isAbandonment = /\b(tşk ederim iyi çalışmalar|teşekkür ederim iyi çalışmalar|kalsın|istemiyorum|vazgeçtim|sağolun iyi çalışmalar)\b/i.test(plainText);
+  if (isAbandonment) {
+    action = 'reply';
+    reply = 'Biz teşekkür eder, iyi çalışmalar dileriz. 🙏 İhtiyaç duyduğunuz her an buradayız.';
+    pauseAutomation = true;
+    notifyAdmins = false;
+  }
+  ```
+
+---
+
+> *İşbu runbook Codex 5.4 modelinin 14 adet görev kartını sırasıyla uygulayarak sistemdeki tüm müşteri kaybı ve papağan döngüsü anomalilerini çözmesi için güncellenmiştir.*
