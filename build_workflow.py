@@ -444,6 +444,8 @@ const originalText = String(ctx.allMessagesText || '');
 const plainText = originalText.replace(/^\s*\d+\.\s*(?:\[[^\]]+\]\s*)?/, '').trim();
 const historyText = String(ctx.chatMemoryText || '');
 const vehicleSourceText = `${plainText}\n${historyText}`;
+const vehicleDetectionText = vehicleSourceText
+  .replace(/\b(?:toyota\s+gt86|gt86)\s+(?:değil|degil|olmasın|olmasin)\b/gi, '');
 const textUpper = plainText.toUpperCase();
 let intent = String(parsed.intent || 'other');
 let caseType = String(parsed.caseType || 'other');
@@ -513,8 +515,8 @@ let fallbackType = null;
 
 const filterRequest = /\b(yağ|yag|hava|yakıt|yakit|polen|kabin|şanzıman|sanziman)\s+filtresi?\b|\bfiltre\b/i.test(plainText);
 const yearMatch = vehicleSourceText.match(/\b(19\d{2}|20\d{2})\b/);
-const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan','Suzuki','Mini','Volvo','Mitsubishi','Subaru','Jeep'];
-const brand = brands.find(item => new RegExp(`\\b${item}\\b`, 'i').test(vehicleSourceText));
+const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan','Suzuki','Mini','Volvo','Mitsubishi','Subaru','Jeep','Porsche'];
+const brand = brands.find(item => new RegExp(`\\b${item}\\b`, 'i').test(vehicleDetectionText));
 let extractedVehicle = '';
 if (brand) {
   const afterBrand = vehicleSourceText.slice(vehicleSourceText.toLocaleLowerCase('tr-TR').indexOf(brand.toLocaleLowerCase('tr-TR')) + brand.length);
@@ -694,6 +696,7 @@ if (caseType === 'exact_code_compatibility') {
 }
 
 const operationalQuestion = !['complaint', 'return_complaint', 'human_request'].includes(intent);
+const abandonmentSignal = /\b(?:tşk|tesekkur|teşekkür|iyi çalışmalar|iyi calismalar|kolay gelsin|vazgeçtim|vazgectim)\b/i.test(plainText);
 const asksMarketplace = /\b(n11|trendyol|amazon|pazaryeri|pazar yeri)\b/i.test(plainText);
 const asksShipping = /\b(kargo|teslim|cumartesi|yarın|yarin|ne zaman gelir)\b/i.test(plainText);
 const asksAuthenticity = /\b(orijinal|fatura|etbis|3d\s*secure|güvenli ödeme|guvenli odeme)\b/i.test(plainText);
@@ -706,6 +709,13 @@ if (operationalQuestion && asksMarketplace) {
 } else if (operationalQuestion && asksAuthenticity) {
   reply = 'Ürünlerimiz orijinaldir. Talep ederseniz distribütör faturası paylaşabiliriz; firmamız Etbis\'e kayıtlıdır ve 3D Secure ile güvenli ödeme vardır.';
   action = 'reply'; pauseAutomation = false; notifyAdmins = false; handoffReason = '';
+}
+if (abandonmentSignal) {
+  reply = '';
+  action = 'ignore';
+  pauseAutomation = false;
+  notifyAdmins = false;
+  handoffReason = 'customer_abandoned';
 }
 
 const safetyText = String(reply || '')
@@ -737,14 +747,14 @@ if (unsafeClaim) {
   notifyAdmins = true;
 }
 // Unclear intent fallback (when AI can't understand the message)
-if (!reply && action !== 'handoff') {
+if (!reply && action !== 'handoff' && action !== 'ignore') {
   reply = 'Talebinizi tam çözemedim, doğru yönlendirebilmem için kısa bir bilgi yeterli: filtre kodu mu arıyorsunuz, yoksa aracınıza uygun ürün mü? Hangisiyse yazın, hemen ilgilenelim.';
   handoffReason = 'unclear_intent';
   action = 'reply';
 }
 
 // Generic last-resort fallback
-if (!reply) reply = `Talebinizi aldık ve ekibimize ilettik. ${SLA_LINE}`;
+if (!reply && action !== 'ignore') reply = `Talebinizi aldık ve ekibimize ilettik. ${SLA_LINE}`;
 const emojiForCase = {
   exact_code_price_stock: '📦',
   exact_code_compatibility: '🛠️',
@@ -892,7 +902,8 @@ const handoffLine = action === 'handoff'
 const messageCount = ctx.messageCount || 1;
 const batchLabel = messageCount > 1 ? `\n📋 ${messageCount} mesaj birleştirildi` : '';
 
-const adminMessage = `${title}\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}${handoffLine}${upsellFlag}${bulkFlag}\n🎯 Funnel: ${funnelStage}\n\n💬 Müşteri\n"${originalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
+const safeOriginalText = originalText.replace(/https?:\/\/[^\s]+/gi, '[URL kaldırıldı]');
+const adminMessage = `${title}\n👤 ${ctx.senderName} · ${ctx.senderNumber}${extraInfo ? `\n${extraInfo}` : ''}${actionLine}${handoffLine}${upsellFlag}${bulkFlag}\n🎯 Funnel: ${funnelStage}\n\n💬 Müşteri\n"${safeOriginalText}"\n\n${statusLabel}\n"${reply}"${handoffReason ? `\n\n⚠️ ${handoffReason}` : ''}`;
 return { json: {
   ...ctx, intent, caseType, entities, cevap: reply, bildirim: adminMessage,
   notifyAdmins, replyCustomer: action !== 'ignore' && Boolean(reply), pauseAutomation,
