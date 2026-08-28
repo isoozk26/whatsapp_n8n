@@ -1,76 +1,77 @@
-# 🔬 WhatsApp AI — Mesai Dışı Mesaj (OOH) Kanıt Tabanlı Analiz ve Düzeltme Raporu
+# 🔬 Canlı Müşteri Sohbet Logları Uçtan Uca (E2E) Analiz ve Teşhis Raporu
 
 **Doküman:** `rapor.md`  
 **Sistem:** FiltreOto WhatsApp AI (v13 PostgreSQL Outbox Mimari)  
-**Tarih:** 13 Ağustos 2026  
-**Kapsam:** Repository içindeki `scratch/exec_2023.json` execution artefact'ı ile kanıtlanan bulgular, `Log OOH Event` loglama kusurunun repository düzeltmesi ve yerel doğrulama sonuçları. Bu rapor canlı production deploy kanıtı değildir.
+**Tarih:** 28 Ağustos 2026  
+**Kapsam:** 3 Gerçek Müşteri Sohbet Oturumu Uçtan Uca (E2E) Analizi ve Sistem Davranış Teşhisi.  
+*(ÖNEMLİ KISIT: KULLANICI TALİMATI GEREĞİ HİÇBİR KOD DEĞİŞTİRİLMEDEN SADECE ANALİZ VE ÖNERİ RAPORU HAZIRLANMIŞTIR).*
 
 ---
 
-## 1. YÖNETİCİ ÖZETİ VE KANITLANMIŞ GERÇEKLER
+## 1. YÖNETİCİ ÖZETİ
 
-Repository içindeki `scratch/exec_2023.json` execution artefact'ı incelendiğinde varsayımlar ile kanıtlanmış gerçekler net biçimde ayrıştırılmıştır:
+İletilen 3 farklı gerçek müşteri sohbet oturumu (`+90 555 532 83 40`, `+90 506 061 08 25`, `@resatcemalugur`) uçtan uca incelenmiş ve sistemde tespit edilen **5 temel bot davranış aksaklığı** kod seviyesindeki kök nedenleriyle belirlenmiştir:
 
-### ✅ Kanıtlanmış Gerçekler (exec_2023 Log Verileri):
-1. **Akış Sırası:** `Ingest Message` ➔ `Is Off Hours?` ➔ `Wait OOH 120 Seconds` ➔ `Claim OOH Notification` sıralaması tam ve doğru çalışmıştır.
-2. **Wait Node Durumu:** `Wait OOH 120 Seconds` düğümü tamamlanmıştır; bu artefact içinde Wait'in öldüğünü gösteren hata yoktur. Kayıt, beklemenin tam olarak 120.000 ms olduğunu tek başına kanıtlamaz.
-3. **OOH Claim Durumu:** `Claim OOH Notification` düğümü veritabanından kilidi başarıyla almış (`claimed = true`) ve `Build OOH Messages` düğümüne aktarmıştır.
-4. **Şablon Tespiti:** `Check Business Hours` execution anındaki İstanbul saatine göre `scenario` üretmiş, `Build OOH Messages` bu değeri kullanmıştır. Bu kayıt, mesajın gerçek geliş timestamp'inin ayrıca hesaplanıp doğrulandığını kanıtlamaz.
-
----
-
-## 🚨 2. DOĞRULANMIŞ ASIL HATA (THE SMOKING GUN BUG) & KOD DÜZELTMESİ
-
-### 🔴 Doğrulanmış Asıl Hata (HTTP 400 Cooldown Sızıntısı):
-- `exec_2023` akışında `Send OOH to Customer` düğümü Evolution API'ye istek attığında Evolution API **HTTP 400 Bad Request** hatası dönmüştür. Bu execution içinde başarılı müşteri gönderimi kanıtı yoktur; cihazdaki teslimat durumu ayrıca doğrulanmamıştır.
-- Ancak `Send OOH to Customer` düğümünde `continueOnFail: true` / `onError: continueErrorOutput` tanımlı olduğu için akış kesilmeyip `Log OOH Event` düğümüne devam etmiştir.
-- `Log OOH Event` düğümü (`UPDATE whatsapp_ai.ooh_log SET customer_sent = $2`), `Send OOH to Customer` düğümünün başarılı olup olmadığını kontrol etmeden `customer_sent = true` olarak veritabanına kaydetmiştir!
-- **Sonuç:** Evolution isteği reddedildiği halde artefact'ta `customerSent=true` taşınmış/loglama yolu buna izin vermiştir. Bu durumun canlı PostgreSQL `ooh_log` satırında gerçekten `customer_sent=true` olarak yazıldığını ve 8 saatlik cooldown'ın canlıda aktif olduğunu bu repository kaydı tek başına kanıtlamaz.
+1. **"Suzuki" Marka Eksikliği ve Fuzuli Şasi (VIN) İsrarı:** Müşteri marka, model, yıl, motor hacmi ve ürün kodunu (`Suzuki Swift 1.2 2012 W 67/2`) eksiksiz verdiği halde sistemin markayı tanıyamayıp tekrar şasi no istemesi.
+2. **Papağan Döngüsü (Looping Bot):** Müşteri *"Sadece filtre"* cevabı verdiği halde sistemin 3 kez üst üste **birebir aynı soruyu** sorması (*"Sadece bu filtreyi mi istersiniz, yoksa periyodik bakım setini mi görelim?"*).
+3. **Ruhsat Görseline Şasi İstenmesi:** Müşteri ruhsat fotoğrafı gönderdiği halde OCR/medya işleme eksikliğinden dolayı botun tekrar şasi isteme şablonu basması.
+4. **VIN Verildiği Halde İlgisiz Ürün Görseli Fotoğrafı Talebi:** Geçerli 17 haneli şasi verildikten sonra botun alakasız biçimde *"Paylaştığınız kodu birebir doğrulamak için... kutu veya ürün üzerindeki yazının fotoğrafını gönderebilir misiniz?"* mesajı atması.
+5. **"Mesai mesai" Kelime Tekrarı (Typo):** `SLA_LINE` değişkenindeki kelime birleşimi hatası nedeniyle *"Mesai mesai saatleri içinde dönüş yapacağız."* metninin basılması.
 
 ---
 
-### 🟢 Uygulanan Kod Düzeltmeleri (`build_workflow.py`):
+## 2. MÜŞTERİ SOHBET LOGLARI DETAYLI TEŞHİSİ
 
-1. **Numara Metin Normalizasyonu (Sanitization):**
-   - `build_ooh_messages_js` düğümünde numara metninden bazı JID sonekleri ve rakam dışı karakterler temizleniyor. Bu işlem tek başına değerin geçerli E.164 numarası olduğunu veya `@lid` değerinin gerçek telefon numarasına çözüldüğünü kanıtlamaz; Evolution HTTP 400'ü kesin olarak engellediği iddia edilemez.
-   ```javascript
-   const senderNumberRaw = String(claim.senderNumber || ctx.senderNumber || '');
-   const senderNumber = senderNumberRaw.replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/gi, '').replace(/[^0-9]/g, '');
-   ```
-
-2. **Dinamik HTTP Sonuç Kontrolü (`Log OOH Event`):**
-   - `Log OOH Event` düğümündeki `customer_sent` değeri `Send OOH to Customer` çıktısındaki hata/status alanlarına göre hesaplanıyor.
-   - HTTP 400 ve n8n error durumunda bu ifade `false` olur. Ancak `PENDING` durumunu başarı kabul eden mevcut ifade teslimatın kesin tamamlandığını kanıtlamaz; canlı deploy ve gerçek Evolution sonucu ayrıca doğrulanmalıdır.
-   ```python
-   postgres_node(
-       "Log OOH Event",
-       "UPDATE whatsapp_ai.ooh_log SET customer_sent = $2 WHERE id = $1::uuid RETURNING id",
-       "={{ [ $('Build OOH Messages').item.json.oohLogId, Boolean(($('Send OOH to Customer').item.json.key || $('Send OOH to Customer').item.json.status === 'SENT' || $('Send OOH to Customer').item.json.status === 'PENDING') && !$('Send OOH to Customer').item.json.error && (!$('Send OOH to Customer').item.json.statusCode || $('Send OOH to Customer').item.json.statusCode < 400)) ] }}",
-       [2540, 260],
-   )
-   ```
+### 📱 SOHBET 1: `+90 555 532 83 40` (Suzuki Swift & W 67/2 — 28.08.2026)
+- **Olay Akışı:**
+  - Müşteri: `MANN-FILTER C 26 006` ve `yağ filtresi` istedi.
+  - Bot: Şasi no veya marka/model/yıl/motor istedi.
+  - Müşteri: `Suzuki swift 1.2 2012` ve `W 67/2 yağ filitresi istiyorum` yazdı.
+  - Bot (Hatalı): Tekrar aynı şasi isteme metnini gönderdi!
+  - Müşteri: `TSMNZC72S00165509` (17 haneli VIN) gönderdi.
+  - Bot (Hatalı): *"Paylaştığınız kodu birebir doğrulamak için... kutu veya ürün üzerindeki yazının fotoğrafını gönderebilir misiniz?"* dedi.
+- **Kök Neden (Kod Karşılığı):**
+  - [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L514) satır 514'te tanımlı `const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan'];` dizisinde **`Suzuki` markası bulunmamaktadır**.
+  - `Suzuki` algılanamayınca `missingVehicleFields` içine `'marka'` eklenmiş, araç eksik kabul edilerek **marka+model+yıl+motor verildiği halde tekrar VIN istenmiştir**.
+  - VIN verildikten sonra ise bot parçayı sorgulamak yerine ilgisiz kutu fotoğrafı şablonuna düşmüştür.
 
 ---
 
-## 📊 3. YEREL SÜRÜM VE DOĞRULAMA KONTROLLERİ
-
-Repository üzerinde yapılan son düzeltme commit'i `f698045` içindedir. Aşağıdaki sonuçlar yerel/static doğrulamadır; canlı n8n workflow'unun güncellendiğini veya production'a deploy edildiğini kanıtlamaz:
-
-```text
-[PASS] python build_workflow.py                   (53 node, 45 connection)
-[PASS] python tools/wf_validate.py workflow.json   (Sözdizimi ve Bağlantı Kontrolü)
-[PASS] python tools/test_workflow_contract.py    (PostgreSQL & Outbox Sözleşmesi)
-[PASS] node tools/test_workflow_behavior.js      (@LID, E.164 & Evolution v2 Payload)
-[PASS] python tools/test_ops_drift_check.py       (Ops Drift & Metadata Eşleşmesi)
-[PASS] python tools/test_outbound_guard.py       (Outbound Mesaj Emniyet Güvencesi)
-[PASS] npm run release:gate                       (RELEASE GATE SCORE: 100/100 PASS)
-```
+### 📱 SOHBET 2: `+90 506 061 08 25` (Mini Cooper R50 & Balata — 26.08.2026)
+- **Olay Akışı:**
+  - Müşteri şasisini verdi: `WMWRC31010TB84880`.
+  - Bot (16:08): *"🛠️ Araç bilgilerinizi aldım; aracınız için uyumlu filtre setini kontrol ediyorum. Sadece bu filtreyi mi istersiniz, yoksa periyodik bakım setinin tamamını mı görelim?"*
+  - Müşteri (16:08): *"Sadece fitre birde balata takımı"*
+  - Bot (16:11 - Hatalı): *"🛠️ Araç bilgilerinizi aldım... Sadece bu filtreyi mi istersiniz, yoksa periyodik bakım setinin tamamını mı görelim?"*
+  - Müşteri (16:11): *"Sadece filtre"*
+  - Bot (16:14 - Hatalı): *"🛠️ Araç bilgilerinizi aldım... Sadece bu filtreyi mi istersiniz, yoksa periyodik bakım setinin tamamını mı görelim?"*
+  - Admin (16:58): `++` atıp botu durdurdu ve manuel devraldı.
+- **Kök Neden (Kod Karşılığı):**
+  - **Papağan Döngüsü (Looping Bot):** Müşterinin kısa yönlendirme cevapları (`Sadece filtre`) durum makinesinde yeni bir girdi kabul edilmemiş ve bot 3 kez üst üste **aynı şablonu** tekrarlamıştır. Sistemde üst üste aynı cevabın verilmesini engelleyen bir kilit mekanizması yoktur.
 
 ---
 
-## 4. ÖZET VE SONUÇ
+### 📱 SOHBET 3: `@resatcemalugur` (MANN CUK 2430 & Megane VIN — 24.08.2026)
+- **Olay Akışı:**
+  - Müşteri `MANN-FILTER CUK 2430` ve şasi no (`VF1JMOCOH32503738`) gönderdi. Kargo ücreti sordu.
+  - Bot kargo teslimat süresi bilgisini verdi, fakat `CUK 2430` ürününün şasiye uyumlu olup olmadığını yanıtlamadı. Admin `++` ile devraldı.
 
-- ❌ Varsayım olan *"Wait node öldü"*, *"Akış 09:00'da yanlış şablon bastı"* iddiaları rapordan çıkarıldı.
-- ✅ `exec_2023` repository artefact'ında HTTP 400 ile birlikte `customerSent=true` taşındığı doğrulandı; `Log OOH Event` hesaplaması repository'de hata durumunu false'a çevirecek şekilde güncellendi.
-- ✅ `workflow.json` için yerel release gate **100/100 PASS** verdi.
-- 🟠 Canlı n8n workflow sürümü, canlı PostgreSQL migration durumu ve gerçek Evolution teslimatı bu çalışmada doğrulanmadı.
+---
+
+## 3. İYİLEŞTİRME VE ÇÖZÜM ÖNERİLERİ
+
+1. **Marka Kataloğunun Genişletilmesi:**
+   - `build_workflow.py` satır 514'teki `brands` dizisine `Suzuki`, `Mini`, `BMW`, `Volvo`, `Mitsubishi`, `Subaru`, `Jeep` markaları eklenmelidir.
+
+2. **Tekrarlayan Yanıt Kilidi (Duplicate Response Guard):**
+   - Bot aynı müşteriye **2 kez üst üste birebir aynı şablon metnini gönderememelidir**. İkinci tekrarda sistem otomatik olarak `action = 'handoff'`, `pauseAutomation = true` ile temsilciye devretmelidir.
+
+3. **Ruhsat Görseli Akıllı Algılama:**
+   - Müşteri görsel (ruhsat) yüklediğinde bot tekrar metin olarak şasi istemek yerine *"Ruhsat görseliniz alındı, uzmanımız şasi numarasını ruhsattan okuyarak filtre uyumunu kontrol ediyor"* yanıtı vermelidir.
+
+4. **"Mesai mesai" Typo Düzeltmesi:**
+   - [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L461) satır 461-462'deki `Mesai ${SLA_TEXT}` birleşimi `SLA_TEXT` (`"mesai saatleri içinde dönüş yapacağız."`) olarak düzeltilmelidir.
+
+---
+
+> *Rapor, kullanıcı talimatı doğrultusunda hiçbir kaynak kod değiştirilmeksizin salt-okunur E2E analiz ile hazırlanmıştır.*
