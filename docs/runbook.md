@@ -1,17 +1,17 @@
-# WhatsApp AI — v13 PostgreSQL Outbox — GPT-5.4 Operasyon Runbook
+# WhatsApp AI — v13 PostgreSQL Outbox — GPT-5.4 Operasyon & Codex Düzeltme Runbook
 
 | Alan | Değer |
 | --- | --- |
-| Doküman sürümü | 3.5 |
+| Doküman sürümü | 4.0 |
 | Son güncelleme | 2026-08-28 |
 | Sistem | FiltreOto WhatsApp AI |
-| AI Modeli | OpenAI `gpt-5.4` |
+| AI Modeli | OpenAI `gpt-5.4` / Codex `5.4` |
 | Workflow | `WhatsApp AI - v13 PostgreSQL Outbox` |
-| Node sayısı | 53 node / 45 connection source (builder çıktısı; canlı sayı `ops_drift_check` ile doğrulanır) |
-| Migration kapsamı | `001` → `070` (070 dahil: Manuel mod yönetici outbox bildirimi & 8 argümanlı ingest_message) |
+| Node sayısı | 53 node / 45 connection source |
+| Migration kapsamı | `001` → `070` (070 dahil) |
 | Timezone | `Europe/Istanbul` |
 | Sahiplik | Cemal Hasan / FiltreOto |
-| Canonical konum | `docs/runbook.md` (AGENTS.md kuralı; her deploy'da güncellenir) |
+| Canonical konum | `docs/runbook.md` |
 
 ---
 
@@ -23,42 +23,22 @@
 4. Veri katmanı (şema, fonksiyonlar, ayarlar)
 5. Konfigürasyon (credential, env, secret)
 6. Değişmez kurallar (Non-negotiables)
-7. Günlük operasyon
-8. Doğrulama matrisi (statik vs canlı)
-9. Release gate ve komut zinciri
-10. Deploy prosedürü
-11. Deploy sonrası doğrulama
-12. Rollback
-13. Incident playbook'ları
-14. Bakım işleri
-15. Mesaj politikası ve admin filtresi
-16. Güvenlik sınırları
-17. Açık bulgular ve takip
-18. Kanıt (evidence) kaydı şablonu
-19. Bulgu raporlama formatı
-20. Eskalasyon
-21. Puanlama modeli ve öncelik sırası
-22. Uygulama talimatları — GPT-5.4 görev kartları
+7. Release gate ve komut zinciri
+8. Deploy ve doğrulama prosedürü
+9. Rollback prosedürü
+10. Codex 5.4 Kod Düzeltme Görev Kartları ve Uygulama Rehberi
 
 ---
 
 ## 1. Amaç ve kapsam
 
-Bu runbook, FiltreOto WhatsApp AI sisteminin OpenAI **gpt-5.4** modeli ile **günlük işletimi, release süreci, olay müdahalesi ve rollback** adımlarını tanımlar.
-
-Kapsam içi:
-- n8n workflow `WhatsApp AI - v13 PostgreSQL Outbox` (53 Node)
-- OpenAI `gpt-5.4` akıllı filtre uyuşmazlık, kod sorgulama ve müşteri hizmetleri katmanı
-- PostgreSQL `whatsapp_ai` şeması (001-070 migrasyon zinciri)
-- Evolution API WhatsApp gateway (`evo.filtreoto.online`)
-- `ops_workflow.json` cron/bakım workflow'u
+Bu runbook, FiltreOto WhatsApp AI sisteminin OpenAI **gpt-5.4** ve **Codex 5.4** ile **kod düzeltmesi, günlük işletimi, release süreci ve olay müdahalesi** adımlarını detaylandırır.
 
 ---
 
 ## 2. Mimari ve akış
 
-### 2.1 Kritik Akış Şeması
-
+### Kritik Akış Şeması
 ```text
 [Inbound / Webhook Yolu]
 Evolution webhook (POST /webhook/evolution-webhook?token=...)
@@ -73,115 +53,19 @@ Evolution webhook (POST /webhook/evolution-webhook?token=...)
       └─ Rate Limit Exceeded?                          (evet → Respond Rate Limited)
   → Ingest Message (PostgreSQL ingest_message 8 argüman)  (hata → Prepare Ingest Failure → Respond 503)
   → Respond Accepted (HTTP 202)
-
-[Worker Yolu — Schedule Trigger, 15 saniye]
-OpenAI Circuit Gate → OpenAI Circuit Open?
-  → Claim Ready Batches → Store Context → AI Agent (OpenAI gpt-5.4)
-  → Parse AI Output → AI Output Valid?
-      ├─ geçerli → Complete AI Batch → AI Batch Completed? → Persist Chat Memory
-      └─ geçersiz → Prepare AI Failure → Record AI Failure
-→ Evolution Circuit Gate → Evolution Circuit Open?
-  → Claim Deliveries → Prepare Delivery → Delivery Valid?
-      ├─ geçerli → Send Delivery → Tag Delivery Success / Tag Delivery Error
-      └─ geçersiz → Tag Delivery Validation Error
-  → Record Delivery Result
-→ Run Stale Batch Monitor
 ```
-
-### 2.2 Tasarım İlkeleri
-
-- **Auth-before-ingest:** Yetkisiz istekler veritabanına ulaşmadan reddedilir.
-- **Transactional Outbox:** AI kararı ile WhatsApp mesaj gönderimi ayrılmıştır; outbox teslimatı `claim_deliveries` ile yapılır.
-- **Circuit Breaker:** OpenAI ve Evolution API için bağımsız devre kesiciler aktif izlenir.
-- **Idempotency:** `message_id` bazlı çifte kayıt engelleme ve atomik kilit mekanizması (`FOR UPDATE SKIP LOCKED`).
-- **GPT-5.4 Entegrasyonu:** Yüksek doğrulukta marka, model, yıl, VIN ve parça kodu çıkarımı; hallucination koruması.
 
 ---
 
 ## 3. Node Envanteri (53 Node)
 
-1. `Webhook1` (n8n-nodes-base.webhook v2)
-2. `Normalize Payload` (Code Node - Evolution v2 & @lid)
-3. `Valid Event?` (If Node)
-4. `Validate Webhook Secret` (Code Node)
-5. `Webhook Auth` (If Node)
-6. `Respond Unauthorized` (Respond to Webhook 401)
-7. `Load Admin Filter Settings` (PostgreSQL Node)
-8. `Apply Admin Number Filter` (Code Node - Admin Number Authorization)
-9. `Is Admin Number?` (If Node)
-10. `Respond Admin Filtered` (Respond to Webhook 202)
-11. `Load Holiday Settings` (PostgreSQL Node)
-12. `Check Business Hours` (Code Node - Europe/Istanbul)
-13. `Is Off Hours?` (If Node)
-14. `Wait OOH 120 Seconds` (Wait Node)
-15. `Claim OOH Notification` (PostgreSQL Node)
-16. `OOH Claim Won?` (If Node)
-17. `Build OOH Messages` (Code Node - E.164 Cleaned)
-18. `Send OOH to Customer` (HTTP Request Node)
-19. `Enqueue Manager OOH Alert` (PostgreSQL Node)
-20. `Log OOH Event` (PostgreSQL Node - Dynamic HTTP Success Mapping)
-21. `Rate Limit Exceeded?` (If Node)
-22. `Respond Rate Limited` (Respond to Webhook 202)
-23. `Ingest Message` (PostgreSQL Node - 8 Argümanlı)
-24. `Respond Accepted` (Respond to Webhook 202)
-25. `Prepare Ingest Failure` (Code Node)
-26. `Respond 503` (Respond to Webhook 503)
-27. `Schedule Trigger` (Schedule Trigger 15s)
-28. `OpenAI Circuit Gate` (PostgreSQL Node)
-29. `OpenAI Circuit Open?` (If Node)
-30. `Claim Ready Batches` (PostgreSQL Node)
-31. `Store Context` (Code Node)
-32. `AI Agent` (OpenAI Agent - gpt-5.4)
-33. `Parse AI Output` (Code Node - Guardrail & Vehicle Check)
-34. `AI Output Valid?` (If Node)
-35. `Complete AI Batch` (PostgreSQL Node)
-36. `AI Batch Completed?` (If Node)
-37. `Persist Chat Memory` (PostgreSQL Node)
-38. `Prepare AI Failure` (Code Node)
-39. `Record AI Failure` (PostgreSQL Node)
-40. `Evolution Circuit Gate` (PostgreSQL Node)
-41. `Evolution Circuit Open?` (If Node)
-42. `Claim Deliveries` (PostgreSQL Node)
-43. `Prepare Delivery` (Code Node - E.164 & @lid Validation)
-44. `Delivery Valid?` (If Node)
-45. `Send Delivery` (HTTP Request Node - Evolution sendText)
-46. `Tag Delivery Success` (Code Node)
-47. `Tag Delivery Error` (Code Node)
-48. `Tag Delivery Validation Error` (Code Node)
-49. `Record Delivery Result` (PostgreSQL Node)
-50. `Run Stale Batch Monitor` (PostgreSQL Node)
-51. `Respond Ignored` (Respond to Webhook 202)
-52. `OpenAI Chat Model1` (OpenAI Model Node - gpt-5.4)
-53. `Simple In-Memory Vector Store` (n8n Vector Store Node)
+1. `Webhook1` 2. `Normalize Payload` 3. `Valid Event?` 4. `Validate Webhook Secret` 5. `Webhook Auth` 6. `Respond Unauthorized` 7. `Load Admin Filter Settings` 8. `Apply Admin Number Filter` 9. `Is Admin Number?` 10. `Respond Admin Filtered` 11. `Load Holiday Settings` 12. `Check Business Hours` 13. `Is Off Hours?` 14. `Wait OOH 120 Seconds` 15. `Claim OOH Notification` 16. `OOH Claim Won?` 17. `Build OOH Messages` 18. `Send OOH to Customer` 19. `Enqueue Manager OOH Alert` 20. `Log OOH Event` 21. `Rate Limit Exceeded?` 22. `Respond Rate Limited` 23. `Ingest Message` 24. `Respond Accepted` 25. `Prepare Ingest Failure` 26. `Respond 503` 27. `Schedule Trigger` 28. `OpenAI Circuit Gate` 29. `OpenAI Circuit Open?` 30. `Claim Ready Batches` 31. `Store Context` 32. `AI Agent` (gpt-5.4) 33. `Parse AI Output` 34. `AI Output Valid?` 35. `Complete AI Batch` 36. `AI Batch Completed?` 37. `Persist Chat Memory` 38. `Prepare AI Failure` 39. `Record AI Failure` 40. `Evolution Circuit Gate` 41. `Evolution Circuit Open?` 42. `Claim Deliveries` 43. `Prepare Delivery` 44. `Delivery Valid?` 45. `Send Delivery` 46. `Tag Delivery Success` 47. `Tag Delivery Error` 48. `Tag Delivery Validation Error` 49. `Record Delivery Result` 50. `Run Stale Batch Monitor` 51. `Respond Ignored` 52. `OpenAI Chat Model1` 53. `Simple In-Memory Vector Store`
 
 ---
 
-## 4. Veri Katmanı (Migrasyonlar 001 - 070)
+## 4. Release Gate ve Komut Zinciri
 
-- **001 - 050:** Temel mesajlaşma, outbox, devre kesici ve batch kilit mimarisi.
-- **051 - 066:** OOH logları, admin bildirim outbox'ı, unique pending kilitleri ve holiday ayarları.
-- **067_command_admin_notifications.sql:** Yetkili komutlarda admin outbox bildirimi ve 8 argümanlı `ingest_message` imzası.
-- **067_dashboard_health_ingest_reconcile.sql:** Eski 7 argümanlı fonksiyonun kaldırılması ve dashboard metriklerinin güncellenmesi.
-- **068_ops_dry_run_guard.sql:** Bakım işlemlerinde ops koruması.
-- **069_health_dead_delivery_warning.sql:** Dead delivery sayısı uyarı eşiği.
-- **070_manual_mode_admin_notification.sql:** Müşteri manuel moddayken yeni mesaj attığında yöneticilere outbox üzerinden anlık WhatsApp bildirimi oluşturulması.
-
----
-
-## 5. Değişmez Kurallar (Non-Negotiable Rules)
-
-1. **Yetkilendirme:** Veri veritabanına yazılmadan önce webhook token ve yetki doğrulaması yapılır.
-2. **Idempotency:** `message_id` ve `batch_token` eşsizliği korunur.
-3. **Manuel Mod Yetkisi:** Yalnızca tanımlı admin numaralarından gelen `fromMe` `++`/`--` komutları manuel modu değiştirebilir.
-4. **Gizlilik:** API anahtarları, DB parolaları ve telefon numaraları sohbet loglarında veya commit'lerde açık edilemez.
-5. **Canlı Mesaj Gönderim Yasağı:** Testlerde canlı kullanıcılara izinsiz mesaj atılamaz (`test_outbound_guard.py` emniyeti).
-6. **Canlı Doğrulama Şartı:** Canlı DB ve n8n kanıtı alınmadan "Production GO" kararı verilemez.
-
----
-
-## 6. Release Gate ve Komut Zinciri
-
-Her deploy öncesinde lokal olarak aşağıdaki doğrulama komut dizisi çalıştırılmalıdır:
+Codex 5.4 ile kod düzeltmeleri tamamlandıktan sonra sırasıyla şu komutlar çalıştırılmalıdır:
 
 ```bash
 # 1. Workflow derleme ve JSON doğrulama
@@ -203,56 +87,122 @@ npm run release:gate
 
 ---
 
-## 7. Deploy ve Doğrulama Prosedürü
+## 10. Codex 5.4 Kod Düzeltme Görev Kartları ve Uygulama Rehberi
 
-### 7.1 Canlıya Veritabanı Migrasyonlarını Uygulama
-```bash
-export WHATSAPP_POSTGRES_URL="postgresql://user:password@host:port/dbname"
-python tools/wf_migrate.py
-```
-
-### 7.2 Canlı n8n ve Evolution Reconcile
-```bash
-export N8N_BASE_URL="https://n8n.filtreoto.online"
-export N8N_API_KEY="<NEW_API_KEY>"
-export N8N_WORKFLOW_ID="<WORKFLOW_ID>"
-export EVOLUTION_BASE_URL="https://evo.filtreoto.online"
-export EVOLUTION_API_KEY="<EVOLUTION_API_KEY>"
-export EVOLUTION_INSTANCE="otofiltre"
-export N8N_WEBHOOK_SECRET="efb34f7a2e23ff3382bdde8a6703b64a796381a0b341f10c"
-
-python tools/webhook_runtime_reconcile.py --apply
-```
-
-### 7.3 Canlı Veritabanı Kontrol Sorgusu
-```sql
-SELECT routine_name, parameter_name, data_type, ordinal_position
-FROM information_schema.parameters
-WHERE specific_name LIKE '%ingest_message%'
-ORDER BY ordinal_position;
-```
+Codex 5.4 modelinin kod tabanındaki tüm hataları sırasıyla düzeltmesi için detaylı uygulama talimatları:
 
 ---
 
-## 8. Rollback Prosedürü
+### 📋 GÖREV KART K-01: Marka Kataloğuna `Suzuki`, `Mini`, `BMW` vb. Ekleme
 
-Eğer canlı ortamda beklenmeyen bir aksaklık görülürse:
-
-1. n8n arayüzünde ilgili workflow'u `Active = OFF` yapın.
-2. Git deposunda bir önceki stabil commit'e dönün (`git checkout <previous_stable_commit>`).
-3. `python build_workflow.py` çalıştırıp stabil `workflow.json` dosyasını n8n'e aktarın.
-4. `Active = ON` konuma getirin.
-
----
-
-## 9. GPT-5.4 Görev Kartları ve Operasyon Talimatları
-
-GPT-5.4 modeli ile çalışırken dikkat edilecek hususlar:
-- **Model parametresi:** `gpt-5.4` olarak ayarlanmalıdır.
-- **Sıcaklık (Temperature):** 0.1 (Deterministik yanıtlar ve sıfır hallucination için).
-- **Prompt Ayrımı:** Müşteri metni prompt'a girmeden önce sanitization uygulanır.
-- **Eksik Araç Takibi:** VIN bulunmadığında motor gücü veya motor hacmi bilgisi araç tamlığı için yeterli kabul edilir.
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L514)
+- **Satır:** ~514
+- **Mevcut KOD:**
+  ```javascript
+  const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan'];
+  ```
+- **HEDEFLENEN KOD:**
+  ```javascript
+  const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan','Suzuki','Mini','Volvo','Mitsubishi','Subaru','Jeep'];
+  ```
+- **Açıklama:** Müşteri `Suzuki Swift` veya `Mini Cooper` araç bilgilerini verdiğinde bot markayı tanıyamadığı için araç tamlığı aksamakta ve fuzuli VIN istenmektedir. Markalar eklendiğinde `Suzuki` ve `Mini` tam araç olarak tanınır.
 
 ---
 
-> *İşbu runbook `AGENTS.md` standartlarına uygun olarak en güncel v13 mimarisi ve GPT-5.4 gereksinimleri doğrultusunda hazırlanmıştır.*
+### 📋 GÖREV KART K-02: Papağan Döngüsünü Engelleme (Duplicate Response Guard)
+
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L504)
+- **Satır:** ~504
+- **Açıklama:** Bot aynı müşteriye üst üste 2 kez birebir aynı yanıtı verdiğinde müşteri bot döngüsüne (looping) girmektedir.
+- **HEDEFLENEN KOD EKLEMESİ:**
+  ```javascript
+  const lastReplyText = String(ctx.lastReplyText || '').trim();
+  if (reply.length > 0 && lastReplyText.length > 0 && reply === lastReplyText) {
+    action = 'handoff';
+    pauseAutomation = true;
+    notifyAdmins = true;
+    handoffReason = 'Tekrarlayan yanıt algılandı; temsilciye devredildi';
+  }
+  ```
+
+---
+
+### 📋 GÖREV KART K-03: "Mesai mesai" SLA Şablon Typo Düzeltmesi
+
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L461)
+- **Satır:** ~461
+- **Mevcut KOD:**
+  ```javascript
+  const SLA_TEXT = 'mesai saatleri içinde';
+  const SLA_LINE = isBusinessHours
+    ? `Mesai ${SLA_TEXT} dönüş yapacağız.`
+    : 'Mesai dışındayız; talebiniz sıraya alındı, ilk iş saatinde dönüş yapılacak.';
+  ```
+- **HEDEFLENEN KOD:**
+  ```javascript
+  const SLA_TEXT = 'mesai saatleri içinde';
+  const SLA_LINE = isBusinessHours
+    ? 'Mesai saatleri içinde dönüş yapacağız.'
+    : 'Mesai dışındayız; talebiniz sıraya alındı, ilk iş saatinde dönüş yapılacak.';
+  ```
+
+---
+
+### 📋 GÖREV KART K-04: Ingress Event Filtresi (`MESSAGES_UPSERT`) Ekleme
+
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L82)
+- **Satır:** ~82 (`normalize_js`)
+- **HEDEFLENEN KOD:**
+  ```javascript
+  const eventType = String(payload?.event || root.event || root.body?.event || '');
+  const isUpsert = !eventType || eventType === 'messages.upsert' || eventType === 'MESSAGES_UPSERT';
+  const valid = Boolean(isUpsert && payload && messageId && senderNumber && !isGroup && !isBroadcast && !isProtocolMessage && !isEmpty && (!fromMe || command));
+  ```
+- **Açıklama:** Evolution API'den gelen `MESSAGES_UPDATE` veya `SEND_MESSAGE` gibi diğer etkinliklerin veritabanına girmesi engellenir.
+
+---
+
+### 📋 GÖREV KART K-05: OOH HTTP 400 Cooldown Sızıntısı Düzeltmesi
+
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L1267)
+- **Satır:** ~1267 (`Log OOH Event` postgres node)
+- **HEDEFLENEN KOD:**
+  ```python
+  postgres_node(
+      "Log OOH Event",
+      "UPDATE whatsapp_ai.ooh_log SET customer_sent = $2 WHERE id = $1::uuid RETURNING id",
+      "={{ [ $('Build OOH Messages').item.json.oohLogId, Boolean(($('Send OOH to Customer').item.json.key || $('Send OOH to Customer').item.json.status === 'SENT' || $('Send OOH to Customer').item.json.status === 'PENDING') && !$('Send OOH to Customer').item.json.error && (!$('Send OOH to Customer').item.json.statusCode || $('Send OOH to Customer').item.json.statusCode < 400)) ] }}",
+      [2540, 260],
+  ),
+  ```
+
+---
+
+### 📋 GÖREV KART K-06: OOH Adresleme ve Numara Temizliği
+
+- **İlgili Dosya:** [build_workflow.py](file:///C:/ILAN/WHATSAPP_N8N/build_workflow.py#L984)
+- **Satır:** ~984 (`build_ooh_messages_js`)
+- **HEDEFLENEN KOD:**
+  ```javascript
+  const senderNumberRaw = String(claim.senderNumber || ctx.senderNumber || '');
+  const senderNumber = senderNumberRaw.replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/gi, '').replace(/[^0-9]/g, '');
+  ```
+
+---
+
+### 📋 GÖREV KART K-07: Legacy Policy Engine Test Suite Düzeltmesi
+
+- **İlgili Dosya:** [tools/test_policy_engine.test.js](file:///C:/ILAN/WHATSAPP_N8N/tools/test_policy_engine.test.js#L536)
+- **Satır:** ~536
+- **Açıklama:** Testteki `_deliveryLedger` ve assertion beklentileri güncel v13 outbox yapısıyla eşleşecek şekilde güncellenmeli ve `node tools/test_policy_engine.test.js` çıkış kodu 0 olmalıdır.
+
+---
+
+### 📋 GÖREV KART K-08: Untracked Backup Klasörü Karantinası
+
+- **İlgili Dosya:** [.gitignore](file:///C:/ILAN/WHATSAPP_N8N/.gitignore)
+- **Açıklama:** `.gitignore` dosyasına `postgresql_backup/` satırı eklenerek 52MB boyutundaki dump dosyasının repoya girmesi engellenmelidir.
+
+---
+
+> *İşbu uygulama rehberi Codex 5.4 modelinin tüm hataları deterministik olarak sırayla ve hatasız düzeltebilmesi için hazırlanmıştır.*
