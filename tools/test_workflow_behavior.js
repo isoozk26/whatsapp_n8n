@@ -67,6 +67,11 @@ async function testNormalize() {
   assert.strictEqual(header.json.webhookToken, "header-token");
   assert.strictEqual(header.json.authSource, "header");
 
+  const nonUpsert = { ...webhook(data), event: "MESSAGES_UPDATE" };
+  assert.strictEqual((await execute(codeOf("Normalize Payload"), nonUpsert, () => ({}), {})).json.valid, false);
+  const explicitUpsert = { ...webhook(data), event: "MESSAGES_UPSERT" };
+  assert.strictEqual((await execute(codeOf("Normalize Payload"), explicitUpsert, () => ({}), {})).json.valid, true);
+
   const group = structuredClone(data);
   group.key.remoteJid = "120000@g.us";
   assert.strictEqual((await execute(codeOf("Normalize Payload"), webhook(group), () => ({}), {})).json.valid, false);
@@ -414,6 +419,12 @@ async function testPolicy() {
   const authenticity = await runParse({ ...base, intent: "other", caseType: "other", replyDraft: "" }, context("Ürünler orijinal mi, fatura var mı?"));
   assert(normalizeText(authenticity.json.cevap).toLowerCase().includes("etbis"));
   assert(normalizeText(authenticity.json.cevap).toLowerCase().includes("3d secure"));
+
+  const firstReply = await runParse({ ...base, replyDraft: "" });
+  const repeatedReply = await runParse({ ...base, replyDraft: "" }, { ...context(), lastReplyText: firstReply.json.cevap });
+  assert.strictEqual(repeatedReply.json.action, "handoff");
+  assert.strictEqual(repeatedReply.json.pauseAutomation, true);
+  assert.strictEqual(repeatedReply.json.handoffReason, "Tekrarlayan yanıt algılandı; temsilciye devredildi");
 }
 
 async function testOohMessages() {
@@ -476,6 +487,13 @@ async function testOohMessages() {
   assert.strictEqual(cooled.json.customerSent, false);
   assert(cooled.json.managerMsg.includes("cooldown nedeniyle atlandı"));
   assert(normalizeText(cooled.json.customerMsg).includes("resmi tatil"));
+
+  const lid = await execute(codeOf("Build OOH Messages"), {}, (name) => {
+    if (name === "Check Business Hours") return { item: { json: { ...baseCtx, senderNumber: "11149818998846@lid" } } };
+    if (name === "Claim OOH Notification") return { item: { json: { claimed: true, senderNumber: "11149818998846@lid", oohLogId: "00000000-0000-0000-0000-000000000003" } } };
+    throw new Error(`unexpected lookup: ${name}`);
+  });
+  assert.strictEqual(lid.json.senderNumber, "11149818998846@lid");
 }
 
 async function testBusinessHoursNextAttempt() {

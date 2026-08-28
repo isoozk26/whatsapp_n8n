@@ -86,6 +86,8 @@ const payload = root.body?.body?.data
   || root.body?.body
   || root.body
   || (root.key ? root : null);
+const eventType = String(root.event || root.body?.event || root.body?.body?.event || '');
+const isUpsert = !eventType || eventType === 'messages.upsert' || eventType === 'MESSAGES_UPSERT';
 const headers = root.headers || root.body?.headers || {};
 const headerSecret = String(headers['x-webhook-secret'] || headers['x-evolution-webhook-secret'] || '');
 const queryToken = String(root.query?.token || root.queryToken || root.token || root.body?.query?.token || '');
@@ -161,7 +163,7 @@ const isCommand = commandMatch !== null;
 const authorizedCommand = fromMe && isCommand;
 const command = authorizedCommand ? (commandMatch[1] === '++' ? 'pause' : commandMatch[1] === '--' ? 'resume' : 'check_mode') : null;
 // Ignore: protocol messages, empty text without media, groups, broadcasts
-const valid = Boolean(payload && messageId && senderNumber && !isGroup && !isBroadcast && !isProtocolMessage && !isEmpty && (!fromMe || command));
+const valid = Boolean(isUpsert && payload && messageId && senderNumber && !isGroup && !isBroadcast && !isProtocolMessage && !isEmpty && (!fromMe || command));
 const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
 
 // Rate limiting kontrolü (staticData üzerinden)
@@ -199,7 +201,7 @@ const message = {
   timestamp: Date.now(), mediaUrl, mimetype, isMediaMessage, mediaType
 };
 return { json: {
-  valid, queryToken, webhookToken, authSource: headerSecret ? 'header' : 'query',
+  valid, eventType, isUpsert, queryToken, webhookToken, authSource: headerSecret ? 'header' : 'query',
   senderNumber, senderName: String(payload?.pushName || senderNumber),
   messageId, fromMe, command, rawJid, message, correlationId,
   commandMessageId: messageId, commandRemoteJid: rawJid,
@@ -317,6 +319,9 @@ const chatMemoryText = (Array.isArray(chatMemoryRows) ? chatMemoryRows : [])
   })
   .filter(Boolean)
   .join('\\n');
+const lastReplyText = (Array.isArray(chatMemoryRows) ? chatMemoryRows : [])
+  .slice().reverse()
+  .find(item => item?.role === 'assistant' && String(item?.content || '').trim())?.content || '';
 const _codePatterns = [
   /\b[A-Z]{1,4}\s?\d{2,6}(?:\/\d{1,4})?[A-Z]{0,3}\b/gi,
   /\b[A-Z0-9]{2,10}[.\/-][A-Z0-9]{1,10}\b/g,
@@ -335,6 +340,7 @@ return { json: {
   allMessagesText, detectedCodes, aiAttemptCount: Number(row.ai_attempt_count || 0),
   assigneeName: String(row.assignee_name || 'İsmail Özkaracan'),
   correlationId: String(row.correlation_id || row.correlationId || ''),
+  lastReplyText: String(row.last_reply_text || row.lastReplyText || lastReplyText || '').trim(),
   isMediaMessage: Boolean(row.is_media_message || row.isMediaMessage),
   mediaType: String(row.media_type || row.mediaType || ''),
   chatMemoryText,
@@ -455,7 +461,7 @@ const BUSINESS_HOURS = { Mon: [9, 18], Tue: [9, 18], Wed: [9, 18], Thu: [9, 18],
 const _window = HOLIDAYS.includes(_dateKey) ? null : BUSINESS_HOURS[_day];
 const isBusinessHours = Array.isArray(_window) && _hour >= _window[0] && _hour < _window[1];
 const SLA_LINE = isBusinessHours
-  ? `Mesai ${SLA_TEXT} dönüş yapacağız.`
+  ? 'Mesai saatleri içinde dönüş yapacağız.'
   : 'Mesai dışındayız; talebiniz sıraya alındı, ilk iş saatinde dönüş yapılacak.';
 
 // --- Type validation & length limits ---
@@ -507,7 +513,7 @@ let fallbackType = null;
 
 const filterRequest = /\b(yağ|yag|hava|yakıt|yakit|polen|kabin|şanzıman|sanziman)\s+filtresi?\b|\bfiltre\b/i.test(plainText);
 const yearMatch = vehicleSourceText.match(/\b(19\d{2}|20\d{2})\b/);
-const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan'];
+const brands = ['Fiat','Renault','Ford','Volkswagen','VW','Opel','Peugeot','Citroen','Toyota','Honda','Hyundai','Kia','Mercedes','BMW','Audi','Skoda','Seat','Dacia','Nissan','Suzuki','Mini','Volvo','Mitsubishi','Subaru','Jeep'];
 const brand = brands.find(item => new RegExp(`\\b${item}\\b`, 'i').test(vehicleSourceText));
 let extractedVehicle = '';
 if (brand) {
@@ -792,6 +798,16 @@ if (escapedName) reply = reply.replace(new RegExp(`^(Merhaba|Selam)\\s+${escaped
 reply = reply.replace(/\*\*(.+?)\*\*/g, '*$1*');
 reply = reply.replace(/\s+/g, ' ').trim();
 
+// Aynı yanıtı tekrar göndermek yerine temsilciye devret.
+const lastReplyText = String(ctx.lastReplyText || '').trim();
+if (reply.length > 0 && lastReplyText.length > 0 && reply === lastReplyText) {
+  action = 'handoff';
+  pauseAutomation = true;
+  notifyAdmins = true;
+  handoffReason = 'Tekrarlayan yanıt algılandı; temsilciye devredildi';
+  replyStatus = 'handed_off';
+}
+
 let reason = '';
 if (action === 'handoff') reason = handoffReason || 'manual_review_required';
 else if (caseType === 'partial_code') reason = partialSubType === 'bulk_request'
@@ -982,7 +998,10 @@ const ctx = $('Check Business Hours').item.json || {};
 const claim = $('Claim OOH Notification').item.json || {};
 const senderName = String(claim.senderName || ctx.senderName || 'Değerli Müşterimiz');
 const senderNumberRaw = String(claim.senderNumber || ctx.senderNumber || '');
-const senderNumber = senderNumberRaw.replace(/@s\.whatsapp\.net$|@g\.us$|@lid$/gi, '').replace(/[^0-9]/g, '');
+const isLid = senderNumberRaw.toLowerCase().endsWith('@lid');
+const senderNumber = isLid
+  ? senderNumberRaw.replace(/[^0-9@a-zA-Z._-]/g, '').replace(/@lid$/i, '@lid')
+  : senderNumberRaw.replace(/@s\.whatsapp\.net$|@g\.us$/gi, '').replace(/[^0-9]/g, '');
 const scenario = String(claim.scenario || ctx.scenario || 'evening');
 const istanbulDay = String(claim.istanbulDay || ctx.istanbulDay || '');
 const istanbulTime = String(claim.istanbulTime || ctx.istanbulTime || '');

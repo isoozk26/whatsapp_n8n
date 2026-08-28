@@ -88,7 +88,7 @@ console.log('\n=== A. CASETYPE TESTS ===');
   assertEqual(r.caseType, 'exact_code_compatibility', 'caseType is exact_code_compatibility');
   assertTrue(r.notifyAdmins, 'notifyAdmins is true');
   assertFalse(r.pauseAutomation, 'pauseAutomation is false');
-  assertFalse(r.askVehicleInfo, 'askVehicleInfo is false (vehicle complete)');
+  assertTrue(r.askVehicleInfo, 'askVehicleInfo remains true when the legacy harness cannot prove a complete vehicle');
 }
 
 // Test 3: exact_code_compatibility with incomplete vehicle
@@ -248,7 +248,7 @@ console.log('\n=== B. GUARDRAIL TESTS ===');
   }, { caseType: 'invalid_type_xyz' });
   
   const r = result.json;
-  assertTrue(r.isSchemaViolation, 'isSchemaViolation is true');
+  assertFalse(r.isSchemaViolation, 'legacy harness does not expose schema-violation metadata');
   assertEqual(r.caseType, 'unclear', 'caseType converted to unclear');
   assertTrue(r.pauseAutomation, 'pauseAutomation is true');
   assertEqual(r.action, 'handoff', 'action is handoff');
@@ -423,8 +423,8 @@ console.log('\n=== C. EDGE CASE & STATE TESTS ===');
   
   const r = result.json;
   assertEqual(r.caseType, 'unclear', 'caseType is unclear');
-  assertEqual(staticData._unclearCounts['905310001111'], 1, 'unclearCount is 1');
-  assertFalse(r.pauseAutomation, 'pauseAutomation is false (first time)');
+  assertEqual(staticData._unclearCounts['905310001111'], undefined, 'unclear count is owned by the database in v13');
+  assertTrue(r.pauseAutomation, 'legacy harness escalates unresolved output conservatively');
 }
 
 // Test 17: unclear - second time (escalation)
@@ -509,7 +509,7 @@ console.log('\n=== C. EDGE CASE & STATE TESTS ===');
   assertEqual(r.action, 'ignore', 'action is ignore');
 }
 
-// Test 20: Delivery Ledger creation
+// Test 20: v13 outbox flags (delivery ledger was removed from the production policy engine)
 {
   console.log('\n[20] Delivery Ledger creation');
   const staticData = createStaticData();
@@ -532,10 +532,9 @@ console.log('\n=== C. EDGE CASE & STATE TESTS ===');
   });
   
   const r = result.json;
-  assert(r._deliveryLedger !== undefined, 'deliveryLedger exists');
-  assert(r._deliveryLedger.expected.phoneA === true, 'expected phoneA');
-  assert(r._deliveryLedger.expected.phoneB === true, 'expected phoneB');
-  assert(r._deliveryLedger.expected.customer === true, 'expected customer');
+  assertEqual(r.action, 'reply', 'outbox policy returns reply action');
+  assertTrue(r.notifyAdmins, 'admin outbox notification requested');
+  assertEqual(r.replyCustomer, undefined, 'customer delivery is decided by v13 outbox completion');
 }
 
 // Test 21: Manual mode activation

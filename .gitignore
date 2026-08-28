@@ -27,3 +27,4 @@ __pycache__/
 !.checkpoint_status.json
 node_modules/
 dist/
+postgresql_backup/

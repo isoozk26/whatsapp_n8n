@@ -57,6 +57,8 @@ def main():
     normalize = node("Normalize Payload")["parameters"]["jsCode"]
     assert "root.body?.body?.data" in normalize
     assert "root.data" in normalize
+    assert "eventType" in normalize
+    assert "isUpsert" in normalize
     assert "isGroup" in normalize and "isBroadcast" in normalize
     assert targets("Valid Event?", 0) == ["Load Holiday Settings"]
     assert targets("Valid Event?", 1) == ["Respond Ignored"]
@@ -121,6 +123,9 @@ def main():
     assert "SLA_TEXT" in parse
     assert "BRAND_LINE" in parse
     assert "SLA_LINE" in parse
+    assert "Mesai saatleri içinde dönüş yapacağız." in parse
+    assert "Suzuki" in parse and "Mini" in parse and "Volvo" in parse
+    assert "Tekrarlayan yanıt algılandı" in parse
     assert "suppressEmoji" in parse
     assert "HOLIDAYS" in parse and "BUSINESS_HOURS" in parse
     assert "Sat: [9, 18]" in parse
